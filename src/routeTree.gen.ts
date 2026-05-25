@@ -23,6 +23,7 @@ import { Route as AppAccountsRouteImport } from './routes/_app.accounts'
 import { Route as ApiQueueIdRouteImport } from './routes/api/queue.$id'
 import { Route as ApiMediaUploadRouteImport } from './routes/api/media.upload'
 import { Route as ApiCronTickRouteImport } from './routes/api/cron.tick'
+import { Route as ApiAuthInstagramRouteImport } from './routes/api/auth.instagram'
 import { Route as ApiAccountsIdRouteImport } from './routes/api/accounts.$id'
 
 const AppRoute = AppRouteImport.update({
@@ -94,6 +95,11 @@ const ApiCronTickRoute = ApiCronTickRouteImport.update({
   path: '/api/cron/tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthInstagramRoute = ApiAuthInstagramRouteImport.update({
+  id: '/api/auth/instagram',
+  path: '/api/auth/instagram',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAccountsIdRoute = ApiAccountsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -112,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/api/history': typeof ApiHistoryRoute
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/accounts/$id': typeof ApiAccountsIdRoute
+  '/api/auth/instagram': typeof ApiAuthInstagramRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByTo {
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRoute
+  '/api/auth/instagram': typeof ApiAuthInstagramRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
@@ -146,6 +154,7 @@ export interface FileRoutesById {
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/_app/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRoute
+  '/api/auth/instagram': typeof ApiAuthInstagramRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
@@ -164,6 +173,7 @@ export interface FileRouteTypes {
     | '/api/history'
     | '/api/queue'
     | '/api/accounts/$id'
+    | '/api/auth/instagram'
     | '/api/cron/tick'
     | '/api/media/upload'
     | '/api/queue/$id'
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
     | '/api/queue'
     | '/'
     | '/api/accounts/$id'
+    | '/api/auth/instagram'
     | '/api/cron/tick'
     | '/api/media/upload'
     | '/api/queue/$id'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/api/queue'
     | '/_app/'
     | '/api/accounts/$id'
+    | '/api/auth/instagram'
     | '/api/cron/tick'
     | '/api/media/upload'
     | '/api/queue/$id'
@@ -207,6 +219,7 @@ export interface RootRouteChildren {
   ApiAccountsRoute: typeof ApiAccountsRouteWithChildren
   ApiHistoryRoute: typeof ApiHistoryRoute
   ApiQueueRoute: typeof ApiQueueRouteWithChildren
+  ApiAuthInstagramRoute: typeof ApiAuthInstagramRoute
   ApiCronTickRoute: typeof ApiCronTickRoute
   ApiMediaUploadRoute: typeof ApiMediaUploadRoute
 }
@@ -311,6 +324,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/instagram': {
+      id: '/api/auth/instagram'
+      path: '/api/auth/instagram'
+      fullPath: '/api/auth/instagram'
+      preLoaderRoute: typeof ApiAuthInstagramRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/accounts/$id': {
       id: '/api/accounts/$id'
       path: '/$id'
@@ -372,9 +392,20 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAccountsRoute: ApiAccountsRouteWithChildren,
   ApiHistoryRoute: ApiHistoryRoute,
   ApiQueueRoute: ApiQueueRouteWithChildren,
+  ApiAuthInstagramRoute: ApiAuthInstagramRoute,
   ApiCronTickRoute: ApiCronTickRoute,
   ApiMediaUploadRoute: ApiMediaUploadRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
