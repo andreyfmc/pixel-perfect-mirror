@@ -1,36 +1,27 @@
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "insta-manager",
-  "compatibility_date": "2025-09-24",
-  "compatibility_flags": ["nodejs_compat"],
-  "main": "src/server.ts",
+name: Deploy to Cloudflare Workers
 
-  // ============================================================
-  // Bindings — substitua os IDs após rodar os comandos do SETUP.md
-  // ============================================================
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "insta-manager",
-      "database_id": "REPLACE_WITH_D1_ID",
-      "migrations_dir": "migrations"
-    }
-  ],
+on:
+  push:
+    branches: [ main ]
 
-  "r2_buckets": [
-    {
-      "binding": "MEDIA",
-      "bucket_name": "insta-media"
-    }
-  ],
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-  // Cron a cada minuto — varre a fila e publica o que estiver vencido
-  "triggers": {
-    "crons": ["* * * * *"]
-  },
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
-  "vars": {
-    // Não-secretos. Tokens do Instagram vão via `wrangler secret put`.
-    "APP_ENV": "production"
-  }
-}
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build
+        run: bun run build
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
