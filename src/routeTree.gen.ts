@@ -9,61 +9,205 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as AppWarmupRouteImport } from './routes/_app.warmup'
+import { Route as AppSettingsRouteImport } from './routes/_app.settings'
+import { Route as AppQueueRouteImport } from './routes/_app.queue'
+import { Route as AppHistoryRouteImport } from './routes/_app.history'
+import { Route as AppContingencyRouteImport } from './routes/_app.contingency'
+import { Route as AppAccountsRouteImport } from './routes/_app.accounts'
 
-const IndexRoute = IndexRouteImport.update({
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => AppRoute,
+} as any)
+const AppWarmupRoute = AppWarmupRouteImport.update({
+  id: '/warmup',
+  path: '/warmup',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppQueueRoute = AppQueueRouteImport.update({
+  id: '/queue',
+  path: '/queue',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppHistoryRoute = AppHistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppContingencyRoute = AppContingencyRouteImport.update({
+  id: '/contingency',
+  path: '/contingency',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAccountsRoute = AppAccountsRouteImport.update({
+  id: '/accounts',
+  path: '/accounts',
+  getParentRoute: () => AppRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
+  '/': typeof AppIndexRoute
+  '/accounts': typeof AppAccountsRoute
+  '/contingency': typeof AppContingencyRoute
+  '/history': typeof AppHistoryRoute
+  '/queue': typeof AppQueueRoute
+  '/settings': typeof AppSettingsRoute
+  '/warmup': typeof AppWarmupRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
+  '/accounts': typeof AppAccountsRoute
+  '/contingency': typeof AppContingencyRoute
+  '/history': typeof AppHistoryRoute
+  '/queue': typeof AppQueueRoute
+  '/settings': typeof AppSettingsRoute
+  '/warmup': typeof AppWarmupRoute
+  '/': typeof AppIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/_app/accounts': typeof AppAccountsRoute
+  '/_app/contingency': typeof AppContingencyRoute
+  '/_app/history': typeof AppHistoryRoute
+  '/_app/queue': typeof AppQueueRoute
+  '/_app/settings': typeof AppSettingsRoute
+  '/_app/warmup': typeof AppWarmupRoute
+  '/_app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/accounts'
+    | '/contingency'
+    | '/history'
+    | '/queue'
+    | '/settings'
+    | '/warmup'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/accounts'
+    | '/contingency'
+    | '/history'
+    | '/queue'
+    | '/settings'
+    | '/warmup'
+    | '/'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/_app/accounts'
+    | '/_app/contingency'
+    | '/_app/history'
+    | '/_app/queue'
+    | '/_app/settings'
+    | '/_app/warmup'
+    | '/_app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/': {
+      id: '/_app/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/warmup': {
+      id: '/_app/warmup'
+      path: '/warmup'
+      fullPath: '/warmup'
+      preLoaderRoute: typeof AppWarmupRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/queue': {
+      id: '/_app/queue'
+      path: '/queue'
+      fullPath: '/queue'
+      preLoaderRoute: typeof AppQueueRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/history': {
+      id: '/_app/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof AppHistoryRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/contingency': {
+      id: '/_app/contingency'
+      path: '/contingency'
+      fullPath: '/contingency'
+      preLoaderRoute: typeof AppContingencyRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/accounts': {
+      id: '/_app/accounts'
+      path: '/accounts'
+      fullPath: '/accounts'
+      preLoaderRoute: typeof AppAccountsRouteImport
+      parentRoute: typeof AppRoute
     }
   }
 }
 
+interface AppRouteChildren {
+  AppAccountsRoute: typeof AppAccountsRoute
+  AppContingencyRoute: typeof AppContingencyRoute
+  AppHistoryRoute: typeof AppHistoryRoute
+  AppQueueRoute: typeof AppQueueRoute
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppWarmupRoute: typeof AppWarmupRoute
+  AppIndexRoute: typeof AppIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppAccountsRoute: AppAccountsRoute,
+  AppContingencyRoute: AppContingencyRoute,
+  AppHistoryRoute: AppHistoryRoute,
+  AppQueueRoute: AppQueueRoute,
+  AppSettingsRoute: AppSettingsRoute,
+  AppWarmupRoute: AppWarmupRoute,
+  AppIndexRoute: AppIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
