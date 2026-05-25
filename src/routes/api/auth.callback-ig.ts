@@ -12,6 +12,7 @@ export const Route = createFileRoute("/api/auth/callback-ig")({
         if (err) return popupResponseHtml({ ok: false, error: err });
         if (!code) return popupResponseHtml({ ok: false, error: "missing_code" });
         try {
+          await ensureEnv();
           const res = await handleInstagramCallback(request, code);
           return popupResponseHtml({
             ok: true,
