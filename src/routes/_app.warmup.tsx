@@ -31,9 +31,44 @@ const tabs = [
 
 type TabId = (typeof tabs)[number]["id"];
 
+type Upload = {
+  name: string;
+  size: number;
+  status: "uploading" | "done" | "error";
+  key?: string;
+  url?: string;
+  error?: string;
+};
+
 function WarmupPage() {
   const [tab, setTab] = useState<TabId>("upload");
   const [coverTab, setCoverTab] = useState<"url" | "drive" | "local">("url");
+  const [uploads, setUploads] = useState<Upload[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFiles(files: FileList | null) {
+    if (!files?.length) return;
+    const list = Array.from(files);
+    const baseIdx = uploads.length;
+    setUploads((u) => [
+      ...u,
+      ...list.map((f) => ({ name: f.name, size: f.size, status: "uploading" as const })),
+    ]);
+    await Promise.all(
+      list.map(async (file, i) => {
+        const result = await api.uploadMedia(file);
+        setUploads((u) => {
+          const copy = [...u];
+          const idx = baseIdx + i;
+          copy[idx] = result
+            ? { ...copy[idx], status: "done", key: result.key, url: result.url }
+            : { ...copy[idx], status: "error", error: "Falha no upload — bindings R2 indisponíveis?" };
+          return copy;
+        });
+      }),
+    );
+  }
+
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
