@@ -12,6 +12,7 @@ export const Route = createFileRoute("/api/auth/instagram")({
           | "facebook";
         const state = crypto.randomUUID();
         try {
+          await ensureEnv();
           const authUrl = buildAuthUrl(request, provider, state);
           return new Response(JSON.stringify({ url: authUrl, state }), {
             status: 200,
