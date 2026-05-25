@@ -59,15 +59,45 @@ function AccountsPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
-      <header className="mb-8 flex items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Contas</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Suas conexões</h1>
-        </div>
-        <button className="inline-flex items-center gap-1.5 rounded-lg im-grad-accent px-3.5 py-2 text-sm font-medium text-white">
-          <Plus className="h-4 w-4" /> Conectar Instagram
-        </button>
+      <header className="mb-8">
+        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Contas</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Suas conexões</h1>
       </header>
+
+      <section className="mb-8 grid gap-4 md:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => handleConnect("instagram")}
+          disabled={loading !== null}
+          className="im-card im-card-hover group relative flex items-center gap-4 p-5 text-left disabled:opacity-60"
+          style={{ background: "linear-gradient(135deg, rgba(225,48,108,0.18), rgba(131,58,180,0.18))" }}
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl text-white" style={{ background: "linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)" }}>
+            {loading === "instagram" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Instagram className="h-5 w-5" />}
+          </div>
+          <div className="min-w-0">
+            <div className="text-base font-semibold">Conectar com Instagram</div>
+            <div className="text-xs text-text2">Instagram Login direto · contas Business sem Página</div>
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => handleConnect("facebook")}
+          disabled={loading !== null}
+          className="im-card im-card-hover group relative flex items-center gap-4 p-5 text-left disabled:opacity-60"
+          style={{ background: "linear-gradient(135deg, rgba(24,119,242,0.18), rgba(0,82,204,0.18))" }}
+        >
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#1877F2] text-white">
+            {loading === "facebook" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Facebook className="h-5 w-5" />}
+          </div>
+          <div className="min-w-0">
+            <div className="text-base font-semibold">Conectar via Facebook</div>
+            <div className="text-xs text-text2">Para contas Business com Página vinculada</div>
+          </div>
+        </button>
+      </section>
+
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20 text-text2">
