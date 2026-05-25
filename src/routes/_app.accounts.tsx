@@ -1,8 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { toast } from "sonner";
 import { api } from "@/lib/api-client";
 import { fmtDateShort, fmtDateFull } from "@/lib/format";
-import { Plus, MoreHorizontal, ShieldCheck, Loader2 } from "lucide-react";
+import { Plus, MoreHorizontal, ShieldCheck, Loader2, Instagram, Facebook } from "lucide-react";
+import { useOAuthPopup } from "@/hooks/use-oauth-popup";
 
 export const Route = createFileRoute("/_app/accounts")({
   component: AccountsPage,
@@ -16,10 +19,43 @@ function ringForHealth(score: number) {
 }
 
 function AccountsPage() {
+  const qc = useQueryClient();
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
   });
+  const { connect, loading } = useOAuthPopup();
+
+  async function handleConnect(provider: "instagram" | "facebook") {
+    const label = provider === "instagram" ? "Instagram" : "Facebook";
+    const t = toast.loading(`Conectando ao ${label}…`);
+    const res = await connect(provider);
+    toast.dismiss(t);
+    if (res.ok) {
+      const names = (res.saved ?? []).map((u) => `@${u}`).join(", ") || "conta";
+      toast.success(`Conectado: ${names}`);
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+    } else {
+      toast.error(res.error ?? "Falha na conexão");
+    }
+  }
+
+  // Fallback redirect (mobile): lê resultado da query string
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    if (!p.has("ok")) return;
+    const ok = p.get("ok") === "true";
+    if (ok) {
+      const saved = p.get("saved");
+      toast.success(`Conta conectada: ${saved ?? ""}`);
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+    } else {
+      toast.error(p.get("error") ?? "Falha na conexão");
+    }
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [qc]);
+
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
