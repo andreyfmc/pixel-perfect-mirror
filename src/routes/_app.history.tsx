@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { mockHistory } from "@/lib/mock";
+import { fmtDateTime } from "@/lib/format";
 import { Eye, Heart, MessageCircle } from "lucide-react";
 
 export const Route = createFileRoute("/_app/history")({
@@ -37,14 +38,7 @@ function HistoryPage() {
                   </div>
                 </td>
                 <td className="px-4 py-3 text-text2">@{h.account}</td>
-                <td className="px-4 py-3 text-text2">
-                  {new Date(h.published_at).toLocaleString("pt-BR", {
-                    day: "2-digit",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </td>
+                <td className="px-4 py-3 text-text2">{fmtDateTime(h.published_at)}</td>
                 <td className="px-4 py-3 text-right tabular-nums">
                   <span className="inline-flex items-center gap-1 justify-end">
                     <Eye className="h-3.5 w-3.5 text-muted2" />

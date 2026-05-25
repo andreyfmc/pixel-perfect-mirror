@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { mockAccounts } from "@/lib/mock";
+import { fmtDateFull } from "@/lib/format";
 import { ShieldAlert, ShieldCheck, Pause, Activity } from "lucide-react";
 
 export const Route = createFileRoute("/_app/contingency")({
@@ -50,8 +51,7 @@ function ContingencyPage() {
                   </span>
                 </div>
                 <p className="mt-1 text-sm text-text2">
-                  Último post {new Date(a.last_post_at).toLocaleDateString("pt-BR")} · token expira{" "}
-                  {new Date(a.token_expires_at).toLocaleDateString("pt-BR")}
+                  Último post {fmtDateFull(a.last_post_at)} · token expira {fmtDateFull(a.token_expires_at)}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
