@@ -3,7 +3,7 @@
 
 import { db } from "./db.server";
 import { instagram } from "./instagram.server";
-import { env, hasDb } from "./cf.server";
+import { hasDb } from "./cf.server";
 
 // URL pública dos arquivos no R2 (Public Access ativado no bucket insta-media).
 // Trocar por custom domain quando configurado.
