@@ -60,7 +60,6 @@
         "zod": "^3.24.2",
       },
       "devDependencies": {
-        "@cloudflare/workers-types": "^4.20260524.1",
         "@eslint/js": "^9.32.0",
         "@lovable.dev/vite-tanstack-config": "^1.7.0",
         "@types/node": "^22.16.5",
@@ -142,8 +141,6 @@
     "@cloudflare/workerd-linux-arm64": ["@cloudflare/workerd-linux-arm64@1.20260421.1", "", { "os": "linux", "cpu": "arm64" }, "sha512-YI4+mLfwnJcKJ+iPyxzx+tp2Jy4o29BxBPSQGZxl/AZyvZ9eTKsmNZmtjEiT4i3O/M0tdO/B/d9ESDHbRCs2rQ=="],
 
     "@cloudflare/workerd-windows-64": ["@cloudflare/workerd-windows-64@1.20260421.1", "", { "os": "win32", "cpu": "x64" }, "sha512-q1SFgwlNH9lFmw74vh7EJbJtduo92Nx51mNOfd3/u6pux6AldcwRviYzKEEv3FEbtv6OBB7J8D5f8vtZj7Z6Sg=="],
-
-    "@cloudflare/workers-types": ["@cloudflare/workers-types@4.20260524.1", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@cloudflare/workers-types/-/workers-types-4.20260524.1.tgz", {}, "sha512-9o939wce6hAlfNAIG4W58bySW7twgkqgPkxmSNrk/DV0eEexjTPyqChGdsQeKZEXJAjxSUFklaebMYJWg1GM0g=="],
 
     "@cspotcode/source-map-support": ["@cspotcode/source-map-support@0.8.1", "", { "dependencies": { "@jridgewell/trace-mapping": "0.3.9" } }, "sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw=="],
 

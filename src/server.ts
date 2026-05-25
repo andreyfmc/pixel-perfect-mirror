@@ -77,20 +77,4 @@ export default {
       return brandedErrorResponse();
     }
   },
-
-  // Cron Trigger — executado conforme `triggers.crons` em wrangler.jsonc.
-  // Carrega o scheduler de forma preguiçosa para manter o cold-start do fetch leve.
-  async scheduled(_event: ScheduledController, _env: unknown, ctx: ExecutionContext) {
-    ctx.waitUntil(
-      (async () => {
-        try {
-          const { runScheduler } = await import("./lib/scheduler.server");
-          const r = await runScheduler();
-          console.log(`[cron] processed=${r.processed} errors=${r.errors}`);
-        } catch (err) {
-          console.error("[cron] falhou:", err);
-        }
-      })(),
-    );
-  },
 };
