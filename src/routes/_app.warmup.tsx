@@ -11,6 +11,8 @@ import {
   Link2,
   HardDrive,
 } from "lucide-react";
+import { DrivePicker } from "@/components/DrivePicker";
+import type { DriveVideo } from "@/lib/drive.functions";
 
 export const Route = createFileRoute("/_app/warmup")({
   component: WarmupPage,
@@ -30,6 +32,8 @@ type TabId = (typeof tabs)[number]["id"];
 function WarmupPage() {
   const [tab, setTab] = useState<TabId>("upload");
   const [coverTab, setCoverTab] = useState<"url" | "drive" | "local">("url");
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  const [pickedVideo, setPickedVideo] = useState<DriveVideo | null>(null);
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
