@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { mockAccounts } from "@/lib/mock";
 import { api } from "@/lib/api-client";
-import { listDriveVideos, type DriveVideo } from "@/lib/drive.functions";
+import { listDriveEntries, type DriveVideo, type DriveFolder, type DriveCrumb } from "@/lib/drive.functions";
+import { Folder, ChevronRight, Home } from "lucide-react";
 import {
   UploadCloud,
   Type,
@@ -365,9 +366,12 @@ function WarmupPage() {
 }
 
 function DistributeTab() {
-  const fetchVideos = useServerFn(listDriveVideos);
+  const fetchEntries = useServerFn(listDriveEntries);
   const [loading, setLoading] = useState(true);
+  const [folderId, setFolderId] = useState<string>("root");
+  const [folders, setFolders] = useState<DriveFolder[]>([]);
   const [videos, setVideos] = useState<DriveVideo[]>([]);
+  const [breadcrumbs, setBreadcrumbs] = useState<DriveCrumb[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<DriveVideo | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
@@ -381,14 +385,17 @@ function DistributeTab() {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    fetchVideos()
+    setLoading(true);
+    fetchEntries({ data: { folderId } })
       .then((r) => {
+        setFolders(r.folders);
         setVideos(r.videos);
+        setBreadcrumbs(r.breadcrumbs);
         setError(r.error);
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
-  }, [fetchVideos]);
+  }, [fetchEntries, folderId]);
 
   const toggleAccount = (u: string) =>
     setSelectedAccounts((s) => (s.includes(u) ? s.filter((x) => x !== u) : [...s, u]));
@@ -414,8 +421,29 @@ function DistributeTab() {
     <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
       <div>
         <h3 className="mb-3 text-sm font-semibold flex items-center gap-2">
-          <HardDrive className="h-4 w-4" /> Vídeos no seu Google Drive
+          <HardDrive className="h-4 w-4" /> Google Drive
         </h3>
+
+        <div className="mb-3 flex flex-wrap items-center gap-1 rounded-lg border border-border bg-bg3/60 px-2 py-1.5 text-xs">
+          <button
+            onClick={() => setFolderId("root")}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-text2 hover:bg-bg4 hover:text-foreground"
+          >
+            <Home className="h-3.5 w-3.5" /> Meu Drive
+          </button>
+          {breadcrumbs.map((c) => (
+            <span key={c.id} className="flex items-center gap-1">
+              <ChevronRight className="h-3 w-3 text-muted2" />
+              <button
+                onClick={() => setFolderId(c.id)}
+                className="rounded px-1.5 py-1 text-text2 hover:bg-bg4 hover:text-foreground"
+              >
+                {c.name}
+              </button>
+            </span>
+          ))}
+        </div>
+
         {loading && (
           <div className="rounded-xl border border-border bg-bg3/40 p-10 text-center text-sm text-text2">
             <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" /> carregando…
@@ -426,13 +454,30 @@ function DistributeTab() {
             <AlertCircle className="mr-1 inline h-4 w-4" /> {error}
           </div>
         )}
-        {!loading && !error && videos.length === 0 && (
+        {!loading && !error && folders.length === 0 && videos.length === 0 && (
           <div className="rounded-xl border border-border bg-bg3/40 p-10 text-center text-sm text-text2">
-            Nenhum vídeo encontrado no seu Drive.
+            Pasta vazia.
           </div>
         )}
-        {!loading && videos.length > 0 && (
+        {!loading && (folders.length > 0 || videos.length > 0) && (
           <ul className="grid max-h-[480px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+            {folders.map((f) => (
+              <li key={f.id}>
+                <button
+                  onClick={() => setFolderId(f.id)}
+                  className="group flex w-full items-center gap-3 rounded-lg border border-border bg-bg3/60 p-2 text-left transition hover:border-border2"
+                >
+                  <div className="flex h-14 w-20 flex-shrink-0 items-center justify-center rounded-md bg-bg4">
+                    <Folder className="h-5 w-5 text-text2" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{f.name}</div>
+                    <div className="text-xs text-muted2">pasta</div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted2" />
+                </button>
+              </li>
+            ))}
             {videos.map((v) => {
               const active = selectedVideo?.id === v.id;
               return (
