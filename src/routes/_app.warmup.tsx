@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { mockAccounts } from "@/lib/mock";
+import { api } from "@/lib/api-client";
 import {
   UploadCloud,
   Type,
@@ -10,6 +11,9 @@ import {
   Image as ImageIcon,
   Link2,
   HardDrive,
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_app/warmup")({
