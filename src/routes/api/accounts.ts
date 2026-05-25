@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 import { db } from "@/lib/db.server";
+import { hasDb } from "@/lib/cf.server";
+
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -20,7 +22,15 @@ const CreateAccount = z.object({
 export const Route = createFileRoute("/api/accounts")({
   server: {
     handlers: {
-      GET: async () => json({ accounts: await db.listAccounts() }),
+      GET: async () => {
+        if (!hasDb()) return json({ accounts: [], warning: "D1 not bound (dev)" });
+        try {
+          return json({ accounts: await db.listAccounts() });
+        } catch (e) {
+          return json({ accounts: [], error: (e as Error).message }, 200);
+        }
+      },
+
       POST: async ({ request }) => {
         const body = CreateAccount.parse(await request.json());
         const id = crypto.randomUUID();
