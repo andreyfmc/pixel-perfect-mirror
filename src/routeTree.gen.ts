@@ -11,12 +11,19 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as ApiQueueRouteImport } from './routes/api/queue'
+import { Route as ApiHistoryRouteImport } from './routes/api/history'
+import { Route as ApiAccountsRouteImport } from './routes/api/accounts'
 import { Route as AppWarmupRouteImport } from './routes/_app.warmup'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppQueueRouteImport } from './routes/_app.queue'
 import { Route as AppHistoryRouteImport } from './routes/_app.history'
 import { Route as AppContingencyRouteImport } from './routes/_app.contingency'
 import { Route as AppAccountsRouteImport } from './routes/_app.accounts'
+import { Route as ApiQueueIdRouteImport } from './routes/api/queue.$id'
+import { Route as ApiMediaUploadRouteImport } from './routes/api/media.upload'
+import { Route as ApiCronTickRouteImport } from './routes/api/cron.tick'
+import { Route as ApiAccountsIdRouteImport } from './routes/api/accounts.$id'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -26,6 +33,21 @@ const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AppRoute,
+} as any)
+const ApiQueueRoute = ApiQueueRouteImport.update({
+  id: '/api/queue',
+  path: '/api/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHistoryRoute = ApiHistoryRouteImport.update({
+  id: '/api/history',
+  path: '/api/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAccountsRoute = ApiAccountsRouteImport.update({
+  id: '/api/accounts',
+  path: '/api/accounts',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AppWarmupRoute = AppWarmupRouteImport.update({
   id: '/warmup',
@@ -57,6 +79,26 @@ const AppAccountsRoute = AppAccountsRouteImport.update({
   path: '/accounts',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiQueueIdRoute = ApiQueueIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiQueueRoute,
+} as any)
+const ApiMediaUploadRoute = ApiMediaUploadRouteImport.update({
+  id: '/api/media/upload',
+  path: '/api/media/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCronTickRoute = ApiCronTickRouteImport.update({
+  id: '/api/cron/tick',
+  path: '/api/cron/tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAccountsIdRoute = ApiAccountsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiAccountsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -66,6 +108,13 @@ export interface FileRoutesByFullPath {
   '/queue': typeof AppQueueRoute
   '/settings': typeof AppSettingsRoute
   '/warmup': typeof AppWarmupRoute
+  '/api/accounts': typeof ApiAccountsRouteWithChildren
+  '/api/history': typeof ApiHistoryRoute
+  '/api/queue': typeof ApiQueueRouteWithChildren
+  '/api/accounts/$id': typeof ApiAccountsIdRoute
+  '/api/cron/tick': typeof ApiCronTickRoute
+  '/api/media/upload': typeof ApiMediaUploadRoute
+  '/api/queue/$id': typeof ApiQueueIdRoute
 }
 export interface FileRoutesByTo {
   '/accounts': typeof AppAccountsRoute
@@ -74,7 +123,14 @@ export interface FileRoutesByTo {
   '/queue': typeof AppQueueRoute
   '/settings': typeof AppSettingsRoute
   '/warmup': typeof AppWarmupRoute
+  '/api/accounts': typeof ApiAccountsRouteWithChildren
+  '/api/history': typeof ApiHistoryRoute
+  '/api/queue': typeof ApiQueueRouteWithChildren
   '/': typeof AppIndexRoute
+  '/api/accounts/$id': typeof ApiAccountsIdRoute
+  '/api/cron/tick': typeof ApiCronTickRoute
+  '/api/media/upload': typeof ApiMediaUploadRoute
+  '/api/queue/$id': typeof ApiQueueIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -85,7 +141,14 @@ export interface FileRoutesById {
   '/_app/queue': typeof AppQueueRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/warmup': typeof AppWarmupRoute
+  '/api/accounts': typeof ApiAccountsRouteWithChildren
+  '/api/history': typeof ApiHistoryRoute
+  '/api/queue': typeof ApiQueueRouteWithChildren
   '/_app/': typeof AppIndexRoute
+  '/api/accounts/$id': typeof ApiAccountsIdRoute
+  '/api/cron/tick': typeof ApiCronTickRoute
+  '/api/media/upload': typeof ApiMediaUploadRoute
+  '/api/queue/$id': typeof ApiQueueIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -97,6 +160,13 @@ export interface FileRouteTypes {
     | '/queue'
     | '/settings'
     | '/warmup'
+    | '/api/accounts'
+    | '/api/history'
+    | '/api/queue'
+    | '/api/accounts/$id'
+    | '/api/cron/tick'
+    | '/api/media/upload'
+    | '/api/queue/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/accounts'
@@ -105,7 +175,14 @@ export interface FileRouteTypes {
     | '/queue'
     | '/settings'
     | '/warmup'
+    | '/api/accounts'
+    | '/api/history'
+    | '/api/queue'
     | '/'
+    | '/api/accounts/$id'
+    | '/api/cron/tick'
+    | '/api/media/upload'
+    | '/api/queue/$id'
   id:
     | '__root__'
     | '/_app'
@@ -115,11 +192,23 @@ export interface FileRouteTypes {
     | '/_app/queue'
     | '/_app/settings'
     | '/_app/warmup'
+    | '/api/accounts'
+    | '/api/history'
+    | '/api/queue'
     | '/_app/'
+    | '/api/accounts/$id'
+    | '/api/cron/tick'
+    | '/api/media/upload'
+    | '/api/queue/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  ApiAccountsRoute: typeof ApiAccountsRouteWithChildren
+  ApiHistoryRoute: typeof ApiHistoryRoute
+  ApiQueueRoute: typeof ApiQueueRouteWithChildren
+  ApiCronTickRoute: typeof ApiCronTickRoute
+  ApiMediaUploadRoute: typeof ApiMediaUploadRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -137,6 +226,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/api/queue': {
+      id: '/api/queue'
+      path: '/api/queue'
+      fullPath: '/api/queue'
+      preLoaderRoute: typeof ApiQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/history': {
+      id: '/api/history'
+      path: '/api/history'
+      fullPath: '/api/history'
+      preLoaderRoute: typeof ApiHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/accounts': {
+      id: '/api/accounts'
+      path: '/api/accounts'
+      fullPath: '/api/accounts'
+      preLoaderRoute: typeof ApiAccountsRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_app/warmup': {
       id: '/_app/warmup'
@@ -180,6 +290,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAccountsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/queue/$id': {
+      id: '/api/queue/$id'
+      path: '/$id'
+      fullPath: '/api/queue/$id'
+      preLoaderRoute: typeof ApiQueueIdRouteImport
+      parentRoute: typeof ApiQueueRoute
+    }
+    '/api/media/upload': {
+      id: '/api/media/upload'
+      path: '/api/media/upload'
+      fullPath: '/api/media/upload'
+      preLoaderRoute: typeof ApiMediaUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron/tick': {
+      id: '/api/cron/tick'
+      path: '/api/cron/tick'
+      fullPath: '/api/cron/tick'
+      preLoaderRoute: typeof ApiCronTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/accounts/$id': {
+      id: '/api/accounts/$id'
+      path: '/$id'
+      fullPath: '/api/accounts/$id'
+      preLoaderRoute: typeof ApiAccountsIdRouteImport
+      parentRoute: typeof ApiAccountsRoute
+    }
   }
 }
 
@@ -205,9 +343,48 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface ApiAccountsRouteChildren {
+  ApiAccountsIdRoute: typeof ApiAccountsIdRoute
+}
+
+const ApiAccountsRouteChildren: ApiAccountsRouteChildren = {
+  ApiAccountsIdRoute: ApiAccountsIdRoute,
+}
+
+const ApiAccountsRouteWithChildren = ApiAccountsRoute._addFileChildren(
+  ApiAccountsRouteChildren,
+)
+
+interface ApiQueueRouteChildren {
+  ApiQueueIdRoute: typeof ApiQueueIdRoute
+}
+
+const ApiQueueRouteChildren: ApiQueueRouteChildren = {
+  ApiQueueIdRoute: ApiQueueIdRoute,
+}
+
+const ApiQueueRouteWithChildren = ApiQueueRoute._addFileChildren(
+  ApiQueueRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  ApiAccountsRoute: ApiAccountsRouteWithChildren,
+  ApiHistoryRoute: ApiHistoryRoute,
+  ApiQueueRoute: ApiQueueRouteWithChildren,
+  ApiCronTickRoute: ApiCronTickRoute,
+  ApiMediaUploadRoute: ApiMediaUploadRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
