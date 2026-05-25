@@ -2,61 +2,78 @@
 // Acesso aos bindings do Cloudflare Worker (D1, R2, vars, secrets).
 // Server-only — o sufixo .server.ts impede inclusão no bundle do cliente.
 //
-// O módulo virtual "cloudflare:workers" só existe no build do Worker (via
-// @cloudflare/vite-plugin). No dev/SSR do Lovable preview ele não resolve,
-// então carregamos via import dinâmico protegido e expomos um env vazio.
+// IMPORTANTE: no Cloudflare Workers, o `env` exportado por "cloudflare:workers"
+// é resolvido por requisição (AsyncLocalStorage). Não pode ser snapshotado
+// na inicialização do módulo — é preciso ler a cada acesso, dentro do
+// contexto de uma request.
 
 type CFEnv = Partial<Cloudflare.Env>;
 
-let cached: CFEnv | undefined;
+let mod: { env?: CFEnv } | undefined;
+let importPromise: Promise<void> | undefined;
 
-async function loadEnv(): Promise<CFEnv> {
-  if (cached) return cached;
-  try {
-    const mod = (await import(/* @vite-ignore */ "cloudflare:workers")) as {
-      env?: CFEnv;
-    };
-    cached = mod.env ?? {};
-  } catch {
-    cached = {};
-  }
-  return cached;
+function tryLoadSync() {
+  if (mod || importPromise) return;
+  importPromise = import(/* @vite-ignore */ "cloudflare:workers")
+    .then((m) => {
+      mod = m as { env?: CFEnv };
+    })
+    .catch(() => {
+      mod = { env: {} };
+    });
 }
 
-// Snapshot síncrono — preenchido na primeira chamada async. Antes disso
-// retorna {} e os has*/require* respondem coerentemente.
-let snapshot: CFEnv = {};
-void loadEnv().then((e) => {
-  snapshot = e;
-});
+function currentEnv(): CFEnv {
+  tryLoadSync();
+  return mod?.env ?? {};
+}
 
 export const env: CFEnv = new Proxy({} as CFEnv, {
   get(_t, prop: string) {
-    return (snapshot as Record<string, unknown>)[prop];
+    return (currentEnv() as Record<string, unknown>)[prop];
+  },
+  has(_t, prop: string) {
+    return prop in (currentEnv() as Record<string, unknown>);
+  },
+  ownKeys() {
+    return Reflect.ownKeys(currentEnv() as Record<string, unknown>);
+  },
+  getOwnPropertyDescriptor(_t, prop: string) {
+    return Reflect.getOwnPropertyDescriptor(currentEnv() as Record<string, unknown>, prop);
   },
 });
 
+// Garante que o módulo virtual seja resolvido antes do primeiro acesso.
+// Em Workers, basta uma chamada async dentro de uma request para o env aparecer.
+export async function ensureEnv(): Promise<CFEnv> {
+  tryLoadSync();
+  if (importPromise) await importPromise;
+  return mod?.env ?? {};
+}
+
 export function hasDb(): boolean {
-  return Boolean(snapshot.DB);
+  return Boolean(currentEnv().DB);
 }
 
 export function hasMedia(): boolean {
-  return Boolean(snapshot.MEDIA);
+  return Boolean(currentEnv().MEDIA);
 }
 
 export function requireDb(): D1Database {
-  if (!snapshot.DB) {
+  const e = currentEnv();
+  if (!e.DB) {
     throw new Error(
       "D1 binding 'DB' indisponível. Rode `wrangler d1 create insta-manager`, " +
         "atualize wrangler.jsonc com o ID e faça `wrangler deploy`.",
     );
   }
-  return snapshot.DB;
+  return e.DB;
 }
 
 export function requireMedia(): R2Bucket {
-  if (!snapshot.MEDIA) {
+  const e = currentEnv();
+  if (!e.MEDIA) {
     throw new Error("R2 binding 'MEDIA' indisponível. Veja SETUP.md.");
   }
-  return snapshot.MEDIA;
+  return e.MEDIA;
 }
