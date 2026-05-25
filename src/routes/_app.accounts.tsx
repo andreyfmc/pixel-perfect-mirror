@@ -156,12 +156,18 @@ function AccountsPage() {
             </article>
           ))}
 
-          <button className="im-card border-dashed flex min-h-[260px] flex-col items-center justify-center gap-2 text-text2 hover:text-foreground hover:border-accent">
+          <button
+            type="button"
+            onClick={() => handleConnect("instagram")}
+            disabled={loading !== null}
+            className="im-card border-dashed flex min-h-[260px] flex-col items-center justify-center gap-2 text-text2 hover:text-foreground hover:border-accent disabled:opacity-60"
+          >
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg3">
-              <Plus className="h-5 w-5" />
+              {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
             </div>
             <span className="text-sm">Adicionar nova conta</span>
           </button>
+
         </div>
       )}
     </div>
