@@ -41,25 +41,77 @@ type TabId = (typeof tabs)[number]["id"];
 type Upload = {
   name: string;
   size: number;
+  type: string;
+  preview?: string;
   status: "uploading" | "done" | "error";
   key?: string;
   url?: string;
   error?: string;
 };
 
+async function readEntry(entry: FileSystemEntry): Promise<File[]> {
+  if (entry.isFile) {
+    return new Promise<File[]>((resolve) => {
+      (entry as FileSystemFileEntry).file(
+        (f) => resolve([f]),
+        () => resolve([]),
+      );
+    });
+  }
+  if (entry.isDirectory) {
+    const reader = (entry as FileSystemDirectoryEntry).createReader();
+    const all: File[] = [];
+    const readBatch = (): Promise<FileSystemEntry[]> =>
+      new Promise((resolve) => reader.readEntries(resolve, () => resolve([])));
+    while (true) {
+      const batch = await readBatch();
+      if (!batch.length) break;
+      for (const e of batch) all.push(...(await readEntry(e)));
+    }
+    return all;
+  }
+  return [];
+}
+
+async function filesFromDataTransfer(dt: DataTransfer): Promise<File[]> {
+  const items = dt.items;
+  if (items && items.length && typeof items[0].webkitGetAsEntry === "function") {
+    const out: File[] = [];
+    const entries: FileSystemEntry[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const e = items[i].webkitGetAsEntry();
+      if (e) entries.push(e);
+    }
+    for (const e of entries) out.push(...(await readEntry(e)));
+    return out;
+  }
+  return Array.from(dt.files ?? []);
+}
+
 function WarmupPage() {
   const [tab, setTab] = useState<TabId>("upload");
   const [coverTab, setCoverTab] = useState<"url" | "drive" | "local">("url");
   const [uploads, setUploads] = useState<Upload[]>([]);
+  const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
-  async function handleFiles(files: FileList | null) {
-    if (!files?.length) return;
-    const list = Array.from(files);
+  async function handleFiles(files: File[] | FileList | null) {
+    if (!files) return;
+    const list = Array.from(files).filter(
+      (f) => f.type.startsWith("image/") || f.type.startsWith("video/"),
+    );
+    if (!list.length) return;
     const baseIdx = uploads.length;
     setUploads((u) => [
       ...u,
-      ...list.map((f) => ({ name: f.name, size: f.size, status: "uploading" as const })),
+      ...list.map((f) => ({
+        name: f.name,
+        size: f.size,
+        type: f.type,
+        preview: f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined,
+        status: "uploading" as const,
+      })),
     ]);
     await Promise.all(
       list.map(async (file, i) => {
