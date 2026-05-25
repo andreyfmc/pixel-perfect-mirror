@@ -24,7 +24,7 @@ export const Route = createFileRoute("/api/queue")({
       POST: async ({ request }) => {
         const body = EnqueueSchema.parse(await request.json());
         const id = crypto.randomUUID();
-        await db.enqueue({ id, ...body });
+        await db.enqueue({ id, ...body, thumb_key: body.thumb_key ?? null });
         return json({ id }, 201);
       },
     },
