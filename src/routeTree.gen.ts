@@ -24,6 +24,7 @@ import { Route as ApiQueueIdRouteImport } from './routes/api/queue.$id'
 import { Route as ApiMediaUploadRouteImport } from './routes/api/media.upload'
 import { Route as ApiCronTickRouteImport } from './routes/api/cron.tick'
 import { Route as ApiAuthInstagramRouteImport } from './routes/api/auth.instagram'
+import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth.callback'
 import { Route as ApiAccountsIdRouteImport } from './routes/api/accounts.$id'
 
 const AppRoute = AppRouteImport.update({
@@ -100,6 +101,11 @@ const ApiAuthInstagramRoute = ApiAuthInstagramRouteImport.update({
   path: '/api/auth/instagram',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
+  id: '/api/auth/callback',
+  path: '/api/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAccountsIdRoute = ApiAccountsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -118,6 +124,7 @@ export interface FileRoutesByFullPath {
   '/api/history': typeof ApiHistoryRoute
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/accounts/$id': typeof ApiAccountsIdRoute
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
@@ -135,6 +142,7 @@ export interface FileRoutesByTo {
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRoute
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
@@ -154,6 +162,7 @@ export interface FileRoutesById {
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/_app/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRoute
+  '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
@@ -173,6 +182,7 @@ export interface FileRouteTypes {
     | '/api/history'
     | '/api/queue'
     | '/api/accounts/$id'
+    | '/api/auth/callback'
     | '/api/auth/instagram'
     | '/api/cron/tick'
     | '/api/media/upload'
@@ -190,6 +200,7 @@ export interface FileRouteTypes {
     | '/api/queue'
     | '/'
     | '/api/accounts/$id'
+    | '/api/auth/callback'
     | '/api/auth/instagram'
     | '/api/cron/tick'
     | '/api/media/upload'
@@ -208,6 +219,7 @@ export interface FileRouteTypes {
     | '/api/queue'
     | '/_app/'
     | '/api/accounts/$id'
+    | '/api/auth/callback'
     | '/api/auth/instagram'
     | '/api/cron/tick'
     | '/api/media/upload'
@@ -219,6 +231,7 @@ export interface RootRouteChildren {
   ApiAccountsRoute: typeof ApiAccountsRouteWithChildren
   ApiHistoryRoute: typeof ApiHistoryRoute
   ApiQueueRoute: typeof ApiQueueRouteWithChildren
+  ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthInstagramRoute: typeof ApiAuthInstagramRoute
   ApiCronTickRoute: typeof ApiCronTickRoute
   ApiMediaUploadRoute: typeof ApiMediaUploadRoute
@@ -331,6 +344,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthInstagramRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/callback': {
+      id: '/api/auth/callback'
+      path: '/api/auth/callback'
+      fullPath: '/api/auth/callback'
+      preLoaderRoute: typeof ApiAuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/accounts/$id': {
       id: '/api/accounts/$id'
       path: '/$id'
@@ -392,6 +412,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAccountsRoute: ApiAccountsRouteWithChildren,
   ApiHistoryRoute: ApiHistoryRoute,
   ApiQueueRoute: ApiQueueRouteWithChildren,
+  ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthInstagramRoute: ApiAuthInstagramRoute,
   ApiCronTickRoute: ApiCronTickRoute,
   ApiMediaUploadRoute: ApiMediaUploadRoute,
