@@ -24,6 +24,7 @@ import { Route as ApiQueueIdRouteImport } from './routes/api/queue.$id'
 import { Route as ApiMediaUploadRouteImport } from './routes/api/media.upload'
 import { Route as ApiCronTickRouteImport } from './routes/api/cron.tick'
 import { Route as ApiAuthInstagramRouteImport } from './routes/api/auth.instagram'
+import { Route as ApiAuthCallbackIgRouteImport } from './routes/api/auth.callback-ig'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth.callback'
 import { Route as ApiAccountsIdRouteImport } from './routes/api/accounts.$id'
 
@@ -101,6 +102,11 @@ const ApiAuthInstagramRoute = ApiAuthInstagramRouteImport.update({
   path: '/api/auth/instagram',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthCallbackIgRoute = ApiAuthCallbackIgRouteImport.update({
+  id: '/api/auth/callback-ig',
+  path: '/api/auth/callback-ig',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthCallbackRoute = ApiAuthCallbackRouteImport.update({
   id: '/api/auth/callback',
   path: '/api/auth/callback',
@@ -125,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/accounts/$id': typeof ApiAccountsIdRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
@@ -143,6 +150,7 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
@@ -163,6 +171,7 @@ export interface FileRoutesById {
   '/_app/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
+  '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
@@ -183,6 +192,7 @@ export interface FileRouteTypes {
     | '/api/queue'
     | '/api/accounts/$id'
     | '/api/auth/callback'
+    | '/api/auth/callback-ig'
     | '/api/auth/instagram'
     | '/api/cron/tick'
     | '/api/media/upload'
@@ -201,6 +211,7 @@ export interface FileRouteTypes {
     | '/'
     | '/api/accounts/$id'
     | '/api/auth/callback'
+    | '/api/auth/callback-ig'
     | '/api/auth/instagram'
     | '/api/cron/tick'
     | '/api/media/upload'
@@ -220,6 +231,7 @@ export interface FileRouteTypes {
     | '/_app/'
     | '/api/accounts/$id'
     | '/api/auth/callback'
+    | '/api/auth/callback-ig'
     | '/api/auth/instagram'
     | '/api/cron/tick'
     | '/api/media/upload'
@@ -232,6 +244,7 @@ export interface RootRouteChildren {
   ApiHistoryRoute: typeof ApiHistoryRoute
   ApiQueueRoute: typeof ApiQueueRouteWithChildren
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
+  ApiAuthCallbackIgRoute: typeof ApiAuthCallbackIgRoute
   ApiAuthInstagramRoute: typeof ApiAuthInstagramRoute
   ApiCronTickRoute: typeof ApiCronTickRoute
   ApiMediaUploadRoute: typeof ApiMediaUploadRoute
@@ -344,6 +357,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthInstagramRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/callback-ig': {
+      id: '/api/auth/callback-ig'
+      path: '/api/auth/callback-ig'
+      fullPath: '/api/auth/callback-ig'
+      preLoaderRoute: typeof ApiAuthCallbackIgRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/callback': {
       id: '/api/auth/callback'
       path: '/api/auth/callback'
@@ -413,6 +433,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHistoryRoute: ApiHistoryRoute,
   ApiQueueRoute: ApiQueueRouteWithChildren,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
+  ApiAuthCallbackIgRoute: ApiAuthCallbackIgRoute,
   ApiAuthInstagramRoute: ApiAuthInstagramRoute,
   ApiCronTickRoute: ApiCronTickRoute,
   ApiMediaUploadRoute: ApiMediaUploadRoute,
