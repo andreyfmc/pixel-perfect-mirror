@@ -2,7 +2,7 @@
 // Body: arquivo binário. Headers: content-type + x-filename.
 
 import { createFileRoute } from "@tanstack/react-router";
-import { requireMedia } from "@/lib/cf.server";
+import { hasMedia, requireMedia } from "@/lib/cf.server";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -14,6 +14,12 @@ export const Route = createFileRoute("/api/media/upload")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        if (!hasMedia()) {
+          return json(
+            { error: "r2_unavailable", message: "R2 binding 'MEDIA' indisponível neste ambiente (preview/dev). Funciona em produção." },
+            503,
+          );
+        }
         const filename = request.headers.get("x-filename") ?? "upload.bin";
         const contentType = request.headers.get("content-type") ?? "application/octet-stream";
         const body = await request.arrayBuffer();
