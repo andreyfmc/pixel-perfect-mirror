@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { mockAccounts } from "@/lib/mock";
 import { fmtDateShort, fmtDateFull } from "@/lib/format";
 import { Plus, MoreHorizontal, ShieldCheck } from "lucide-react";
+import { ConnectAccountDialog } from "@/components/ConnectAccountDialog";
 
 export const Route = createFileRoute("/_app/accounts")({
   component: AccountsPage,
@@ -15,6 +17,7 @@ function ringForHealth(score: number) {
 }
 
 function AccountsPage() {
+  const [open, setOpen] = useState(false);
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
       <header className="mb-8 flex items-end justify-between gap-4">
