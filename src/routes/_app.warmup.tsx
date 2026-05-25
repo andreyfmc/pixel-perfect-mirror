@@ -373,7 +373,9 @@ function DistributeTab() {
   const [videos, setVideos] = useState<DriveVideo[]>([]);
   const [breadcrumbs, setBreadcrumbs] = useState<DriveCrumb[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [selectedVideo, setSelectedVideo] = useState<DriveVideo | null>(null);
+  // Multi-seleção persistente: id -> vídeo (preserva entre navegações de pasta)
+  const [selectedVideos, setSelectedVideos] = useState<Map<string, DriveVideo>>(new Map());
+  const [loadingFolder, setLoadingFolder] = useState<string | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [caption, setCaption] = useState("");
   const [start, setStart] = useState(() => {
@@ -400,15 +402,66 @@ function DistributeTab() {
   const toggleAccount = (u: string) =>
     setSelectedAccounts((s) => (s.includes(u) ? s.filter((x) => x !== u) : [...s, u]));
 
-  const command = selectedVideo && selectedAccounts.length
-    ? [
-        "bun scripts/distribute-reel.ts \\",
-        `  --drive-id ${selectedVideo.id} \\`,
-        `  --accounts ${selectedAccounts.join(",")} \\`,
-        `  --caption ${JSON.stringify(caption || "")} \\`,
-        `  --start "${new Date(start).toISOString()}" \\`,
-        `  --gap ${gap}`,
-      ].join("\n")
+  const toggleVideo = (v: DriveVideo) =>
+    setSelectedVideos((prev) => {
+      const n = new Map(prev);
+      if (n.has(v.id)) n.delete(v.id);
+      else n.set(v.id, v);
+      return n;
+    });
+
+  const allCurrentSelected =
+    videos.length > 0 && videos.every((v) => selectedVideos.has(v.id));
+
+  const toggleSelectAllHere = () =>
+    setSelectedVideos((prev) => {
+      const n = new Map(prev);
+      if (allCurrentSelected) videos.forEach((v) => n.delete(v.id));
+      else videos.forEach((v) => n.set(v.id, v));
+      return n;
+    });
+
+  // Recursivo: anda pela pasta + subpastas e adiciona todo vídeo encontrado
+  async function selectEntireFolder(f: DriveFolder) {
+    setLoadingFolder(f.id);
+    try {
+      const collected: DriveVideo[] = [];
+      const walk = async (id: string) => {
+        const r = await fetchEntries({ data: { folderId: id } });
+        if (r.error) throw new Error(r.error);
+        collected.push(...r.videos);
+        for (const sub of r.folders) await walk(sub.id);
+      };
+      await walk(f.id);
+      setSelectedVideos((prev) => {
+        const n = new Map(prev);
+        collected.forEach((v) => n.set(v.id, v));
+        return n;
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoadingFolder(null);
+    }
+  }
+
+  const clearSelection = () => setSelectedVideos(new Map());
+
+  const selectedList = Array.from(selectedVideos.values());
+
+  const command = selectedList.length && selectedAccounts.length
+    ? selectedList
+        .map((v) =>
+          [
+            "bun scripts/distribute-reel.ts \\",
+            `  --drive-id ${v.id} \\`,
+            `  --accounts ${selectedAccounts.join(",")} \\`,
+            `  --caption ${JSON.stringify(caption || "")} \\`,
+            `  --start "${new Date(start).toISOString()}" \\`,
+            `  --gap ${gap}`,
+          ].join("\n"),
+        )
+        .join("\n\n")
     : "";
 
   const copy = async () => {
@@ -416,6 +469,7 @@ function DistributeTab() {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
@@ -460,59 +514,106 @@ function DistributeTab() {
           </div>
         )}
         {!loading && (folders.length > 0 || videos.length > 0) && (
-          <ul className="grid max-h-[480px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-            {folders.map((f) => (
-              <li key={f.id}>
-                <button
-                  onClick={() => setFolderId(f.id)}
-                  className="group flex w-full items-center gap-3 rounded-lg border border-border bg-bg3/60 p-2 text-left transition hover:border-border2"
-                >
-                  <div className="flex h-14 w-20 flex-shrink-0 items-center justify-center rounded-md bg-bg4">
-                    <Folder className="h-5 w-5 text-text2" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{f.name}</div>
-                    <div className="text-xs text-muted2">pasta</div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted2" />
-                </button>
-              </li>
-            ))}
-            {videos.map((v) => {
-              const active = selectedVideo?.id === v.id;
-              return (
-                <li key={v.id}>
+          <>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="text-muted2">
+                {selectedVideos.size > 0
+                  ? `${selectedVideos.size} vídeo${selectedVideos.size > 1 ? "s" : ""} selecionado${selectedVideos.size > 1 ? "s" : ""}`
+                  : "Nada selecionado"}
+              </span>
+              <div className="flex items-center gap-2">
+                {videos.length > 0 && (
                   <button
-                    onClick={() => setSelectedVideo(v)}
-                    className={[
-                      "group flex w-full items-center gap-3 rounded-lg border p-2 text-left transition",
-                      active
-                        ? "border-accent bg-bg3"
-                        : "border-border bg-bg3/60 hover:border-border2",
-                    ].join(" ")}
+                    onClick={toggleSelectAllHere}
+                    className="rounded-md border border-border2 bg-bg3 px-2 py-1 text-text2 hover:text-foreground"
                   >
-                    <div className="h-14 w-20 flex-shrink-0 overflow-hidden rounded-md bg-bg4">
-                      {v.thumbnailLink ? (
-                        <img src={v.thumbnailLink} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-muted2">
-                          <ImageIcon className="h-4 w-4" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-medium">{v.name}</div>
-                      <div className="text-xs text-muted2">
-                        {v.size ? `${(Number(v.size) / 1024 / 1024).toFixed(1)} MB` : ""}
-                        {v.durationMillis ? ` · ${Math.round(Number(v.durationMillis) / 1000)}s` : ""}
-                      </div>
-                    </div>
-                    {active && <Check className="h-4 w-4 text-accent" />}
+                    {allCurrentSelected ? "Desmarcar pasta atual" : "Selecionar todos aqui"}
                   </button>
+                )}
+                {selectedVideos.size > 0 && (
+                  <button
+                    onClick={clearSelection}
+                    className="rounded-md px-2 py-1 text-text2 hover:text-foreground"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+            </div>
+            <ul className="grid max-h-[460px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+              {folders.map((f) => (
+                <li key={f.id}>
+                  <div className="group flex items-center gap-2 rounded-lg border border-border bg-bg3/60 p-2 transition hover:border-border2">
+                    <button
+                      onClick={() => setFolderId(f.id)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
+                      <div className="flex h-14 w-20 flex-shrink-0 items-center justify-center rounded-md bg-bg4">
+                        <Folder className="h-5 w-5 text-text2" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{f.name}</div>
+                        <div className="text-xs text-muted2">pasta</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => selectEntireFolder(f)}
+                      disabled={loadingFolder === f.id}
+                      title="Selecionar todos os vídeos desta pasta (recursivo)"
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-border2 text-text2 hover:bg-bg4 hover:text-foreground disabled:opacity-50"
+                    >
+                      {loadingFolder === f.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </div>
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+              {videos.map((v) => {
+                const active = selectedVideos.has(v.id);
+                return (
+                  <li key={v.id}>
+                    <button
+                      onClick={() => toggleVideo(v)}
+                      className={[
+                        "group flex w-full items-center gap-3 rounded-lg border p-2 text-left transition",
+                        active
+                          ? "border-accent bg-bg3"
+                          : "border-border bg-bg3/60 hover:border-border2",
+                      ].join(" ")}
+                    >
+                      <div className="h-14 w-20 flex-shrink-0 overflow-hidden rounded-md bg-bg4">
+                        {v.thumbnailLink ? (
+                          <img src={v.thumbnailLink} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-muted2">
+                            <ImageIcon className="h-4 w-4" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{v.name}</div>
+                        <div className="text-xs text-muted2">
+                          {v.size ? `${(Number(v.size) / 1024 / 1024).toFixed(1)} MB` : ""}
+                          {v.durationMillis ? ` · ${Math.round(Number(v.durationMillis) / 1000)}s` : ""}
+                        </div>
+                      </div>
+                      <div
+                        className={[
+                          "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border",
+                          active ? "border-accent bg-accent text-white" : "border-border2",
+                        ].join(" ")}
+                      >
+                        {active && <Check className="h-3.5 w-3.5" />}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
       </div>
 
@@ -583,7 +684,7 @@ function DistributeTab() {
             )}
           </div>
           <pre className="overflow-x-auto rounded-lg border border-border bg-bg4 p-3 text-[11px] leading-relaxed text-text2">
-{command || "Selecione um vídeo do Drive e ao menos uma conta."}
+{command || "Selecione ao menos um vídeo do Drive e uma conta."}
           </pre>
           <p className="mt-2 text-xs text-muted2">
             Rode esse comando no seu PC (precisa de <code className="rounded bg-bg4 px-1">ffmpeg</code> +{" "}
