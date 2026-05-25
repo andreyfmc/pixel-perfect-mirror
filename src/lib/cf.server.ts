@@ -1,3 +1,4 @@
+/// <reference path="../worker-env.d.ts" />
 // Acesso aos bindings do Cloudflare Worker (D1, R2, vars, secrets).
 // Server-only — o sufixo .server.ts impede inclusão no bundle do cliente.
 
