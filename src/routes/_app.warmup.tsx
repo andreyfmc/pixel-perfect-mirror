@@ -684,7 +684,7 @@ function DistributeTab() {
             )}
           </div>
           <pre className="overflow-x-auto rounded-lg border border-border bg-bg4 p-3 text-[11px] leading-relaxed text-text2">
-{command || "Selecione um vídeo do Drive e ao menos uma conta."}
+{command || "Selecione ao menos um vídeo do Drive e uma conta."}
           </pre>
           <p className="mt-2 text-xs text-muted2">
             Rode esse comando no seu PC (precisa de <code className="rounded bg-bg4 px-1">ffmpeg</code> +{" "}
