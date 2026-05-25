@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { mockAccounts } from "@/lib/mock";
 import { api } from "@/lib/api-client";
-import { listDriveVideos, type DriveVideo } from "@/lib/drive.functions";
+import { listDriveEntries, type DriveVideo, type DriveFolder, type DriveCrumb } from "@/lib/drive.functions";
+import { Folder, ChevronRight, Home } from "lucide-react";
 import {
   UploadCloud,
   Type,
