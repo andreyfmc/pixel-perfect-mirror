@@ -3,15 +3,14 @@
 
 import { db } from "./db.server";
 import { instagram } from "./instagram.server";
-import { env, hasDb } from "./cf.server";
+import { hasDb } from "./cf.server";
 
-// URL pública dos arquivos no R2. Em produção configure um custom domain
-// no bucket (ex: media.seusite.com) e defina aqui.
-function publicMediaUrl(key: string): string {
-  const base = env.APP_ENV === "production"
-    ? "https://media.example.com"
-    : "https://pub-placeholder.r2.dev";
-  return `${base}/${key}`;
+// URL pública dos arquivos no R2 (Public Access ativado no bucket insta-media).
+// Trocar por custom domain quando configurado.
+export const R2_PUBLIC_BASE = "https://pub-5fcd7291327547a084c1e911d5141d6f.r2.dev";
+
+export function publicMediaUrl(key: string): string {
+  return `${R2_PUBLIC_BASE}/${key}`;
 }
 
 export async function runScheduler(now = new Date()): Promise<{ processed: number; errors: number }> {

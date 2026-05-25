@@ -30,10 +30,8 @@ Depois disso edite `wrangler.jsonc`:
 "database_id": "COLE_O_ID_AQUI"
 ```
 
-## 3) Expor o R2 com domínio público
-A Graph API exige `image_url` / `video_url` **públicos**. Duas opções:
-
-- **Fácil**: ative *Public Access* no bucket (Cloudflare dashboard → R2 → `insta-media` → Settings → Public Access). Pega uma URL `https://pub-XXXX.r2.dev` e cole em `src/lib/scheduler.server.ts` no lugar de `pub-placeholder.r2.dev`.
+## 3) R2 público
+Já configurado: `https://pub-5fcd7291327547a084c1e911d5141d6f.r2.dev` (definido em `src/lib/scheduler.server.ts`). Para custom domain (`media.seusite.com`), atualize `R2_PUBLIC_BASE` e o fallback em `src/lib/api-client.ts`.
 - **Profissional**: conecte um custom domain (`media.seusite.com`) e atualize a mesma constante.
 
 ## 4) Secrets (Instagram Graph + cron)

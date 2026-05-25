@@ -69,4 +69,22 @@ export const api = {
   async deleteAccount(id: string) {
     await fetch(`/api/accounts/${id}`, { method: "DELETE" });
   },
+
+  async uploadMedia(file: File): Promise<{ key: string; url: string } | null> {
+    try {
+      const res = await fetch("/api/media/upload", {
+        method: "POST",
+        headers: {
+          "content-type": file.type || "application/octet-stream",
+          "x-filename": file.name,
+        },
+        body: await file.arrayBuffer(),
+      });
+      if (!res.ok) return null;
+      const { key } = (await res.json()) as { key: string };
+      return { key, url: `https://pub-5fcd7291327547a084c1e911d5141d6f.r2.dev/${key}` };
+    } catch {
+      return null;
+    }
+  },
 };

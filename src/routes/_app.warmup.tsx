@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { mockAccounts } from "@/lib/mock";
+import { api } from "@/lib/api-client";
 import {
   UploadCloud,
   Type,
@@ -10,6 +11,9 @@ import {
   Image as ImageIcon,
   Link2,
   HardDrive,
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_app/warmup")({
@@ -27,9 +31,44 @@ const tabs = [
 
 type TabId = (typeof tabs)[number]["id"];
 
+type Upload = {
+  name: string;
+  size: number;
+  status: "uploading" | "done" | "error";
+  key?: string;
+  url?: string;
+  error?: string;
+};
+
 function WarmupPage() {
   const [tab, setTab] = useState<TabId>("upload");
   const [coverTab, setCoverTab] = useState<"url" | "drive" | "local">("url");
+  const [uploads, setUploads] = useState<Upload[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFiles(files: FileList | null) {
+    if (!files?.length) return;
+    const list = Array.from(files);
+    const baseIdx = uploads.length;
+    setUploads((u) => [
+      ...u,
+      ...list.map((f) => ({ name: f.name, size: f.size, status: "uploading" as const })),
+    ]);
+    await Promise.all(
+      list.map(async (file, i) => {
+        const result = await api.uploadMedia(file);
+        setUploads((u) => {
+          const copy = [...u];
+          const idx = baseIdx + i;
+          copy[idx] = result
+            ? { ...copy[idx], status: "done", key: result.key, url: result.url }
+            : { ...copy[idx], status: "error", error: "Falha no upload — bindings R2 indisponíveis?" };
+          return copy;
+        });
+      }),
+    );
+  }
+
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
@@ -69,19 +108,87 @@ function WarmupPage() {
 
         <div className="p-6">
           {tab === "upload" && (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border2 bg-bg3/40 px-6 py-16 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg3">
-                <UploadCloud className="h-5 w-5 text-text2" />
+            <div className="space-y-5">
+              <div
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleFiles(e.dataTransfer.files);
+                }}
+                className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border2 bg-bg3/40 px-6 py-12 text-center"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg3">
+                  <UploadCloud className="h-5 w-5 text-text2" />
+                </div>
+                <h3 className="mt-4 text-base font-semibold">Solte vídeos e imagens aqui</h3>
+                <p className="mt-1 max-w-md text-sm text-text2">
+                  Reels (mp4, mov) e Feed/Stories (jpg, png, webp). Enviados direto para o bucket R2{" "}
+                  <code className="rounded bg-bg4 px-1.5 py-0.5 text-[11px]">insta-media</code>.
+                </p>
+                <input
+                  ref={inputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,video/*"
+                  className="hidden"
+                  onChange={(e) => handleFiles(e.target.files)}
+                />
+                <button
+                  onClick={() => inputRef.current?.click()}
+                  className="mt-5 rounded-lg im-grad-accent px-4 py-2 text-sm font-medium text-white"
+                >
+                  Selecionar arquivos
+                </button>
               </div>
-              <h3 className="mt-4 text-base font-semibold">Solte vídeos e imagens aqui</h3>
-              <p className="mt-1 max-w-md text-sm text-text2">
-                Reels (mp4, mov) e Feed/Stories (jpg, png, webp). Você verá preview, tamanho e status de upload de cada item.
-              </p>
-              <button className="mt-5 rounded-lg im-grad-accent px-4 py-2 text-sm font-medium text-white">
-                Selecionar arquivos
-              </button>
+
+              {uploads.length > 0 && (
+                <ul className="space-y-2">
+                  {uploads.map((u, i) => (
+                    <li
+                      key={i}
+                      className="flex items-center gap-3 rounded-lg border border-border bg-bg3 p-3"
+                    >
+                      <div className="flex h-9 w-9 items-center justify-center rounded-md bg-bg4">
+                        {u.status === "uploading" && (
+                          <Loader2 className="h-4 w-4 animate-spin text-text2" />
+                        )}
+                        {u.status === "done" && (
+                          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                        )}
+                        {u.status === "error" && (
+                          <AlertCircle className="h-4 w-4 text-red-400" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{u.name}</div>
+                        <div className="truncate text-xs text-muted2">
+                          {(u.size / 1024 / 1024).toFixed(2)} MB ·{" "}
+                          {u.status === "uploading" && "enviando para R2…"}
+                          {u.status === "done" && (
+                            <>
+                              <span className="text-emerald-400">no R2</span> ·{" "}
+                              <a
+                                href={u.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline hover:text-foreground"
+                              >
+                                {u.key}
+                              </a>
+                            </>
+                          )}
+                          {u.status === "error" && (
+                            <span className="text-red-400">{u.error}</span>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
+
 
           {tab === "captions" && (
             <div className="space-y-4">
