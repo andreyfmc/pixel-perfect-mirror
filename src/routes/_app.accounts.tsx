@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { mockAccounts } from "@/lib/mock";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api-client";
 import { fmtDateShort, fmtDateFull } from "@/lib/format";
-import { Plus, MoreHorizontal, ShieldCheck } from "lucide-react";
+import { Plus, MoreHorizontal, ShieldCheck, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/_app/accounts")({
   component: AccountsPage,
@@ -15,6 +16,11 @@ function ringForHealth(score: number) {
 }
 
 function AccountsPage() {
+  const { data: accounts = [], isLoading } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api.listAccounts(),
+  });
+
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
       <header className="mb-8 flex items-end justify-between gap-4">
@@ -27,65 +33,71 @@ function AccountsPage() {
         </button>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {mockAccounts.map((a) => (
-          <article key={a.id} className="im-card im-card-hover p-5">
-            <div className="flex items-start gap-4">
-              <div
-                className="rounded-full p-[2px]"
-                style={{ background: `conic-gradient(${ringForHealth(a.health_score)} ${a.health_score}%, var(--border) 0)` }}
-              >
-                <img
-                  src={a.profile_picture}
-                  alt={a.username}
-                  className="h-14 w-14 rounded-full bg-bg3 ring-2 ring-bg2"
-                />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="truncate text-base font-semibold">@{a.username}</h3>
-                  <button className="ml-auto text-text2 hover:text-foreground" aria-label="Menu">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </button>
+      {isLoading ? (
+        <div className="flex items-center justify-center py-20 text-text2">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {accounts.map((a) => (
+            <article key={a.id} className="im-card im-card-hover p-5">
+              <div className="flex items-start gap-4">
+                <div
+                  className="rounded-full p-[2px]"
+                  style={{ background: `conic-gradient(${ringForHealth(a.health_score)} ${a.health_score}%, var(--border) 0)` }}
+                >
+                  <img
+                    src={a.profile_picture}
+                    alt={a.username}
+                    className="h-14 w-14 rounded-full bg-bg3 ring-2 ring-bg2"
+                  />
                 </div>
-                <p className="text-sm text-text2">{a.name}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate text-base font-semibold">@{a.username}</h3>
+                    <button className="ml-auto text-text2 hover:text-foreground" aria-label="Menu">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="text-sm text-text2">{a.name}</p>
+                </div>
               </div>
+
+              <dl className="mt-5 grid grid-cols-3 gap-3 text-center">
+                <div className="rounded-lg bg-bg3 px-2 py-3">
+                  <dt className="text-[10px] uppercase tracking-wider text-muted2">Saúde</dt>
+                  <dd className="mt-1 text-base font-semibold" style={{ color: ringForHealth(a.health_score) }}>
+                    {a.health_score}
+                  </dd>
+                </div>
+                <div className="rounded-lg bg-bg3 px-2 py-3">
+                  <dt className="text-[10px] uppercase tracking-wider text-muted2">Seguidores</dt>
+                  <dd className="mt-1 text-base font-semibold">{a.followers.toLocaleString("pt-BR")}</dd>
+                </div>
+                <div className="rounded-lg bg-bg3 px-2 py-3">
+                  <dt className="text-[10px] uppercase tracking-wider text-muted2">Último</dt>
+                  <dd className="mt-1 text-base font-semibold">{fmtDateShort(a.last_post_at)}</dd>
+                </div>
+              </dl>
+
+              <div className="mt-4 flex items-center justify-between text-xs text-muted2">
+                <span className="inline-flex items-center gap-1">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  Token expira {fmtDateFull(a.token_expires_at)}
+                </span>
+                <button className="font-medium text-text2 hover:text-foreground">renovar</button>
+              </div>
+            </article>
+          ))}
+
+          <button className="im-card border-dashed flex min-h-[260px] flex-col items-center justify-center gap-2 text-text2 hover:text-foreground hover:border-accent">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg3">
+              <Plus className="h-5 w-5" />
             </div>
-
-            <dl className="mt-5 grid grid-cols-3 gap-3 text-center">
-              <div className="rounded-lg bg-bg3 px-2 py-3">
-                <dt className="text-[10px] uppercase tracking-wider text-muted2">Saúde</dt>
-                <dd className="mt-1 text-base font-semibold" style={{ color: ringForHealth(a.health_score) }}>
-                  {a.health_score}
-                </dd>
-              </div>
-              <div className="rounded-lg bg-bg3 px-2 py-3">
-                <dt className="text-[10px] uppercase tracking-wider text-muted2">Seguidores</dt>
-                <dd className="mt-1 text-base font-semibold">{a.followers.toLocaleString("pt-BR")}</dd>
-              </div>
-              <div className="rounded-lg bg-bg3 px-2 py-3">
-                <dt className="text-[10px] uppercase tracking-wider text-muted2">Último</dt>
-                <dd className="mt-1 text-base font-semibold">{fmtDateShort(a.last_post_at)}</dd>
-              </div>
-            </dl>
-
-            <div className="mt-4 flex items-center justify-between text-xs text-muted2">
-              <span className="inline-flex items-center gap-1">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Token expira {fmtDateFull(a.token_expires_at)}
-              </span>
-              <button className="font-medium text-text2 hover:text-foreground">renovar</button>
-            </div>
-          </article>
-        ))}
-
-        <button className="im-card border-dashed flex min-h-[260px] flex-col items-center justify-center gap-2 text-text2 hover:text-foreground hover:border-accent">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg3">
-            <Plus className="h-5 w-5" />
-          </div>
-          <span className="text-sm">Adicionar nova conta</span>
-        </button>
-      </div>
+            <span className="text-sm">Adicionar nova conta</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
