@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { handleInstagramCallback, popupResponseHtml } from "@/lib/oauth.server";
+import { ensureEnv } from "@/lib/cf.server";
 
 export const Route = createFileRoute("/api/auth/callback-ig")({
   server: {
