@@ -7,6 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
 
@@ -73,18 +74,31 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
+      { name: "description", content: "Pixel Perfect Mirror replicates screenshots, enabling precise visual content mirroring and management." },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { property: "og:description", content: "Pixel Perfect Mirror replicates screenshots, enabling precise visual content mirroring and management." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "Lovable App" },
+      { name: "twitter:description", content: "Pixel Perfect Mirror replicates screenshots, enabling precise visual content mirroring and management." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/110a2cf9-617a-430c-ae36-5570f0d71f5d/id-preview-7d515b50--04039116-01a4-4593-b9e4-c269ff5b3f4e.lovable.app-1779741968745.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/110a2cf9-617a-430c-ae36-5570f0d71f5d/id-preview-7d515b50--04039116-01a4-4593-b9e4-c269ff5b3f4e.lovable.app-1779741968745.png" },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
+      },
+      {
+        rel: "icon",
+        type: "image/svg+xml",
+        href:
+          "data:image/svg+xml;utf8," +
+          encodeURIComponent(
+            `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#a78bfa"/><stop offset="100%" stop-color="#ec4899"/></linearGradient></defs><rect width="32" height="32" rx="8" fill="url(#g)"/><path d="M16 7l2.2 4.5 5 .7-3.6 3.5.85 4.95L16 18.3l-4.45 2.35.85-4.95L8.8 12.2l5-.7z" fill="#fff"/></svg>`,
+          ),
       },
     ],
   }),
@@ -114,6 +128,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
+      <Toaster richColors closeButton position="top-right" />
     </QueryClientProvider>
   );
 }

@@ -1,6 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { mockAccounts } from "@/lib/mock";
+import { api } from "@/lib/api-client";
+import { listDriveEntries, type DriveVideo, type DriveFolder, type DriveCrumb } from "@/lib/drive.functions";
+import { Folder, ChevronRight, Home } from "lucide-react";
 import {
   UploadCloud,
   Type,
@@ -10,9 +14,13 @@ import {
   Image as ImageIcon,
   Link2,
   HardDrive,
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
+  Wand2,
+  Copy,
+  Check,
 } from "lucide-react";
-import { DrivePicker } from "@/components/DrivePicker";
-import type { DriveVideo } from "@/lib/drive.functions";
 
 export const Route = createFileRoute("/_app/warmup")({
   component: WarmupPage,
@@ -21,6 +29,7 @@ export const Route = createFileRoute("/_app/warmup")({
 
 const tabs = [
   { id: "upload", label: "Upload", icon: UploadCloud },
+  { id: "distribute", label: "Distribuir", icon: Wand2 },
   { id: "captions", label: "Legendas", icon: Type },
   { id: "config", label: "Configurações", icon: Settings2 },
   { id: "preview", label: "Preview da Fila", icon: ListChecks },
@@ -29,11 +38,96 @@ const tabs = [
 
 type TabId = (typeof tabs)[number]["id"];
 
+type Upload = {
+  name: string;
+  size: number;
+  type: string;
+  preview?: string;
+  status: "uploading" | "done" | "error";
+  key?: string;
+  url?: string;
+  error?: string;
+};
+
+async function readEntry(entry: FileSystemEntry): Promise<File[]> {
+  if (entry.isFile) {
+    return new Promise<File[]>((resolve) => {
+      (entry as FileSystemFileEntry).file(
+        (f) => resolve([f]),
+        () => resolve([]),
+      );
+    });
+  }
+  if (entry.isDirectory) {
+    const reader = (entry as FileSystemDirectoryEntry).createReader();
+    const all: File[] = [];
+    const readBatch = (): Promise<FileSystemEntry[]> =>
+      new Promise((resolve) => reader.readEntries(resolve, () => resolve([])));
+    while (true) {
+      const batch = await readBatch();
+      if (!batch.length) break;
+      for (const e of batch) all.push(...(await readEntry(e)));
+    }
+    return all;
+  }
+  return [];
+}
+
+async function filesFromDataTransfer(dt: DataTransfer): Promise<File[]> {
+  const items = dt.items;
+  if (items && items.length && typeof items[0].webkitGetAsEntry === "function") {
+    const out: File[] = [];
+    const entries: FileSystemEntry[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const e = items[i].webkitGetAsEntry();
+      if (e) entries.push(e);
+    }
+    for (const e of entries) out.push(...(await readEntry(e)));
+    return out;
+  }
+  return Array.from(dt.files ?? []);
+}
+
 function WarmupPage() {
   const [tab, setTab] = useState<TabId>("upload");
   const [coverTab, setCoverTab] = useState<"url" | "drive" | "local">("url");
-  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
-  const [pickedVideo, setPickedVideo] = useState<DriveVideo | null>(null);
+  const [uploads, setUploads] = useState<Upload[]>([]);
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFiles(files: File[] | FileList | null) {
+    if (!files) return;
+    const list = Array.from(files).filter(
+      (f) => f.type.startsWith("image/") || f.type.startsWith("video/"),
+    );
+    if (!list.length) return;
+    const baseIdx = uploads.length;
+    setUploads((u) => [
+      ...u,
+      ...list.map((f) => ({
+        name: f.name,
+        size: f.size,
+        type: f.type,
+        preview: f.type.startsWith("image/") ? URL.createObjectURL(f) : undefined,
+        status: "uploading" as const,
+      })),
+    ]);
+    await Promise.all(
+      list.map(async (file, i) => {
+        const result = await api.uploadMedia(file);
+        setUploads((u) => {
+          const copy = [...u];
+          const idx = baseIdx + i;
+          copy[idx] = result
+            ? { ...copy[idx], status: "done", key: result.key, url: result.url }
+            : { ...copy[idx], status: "error", error: "Falha no upload — bindings R2 indisponíveis?" };
+          return copy;
+        });
+      }),
+    );
+  }
+
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
@@ -73,32 +167,164 @@ function WarmupPage() {
 
         <div className="p-6">
           {tab === "upload" && (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border2 bg-bg3/40 px-6 py-16 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg3">
-                <UploadCloud className="h-5 w-5 text-text2" />
-              </div>
-              <h3 className="mt-4 text-base font-semibold">Solte vídeos e imagens aqui</h3>
-              <p className="mt-1 max-w-md text-sm text-text2">
-                Reels (mp4, mov) e Feed/Stories (jpg, png, webp). Você verá preview, tamanho e status de upload de cada item.
-              </p>
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-                <button className="rounded-lg im-grad-accent px-4 py-2 text-sm font-medium text-white">
-                  Selecionar arquivos
-                </button>
-                <button
-                  onClick={() => setDrivePickerOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-4 py-2 text-sm text-text2 hover:text-foreground hover:border-accent"
-                >
-                  <HardDrive className="h-4 w-4" /> Importar do Google Drive
-                </button>
-              </div>
-              {pickedVideo && (
-                <p className="mt-4 text-xs text-text2">
-                  Selecionado do Drive: <span className="text-foreground">{pickedVideo.name}</span>
+            <div className="space-y-5">
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "copy";
+                  setDragOver(true);
+                }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  if (e.currentTarget === e.target) setDragOver(false);
+                }}
+                onDrop={async (e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  const files = await filesFromDataTransfer(e.dataTransfer);
+                  await handleFiles(files);
+                }}
+                className={[
+                  "flex flex-col items-center justify-center rounded-xl border border-dashed px-6 py-12 text-center transition-colors",
+                  dragOver ? "border-accent bg-bg3" : "border-border2 bg-bg3/40",
+                ].join(" ")}
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg3">
+                  <UploadCloud className="h-5 w-5 text-text2" />
+                </div>
+                <h3 className="mt-4 text-base font-semibold">
+                  Solte vídeos, imagens ou pastas inteiras aqui
+                </h3>
+                <p className="mt-1 max-w-md text-sm text-text2">
+                  Reels (mp4, mov) e Feed/Stories (jpg, png, webp). Enviados direto para o bucket R2{" "}
+                  <code className="rounded bg-bg4 px-1.5 py-0.5 text-[11px]">insta-media</code>.
                 </p>
+                <input
+                  ref={inputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,video/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    handleFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+                <input
+                  ref={folderInputRef}
+                  type="file"
+                  multiple
+                  // @ts-expect-error — atributos não-padrão para upload de pasta
+                  webkitdirectory=""
+                  directory=""
+                  className="hidden"
+                  onChange={(e) => {
+                    handleFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                  <button
+                    onClick={() => inputRef.current?.click()}
+                    className="rounded-lg im-grad-accent px-4 py-2 text-sm font-medium text-white"
+                  >
+                    Selecionar arquivos
+                  </button>
+                  <button
+                    onClick={() => folderInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-4 py-2 text-sm text-text2 hover:text-foreground"
+                  >
+                    <Folder className="h-4 w-4" />
+                    Selecionar pasta
+                  </button>
+                </div>
+              </div>
+
+              {uploads.length > 0 && (
+                <>
+                  <div className="flex items-center justify-between text-xs text-muted2">
+                    <span>
+                      {uploads.length} arquivo{uploads.length === 1 ? "" : "s"} ·{" "}
+                      {uploads.filter((u) => u.status === "done").length} concluído(s) ·{" "}
+                      {uploads.filter((u) => u.status === "uploading").length} enviando ·{" "}
+                      {uploads.filter((u) => u.status === "error").length} erro(s)
+                    </span>
+                    <button
+                      onClick={() => {
+                        uploads.forEach((u) => u.preview && URL.revokeObjectURL(u.preview));
+                        setUploads([]);
+                      }}
+                      className="hover:text-foreground"
+                    >
+                      Limpar lista
+                    </button>
+                  </div>
+                  <ul className="space-y-2">
+                    {uploads.map((u, i) => (
+                      <li
+                        key={i}
+                        className="flex items-center gap-3 rounded-lg border border-border bg-bg3 p-3"
+                      >
+                        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-bg4">
+                          {u.preview ? (
+                            <img src={u.preview} alt="" className="h-full w-full object-cover" />
+                          ) : u.type.startsWith("video/") ? (
+                            <UploadCloud className="h-5 w-5 text-text2" />
+                          ) : (
+                            <ImageIcon className="h-5 w-5 text-text2" />
+                          )}
+                          {u.status === "uploading" && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                              <Loader2 className="h-4 w-4 animate-spin text-white" />
+                            </div>
+                          )}
+                          {u.status === "done" && (
+                            <div className="absolute right-0.5 bottom-0.5 rounded-full bg-emerald-500/90 p-0.5">
+                              <CheckCircle2 className="h-3 w-3 text-white" />
+                            </div>
+                          )}
+                          {u.status === "error" && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-red-500/30">
+                              <AlertCircle className="h-4 w-4 text-red-300" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium">{u.name}</div>
+                          <div className="truncate text-xs text-muted2">
+                            {(u.size / 1024 / 1024).toFixed(2)} MB ·{" "}
+                            {u.status === "uploading" && "enviando para R2…"}
+                            {u.status === "done" && (
+                              <>
+                                <span className="text-emerald-400">no R2</span> ·{" "}
+                                <a
+                                  href={u.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="underline hover:text-foreground"
+                                >
+                                  {u.key}
+                                </a>
+                              </>
+                            )}
+                            {u.status === "error" && (
+                              <span className="text-red-400">{u.error}</span>
+                            )}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </div>
           )}
+
+          {tab === "distribute" && <DistributeTab />}
 
           {tab === "captions" && (
             <div className="space-y-4">
@@ -216,10 +442,7 @@ function WarmupPage() {
                       />
                     )}
                     {coverTab === "drive" && (
-                      <button
-                        onClick={() => setDrivePickerOpen(true)}
-                        className="w-full rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:text-foreground hover:border-accent"
-                      >
+                      <button className="w-full rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:text-foreground">
                         Abrir Drive Picker (imagens)
                       </button>
                     )}
@@ -266,12 +489,338 @@ function WarmupPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
 
-      <DrivePicker
-        open={drivePickerOpen}
-        onClose={() => setDrivePickerOpen(false)}
-        onPick={(v) => setPickedVideo(v)}
-      />
+function DistributeTab() {
+  const fetchEntries = useServerFn(listDriveEntries);
+  const [loading, setLoading] = useState(true);
+  const [folderId, setFolderId] = useState<string>("root");
+  const [folders, setFolders] = useState<DriveFolder[]>([]);
+  const [videos, setVideos] = useState<DriveVideo[]>([]);
+  const [breadcrumbs, setBreadcrumbs] = useState<DriveCrumb[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  // Multi-seleção persistente: id -> vídeo (preserva entre navegações de pasta)
+  const [selectedVideos, setSelectedVideos] = useState<Map<string, DriveVideo>>(new Map());
+  const [loadingFolder, setLoadingFolder] = useState<string | null>(null);
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [caption, setCaption] = useState("");
+  const [start, setStart] = useState(() => {
+    const d = new Date(Date.now() + 60 * 60_000);
+    d.setSeconds(0, 0);
+    return d.toISOString().slice(0, 16);
+  });
+  const [gap, setGap] = useState(15);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchEntries({ data: { folderId } })
+      .then((r) => {
+        setFolders(r.folders);
+        setVideos(r.videos);
+        setBreadcrumbs(r.breadcrumbs);
+        setError(r.error);
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, [fetchEntries, folderId]);
+
+  const toggleAccount = (u: string) =>
+    setSelectedAccounts((s) => (s.includes(u) ? s.filter((x) => x !== u) : [...s, u]));
+
+  const toggleVideo = (v: DriveVideo) =>
+    setSelectedVideos((prev) => {
+      const n = new Map(prev);
+      if (n.has(v.id)) n.delete(v.id);
+      else n.set(v.id, v);
+      return n;
+    });
+
+  const allCurrentSelected =
+    videos.length > 0 && videos.every((v) => selectedVideos.has(v.id));
+
+  const toggleSelectAllHere = () =>
+    setSelectedVideos((prev) => {
+      const n = new Map(prev);
+      if (allCurrentSelected) videos.forEach((v) => n.delete(v.id));
+      else videos.forEach((v) => n.set(v.id, v));
+      return n;
+    });
+
+  // Recursivo: anda pela pasta + subpastas e adiciona todo vídeo encontrado
+  async function selectEntireFolder(f: DriveFolder) {
+    setLoadingFolder(f.id);
+    try {
+      const collected: DriveVideo[] = [];
+      const walk = async (id: string) => {
+        const r = await fetchEntries({ data: { folderId: id } });
+        if (r.error) throw new Error(r.error);
+        collected.push(...r.videos);
+        for (const sub of r.folders) await walk(sub.id);
+      };
+      await walk(f.id);
+      setSelectedVideos((prev) => {
+        const n = new Map(prev);
+        collected.forEach((v) => n.set(v.id, v));
+        return n;
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoadingFolder(null);
+    }
+  }
+
+  const clearSelection = () => setSelectedVideos(new Map());
+
+  const selectedList = Array.from(selectedVideos.values());
+
+  const command = selectedList.length && selectedAccounts.length
+    ? selectedList
+        .map((v) =>
+          [
+            "bun scripts/distribute-reel.ts \\",
+            `  --drive-id ${v.id} \\`,
+            `  --accounts ${selectedAccounts.join(",")} \\`,
+            `  --caption ${JSON.stringify(caption || "")} \\`,
+            `  --start "${new Date(start).toISOString()}" \\`,
+            `  --gap ${gap}`,
+          ].join("\n"),
+        )
+        .join("\n\n")
+    : "";
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(command);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div>
+        <h3 className="mb-3 text-sm font-semibold flex items-center gap-2">
+          <HardDrive className="h-4 w-4" /> Google Drive
+        </h3>
+
+        <div className="mb-3 flex flex-wrap items-center gap-1 rounded-lg border border-border bg-bg3/60 px-2 py-1.5 text-xs">
+          <button
+            onClick={() => setFolderId("root")}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-text2 hover:bg-bg4 hover:text-foreground"
+          >
+            <Home className="h-3.5 w-3.5" /> Meu Drive
+          </button>
+          {breadcrumbs.map((c) => (
+            <span key={c.id} className="flex items-center gap-1">
+              <ChevronRight className="h-3 w-3 text-muted2" />
+              <button
+                onClick={() => setFolderId(c.id)}
+                className="rounded px-1.5 py-1 text-text2 hover:bg-bg4 hover:text-foreground"
+              >
+                {c.name}
+              </button>
+            </span>
+          ))}
+        </div>
+
+        {loading && (
+          <div className="rounded-xl border border-border bg-bg3/40 p-10 text-center text-sm text-text2">
+            <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" /> carregando…
+          </div>
+        )}
+        {!loading && error && (
+          <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">
+            <AlertCircle className="mr-1 inline h-4 w-4" /> {error}
+          </div>
+        )}
+        {!loading && !error && folders.length === 0 && videos.length === 0 && (
+          <div className="rounded-xl border border-border bg-bg3/40 p-10 text-center text-sm text-text2">
+            Pasta vazia.
+          </div>
+        )}
+        {!loading && (folders.length > 0 || videos.length > 0) && (
+          <>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="text-muted2">
+                {selectedVideos.size > 0
+                  ? `${selectedVideos.size} vídeo${selectedVideos.size > 1 ? "s" : ""} selecionado${selectedVideos.size > 1 ? "s" : ""}`
+                  : "Nada selecionado"}
+              </span>
+              <div className="flex items-center gap-2">
+                {videos.length > 0 && (
+                  <button
+                    onClick={toggleSelectAllHere}
+                    className="rounded-md border border-border2 bg-bg3 px-2 py-1 text-text2 hover:text-foreground"
+                  >
+                    {allCurrentSelected ? "Desmarcar pasta atual" : "Selecionar todos aqui"}
+                  </button>
+                )}
+                {selectedVideos.size > 0 && (
+                  <button
+                    onClick={clearSelection}
+                    className="rounded-md px-2 py-1 text-text2 hover:text-foreground"
+                  >
+                    Limpar
+                  </button>
+                )}
+              </div>
+            </div>
+            <ul className="grid max-h-[460px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+              {folders.map((f) => (
+                <li key={f.id}>
+                  <div className="group flex items-center gap-2 rounded-lg border border-border bg-bg3/60 p-2 transition hover:border-border2">
+                    <button
+                      onClick={() => setFolderId(f.id)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    >
+                      <div className="flex h-14 w-20 flex-shrink-0 items-center justify-center rounded-md bg-bg4">
+                        <Folder className="h-5 w-5 text-text2" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{f.name}</div>
+                        <div className="text-xs text-muted2">pasta</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => selectEntireFolder(f)}
+                      disabled={loadingFolder === f.id}
+                      title="Selecionar todos os vídeos desta pasta (recursivo)"
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-border2 text-text2 hover:bg-bg4 hover:text-foreground disabled:opacity-50"
+                    >
+                      {loadingFolder === f.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
+                    </button>
+                  </div>
+                </li>
+              ))}
+              {videos.map((v) => {
+                const active = selectedVideos.has(v.id);
+                return (
+                  <li key={v.id}>
+                    <button
+                      onClick={() => toggleVideo(v)}
+                      className={[
+                        "group flex w-full items-center gap-3 rounded-lg border p-2 text-left transition",
+                        active
+                          ? "border-accent bg-bg3"
+                          : "border-border bg-bg3/60 hover:border-border2",
+                      ].join(" ")}
+                    >
+                      <div className="h-14 w-20 flex-shrink-0 overflow-hidden rounded-md bg-bg4">
+                        {v.thumbnailLink ? (
+                          <img src={v.thumbnailLink} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-muted2">
+                            <ImageIcon className="h-4 w-4" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{v.name}</div>
+                        <div className="text-xs text-muted2">
+                          {v.size ? `${(Number(v.size) / 1024 / 1024).toFixed(1)} MB` : ""}
+                          {v.durationMillis ? ` · ${Math.round(Number(v.durationMillis) / 1000)}s` : ""}
+                        </div>
+                      </div>
+                      <div
+                        className={[
+                          "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border",
+                          active ? "border-accent bg-accent text-white" : "border-border2",
+                        ].join(" ")}
+                      >
+                        {active && <Check className="h-3.5 w-3.5" />}
+                      </div>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <h3 className="mb-2 text-sm font-semibold">Contas que recebem</h3>
+          <ul className="space-y-1.5">
+            {mockAccounts.map((a) => (
+              <li key={a.id}>
+                <label className="flex items-center gap-2 rounded-md border border-border bg-bg3 p-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedAccounts.includes(a.username)}
+                    onChange={() => toggleAccount(a.username)}
+                    className="accent-accent"
+                  />
+                  <img src={a.profile_picture} alt="" className="h-6 w-6 rounded-full" />
+                  <span className="flex-1">@{a.username}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-wider text-muted2">Início</label>
+            <input
+              type="datetime-local"
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              className="w-full rounded-lg border border-border2 bg-bg3 px-2 py-1.5 text-sm outline-none focus:border-accent"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-wider text-muted2">Gap (min)</label>
+            <input
+              type="number"
+              value={gap}
+              onChange={(e) => setGap(Number(e.target.value))}
+              className="w-full rounded-lg border border-border2 bg-bg3 px-2 py-1.5 text-sm outline-none focus:border-accent"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs uppercase tracking-wider text-muted2">Legenda base</label>
+          <textarea
+            rows={3}
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            placeholder="novo drop ✦"
+            className="w-full resize-y rounded-lg border border-border2 bg-bg3 p-2 text-sm outline-none focus:border-accent"
+          />
+        </div>
+
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="text-xs uppercase tracking-wider text-muted2">Comando local</label>
+            {command && (
+              <button
+                onClick={copy}
+                className="inline-flex items-center gap-1 text-xs text-text2 hover:text-foreground"
+              >
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? "copiado" : "copiar"}
+              </button>
+            )}
+          </div>
+          <pre className="overflow-x-auto rounded-lg border border-border bg-bg4 p-3 text-[11px] leading-relaxed text-text2">
+{command || "Selecione ao menos um vídeo do Drive e uma conta."}
+          </pre>
+          <p className="mt-2 text-xs text-muted2">
+            Rode esse comando no seu PC (precisa de <code className="rounded bg-bg4 px-1">ffmpeg</code> +{" "}
+            <code className="rounded bg-bg4 px-1">bun</code>). Gera 1 variante única por conta — metadados
+            zerados, re-encode + micro-ajustes visuais — sobe ao R2 e enfileira.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
