@@ -81,9 +81,22 @@ function WarmupPage() {
               <p className="mt-1 max-w-md text-sm text-text2">
                 Reels (mp4, mov) e Feed/Stories (jpg, png, webp). Você verá preview, tamanho e status de upload de cada item.
               </p>
-              <button className="mt-5 rounded-lg im-grad-accent px-4 py-2 text-sm font-medium text-white">
-                Selecionar arquivos
-              </button>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <button className="rounded-lg im-grad-accent px-4 py-2 text-sm font-medium text-white">
+                  Selecionar arquivos
+                </button>
+                <button
+                  onClick={() => setDrivePickerOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-4 py-2 text-sm text-text2 hover:text-foreground hover:border-accent"
+                >
+                  <HardDrive className="h-4 w-4" /> Importar do Google Drive
+                </button>
+              </div>
+              {pickedVideo && (
+                <p className="mt-4 text-xs text-text2">
+                  Selecionado do Drive: <span className="text-foreground">{pickedVideo.name}</span>
+                </p>
+              )}
             </div>
           )}
 
@@ -203,7 +216,10 @@ function WarmupPage() {
                       />
                     )}
                     {coverTab === "drive" && (
-                      <button className="w-full rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:text-foreground">
+                      <button
+                        onClick={() => setDrivePickerOpen(true)}
+                        className="w-full rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:text-foreground hover:border-accent"
+                      >
                         Abrir Drive Picker (imagens)
                       </button>
                     )}
@@ -250,6 +266,12 @@ function WarmupPage() {
           )}
         </div>
       </div>
+
+      <DrivePicker
+        open={drivePickerOpen}
+        onClose={() => setDrivePickerOpen(false)}
+        onPick={(v) => setPickedVideo(v)}
+      />
     </div>
   );
 }
