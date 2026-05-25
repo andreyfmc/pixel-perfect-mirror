@@ -12,6 +12,7 @@ export const Route = createFileRoute("/api/auth/callback")({
         if (err) return popupResponseHtml({ ok: false, error: err });
         if (!code) return popupResponseHtml({ ok: false, error: "missing_code" });
         try {
+          await ensureEnv();
           const res = await handleFacebookCallback(request, code);
           return popupResponseHtml({
             ok: res.saved.length > 0,
