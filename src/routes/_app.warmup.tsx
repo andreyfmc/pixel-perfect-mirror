@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { mockAccounts } from "@/lib/mock";
 import { api } from "@/lib/api-client";
+import { listDriveVideos, type DriveVideo } from "@/lib/drive.functions";
 import {
   UploadCloud,
   Type,
@@ -14,6 +16,9 @@ import {
   CheckCircle2,
   Loader2,
   AlertCircle,
+  Wand2,
+  Copy,
+  Check,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_app/warmup")({
@@ -23,6 +28,7 @@ export const Route = createFileRoute("/_app/warmup")({
 
 const tabs = [
   { id: "upload", label: "Upload", icon: UploadCloud },
+  { id: "distribute", label: "Distribuir", icon: Wand2 },
   { id: "captions", label: "Legendas", icon: Type },
   { id: "config", label: "Configurações", icon: Settings2 },
   { id: "preview", label: "Preview da Fila", icon: ListChecks },
@@ -189,6 +195,7 @@ function WarmupPage() {
             </div>
           )}
 
+          {tab === "distribute" && <DistributeTab />}
 
           {tab === "captions" && (
             <div className="space-y-4">
@@ -351,6 +358,193 @@ function WarmupPage() {
               })}
             </ul>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DistributeTab() {
+  const fetchVideos = useServerFn(listDriveVideos);
+  const [loading, setLoading] = useState(true);
+  const [videos, setVideos] = useState<DriveVideo[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedVideo, setSelectedVideo] = useState<DriveVideo | null>(null);
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [caption, setCaption] = useState("");
+  const [start, setStart] = useState(() => {
+    const d = new Date(Date.now() + 60 * 60_000);
+    d.setSeconds(0, 0);
+    return d.toISOString().slice(0, 16);
+  });
+  const [gap, setGap] = useState(15);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    fetchVideos()
+      .then((r) => {
+        setVideos(r.videos);
+        setError(r.error);
+      })
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, [fetchVideos]);
+
+  const toggleAccount = (u: string) =>
+    setSelectedAccounts((s) => (s.includes(u) ? s.filter((x) => x !== u) : [...s, u]));
+
+  const command = selectedVideo && selectedAccounts.length
+    ? [
+        "bun scripts/distribute-reel.ts \\",
+        `  --drive-id ${selectedVideo.id} \\`,
+        `  --accounts ${selectedAccounts.join(",")} \\`,
+        `  --caption ${JSON.stringify(caption || "")} \\`,
+        `  --start "${new Date(start).toISOString()}" \\`,
+        `  --gap ${gap}`,
+      ].join("\n")
+    : "";
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(command);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+      <div>
+        <h3 className="mb-3 text-sm font-semibold flex items-center gap-2">
+          <HardDrive className="h-4 w-4" /> Vídeos no seu Google Drive
+        </h3>
+        {loading && (
+          <div className="rounded-xl border border-border bg-bg3/40 p-10 text-center text-sm text-text2">
+            <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" /> carregando…
+          </div>
+        )}
+        {!loading && error && (
+          <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">
+            <AlertCircle className="mr-1 inline h-4 w-4" /> {error}
+          </div>
+        )}
+        {!loading && !error && videos.length === 0 && (
+          <div className="rounded-xl border border-border bg-bg3/40 p-10 text-center text-sm text-text2">
+            Nenhum vídeo encontrado no seu Drive.
+          </div>
+        )}
+        {!loading && videos.length > 0 && (
+          <ul className="grid max-h-[480px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+            {videos.map((v) => {
+              const active = selectedVideo?.id === v.id;
+              return (
+                <li key={v.id}>
+                  <button
+                    onClick={() => setSelectedVideo(v)}
+                    className={[
+                      "group flex w-full items-center gap-3 rounded-lg border p-2 text-left transition",
+                      active
+                        ? "border-accent bg-bg3"
+                        : "border-border bg-bg3/60 hover:border-border2",
+                    ].join(" ")}
+                  >
+                    <div className="h-14 w-20 flex-shrink-0 overflow-hidden rounded-md bg-bg4">
+                      {v.thumbnailLink ? (
+                        <img src={v.thumbnailLink} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-muted2">
+                          <ImageIcon className="h-4 w-4" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{v.name}</div>
+                      <div className="text-xs text-muted2">
+                        {v.size ? `${(Number(v.size) / 1024 / 1024).toFixed(1)} MB` : ""}
+                        {v.durationMillis ? ` · ${Math.round(Number(v.durationMillis) / 1000)}s` : ""}
+                      </div>
+                    </div>
+                    {active && <Check className="h-4 w-4 text-accent" />}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <h3 className="mb-2 text-sm font-semibold">Contas que recebem</h3>
+          <ul className="space-y-1.5">
+            {mockAccounts.map((a) => (
+              <li key={a.id}>
+                <label className="flex items-center gap-2 rounded-md border border-border bg-bg3 p-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedAccounts.includes(a.username)}
+                    onChange={() => toggleAccount(a.username)}
+                    className="accent-accent"
+                  />
+                  <img src={a.profile_picture} alt="" className="h-6 w-6 rounded-full" />
+                  <span className="flex-1">@{a.username}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-wider text-muted2">Início</label>
+            <input
+              type="datetime-local"
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
+              className="w-full rounded-lg border border-border2 bg-bg3 px-2 py-1.5 text-sm outline-none focus:border-accent"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-wider text-muted2">Gap (min)</label>
+            <input
+              type="number"
+              value={gap}
+              onChange={(e) => setGap(Number(e.target.value))}
+              className="w-full rounded-lg border border-border2 bg-bg3 px-2 py-1.5 text-sm outline-none focus:border-accent"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-xs uppercase tracking-wider text-muted2">Legenda base</label>
+          <textarea
+            rows={3}
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            placeholder="novo drop ✦"
+            className="w-full resize-y rounded-lg border border-border2 bg-bg3 p-2 text-sm outline-none focus:border-accent"
+          />
+        </div>
+
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="text-xs uppercase tracking-wider text-muted2">Comando local</label>
+            {command && (
+              <button
+                onClick={copy}
+                className="inline-flex items-center gap-1 text-xs text-text2 hover:text-foreground"
+              >
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? "copiado" : "copiar"}
+              </button>
+            )}
+          </div>
+          <pre className="overflow-x-auto rounded-lg border border-border bg-bg4 p-3 text-[11px] leading-relaxed text-text2">
+{command || "Selecione um vídeo do Drive e ao menos uma conta."}
+          </pre>
+          <p className="mt-2 text-xs text-muted2">
+            Rode esse comando no seu PC (precisa de <code className="rounded bg-bg4 px-1">ffmpeg</code> +{" "}
+            <code className="rounded bg-bg4 px-1">bun</code>). Gera 1 variante única por conta — metadados
+            zerados, re-encode + micro-ajustes visuais — sobe ao R2 e enfileira.
+          </p>
         </div>
       </div>
     </div>
