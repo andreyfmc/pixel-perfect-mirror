@@ -14,6 +14,12 @@ export const Route = createFileRoute("/api/media/upload")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        if (!hasMedia()) {
+          return json(
+            { error: "r2_unavailable", message: "R2 binding 'MEDIA' indisponível neste ambiente (preview/dev). Funciona em produção." },
+            503,
+          );
+        }
         const filename = request.headers.get("x-filename") ?? "upload.bin";
         const contentType = request.headers.get("content-type") ?? "application/octet-stream";
         const body = await request.arrayBuffer();
