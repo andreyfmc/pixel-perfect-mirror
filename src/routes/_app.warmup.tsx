@@ -373,7 +373,9 @@ function DistributeTab() {
   const [videos, setVideos] = useState<DriveVideo[]>([]);
   const [breadcrumbs, setBreadcrumbs] = useState<DriveCrumb[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [selectedVideo, setSelectedVideo] = useState<DriveVideo | null>(null);
+  // Multi-seleção persistente: id -> vídeo (preserva entre navegações de pasta)
+  const [selectedVideos, setSelectedVideos] = useState<Map<string, DriveVideo>>(new Map());
+  const [loadingFolder, setLoadingFolder] = useState<string | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
   const [caption, setCaption] = useState("");
   const [start, setStart] = useState(() => {
@@ -400,15 +402,66 @@ function DistributeTab() {
   const toggleAccount = (u: string) =>
     setSelectedAccounts((s) => (s.includes(u) ? s.filter((x) => x !== u) : [...s, u]));
 
-  const command = selectedVideo && selectedAccounts.length
-    ? [
-        "bun scripts/distribute-reel.ts \\",
-        `  --drive-id ${selectedVideo.id} \\`,
-        `  --accounts ${selectedAccounts.join(",")} \\`,
-        `  --caption ${JSON.stringify(caption || "")} \\`,
-        `  --start "${new Date(start).toISOString()}" \\`,
-        `  --gap ${gap}`,
-      ].join("\n")
+  const toggleVideo = (v: DriveVideo) =>
+    setSelectedVideos((prev) => {
+      const n = new Map(prev);
+      if (n.has(v.id)) n.delete(v.id);
+      else n.set(v.id, v);
+      return n;
+    });
+
+  const allCurrentSelected =
+    videos.length > 0 && videos.every((v) => selectedVideos.has(v.id));
+
+  const toggleSelectAllHere = () =>
+    setSelectedVideos((prev) => {
+      const n = new Map(prev);
+      if (allCurrentSelected) videos.forEach((v) => n.delete(v.id));
+      else videos.forEach((v) => n.set(v.id, v));
+      return n;
+    });
+
+  // Recursivo: anda pela pasta + subpastas e adiciona todo vídeo encontrado
+  async function selectEntireFolder(f: DriveFolder) {
+    setLoadingFolder(f.id);
+    try {
+      const collected: DriveVideo[] = [];
+      const walk = async (id: string) => {
+        const r = await fetchEntries({ data: { folderId: id } });
+        if (r.error) throw new Error(r.error);
+        collected.push(...r.videos);
+        for (const sub of r.folders) await walk(sub.id);
+      };
+      await walk(f.id);
+      setSelectedVideos((prev) => {
+        const n = new Map(prev);
+        collected.forEach((v) => n.set(v.id, v));
+        return n;
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoadingFolder(null);
+    }
+  }
+
+  const clearSelection = () => setSelectedVideos(new Map());
+
+  const selectedList = Array.from(selectedVideos.values());
+
+  const command = selectedList.length && selectedAccounts.length
+    ? selectedList
+        .map((v) =>
+          [
+            "bun scripts/distribute-reel.ts \\",
+            `  --drive-id ${v.id} \\`,
+            `  --accounts ${selectedAccounts.join(",")} \\`,
+            `  --caption ${JSON.stringify(caption || "")} \\`,
+            `  --start "${new Date(start).toISOString()}" \\`,
+            `  --gap ${gap}`,
+          ].join("\n"),
+        )
+        .join("\n\n")
     : "";
 
   const copy = async () => {
@@ -416,6 +469,7 @@ function DistributeTab() {
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
+
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
