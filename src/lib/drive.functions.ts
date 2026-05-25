@@ -62,10 +62,10 @@ export const listDriveEntries = createServerFn({ method: "GET" })
   .inputValidator((data: { folderId?: string }) => ({ folderId: data?.folderId ?? "root" }))
   .handler(async ({ data }): Promise<DriveListing> => {
     const auth = headers();
-    if ("err" in auth) {
+    if (!auth.ok) {
       return { folders: [], videos: [], breadcrumbs: [], error: auth.err };
     }
-    const { h } = auth;
+    const h = auth.h;
     const folderId = data.folderId;
 
     const q = `'${folderId}' in parents and trashed = false and (mimeType = '${FOLDER_MIME}' or mimeType contains 'video/')`;
@@ -133,7 +133,7 @@ export const listDriveEntries = createServerFn({ method: "GET" })
 // Backwards-compatible: lista TODOS os vídeos (busca global) sem navegar.
 export const listDriveVideos = createServerFn({ method: "GET" }).handler(async () => {
   const auth = headers();
-  if ("err" in auth) return { videos: [] as DriveVideo[], error: auth.err };
+  if (!auth.ok) return { videos: [] as DriveVideo[], error: auth.err };
   const params = new URLSearchParams({
     q: "mimeType contains 'video/' and trashed = false",
     fields: "files(id,name,mimeType,size,thumbnailLink,modifiedTime,videoMediaMetadata)",
