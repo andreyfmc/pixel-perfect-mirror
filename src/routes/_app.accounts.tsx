@@ -25,7 +25,10 @@ function AccountsPage() {
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Contas</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Suas conexões</h1>
         </div>
-        <button className="inline-flex items-center gap-1.5 rounded-lg im-grad-accent px-3.5 py-2 text-sm font-medium text-white">
+        <button
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg im-grad-accent px-3.5 py-2 text-sm font-medium text-white"
+        >
           <Plus className="h-4 w-4" /> Conectar Instagram
         </button>
       </header>
@@ -82,13 +85,18 @@ function AccountsPage() {
           </article>
         ))}
 
-        <button className="im-card border-dashed flex min-h-[260px] flex-col items-center justify-center gap-2 text-text2 hover:text-foreground hover:border-accent">
+        <button
+          onClick={() => setOpen(true)}
+          className="im-card border-dashed flex min-h-[260px] flex-col items-center justify-center gap-2 text-text2 hover:text-foreground hover:border-accent"
+        >
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg3">
             <Plus className="h-5 w-5" />
           </div>
           <span className="text-sm">Adicionar nova conta</span>
         </button>
       </div>
+
+      <ConnectAccountDialog open={open} onClose={() => setOpen(false)} />
     </div>
   );
 }
