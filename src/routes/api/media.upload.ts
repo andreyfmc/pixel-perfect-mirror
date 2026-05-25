@@ -2,7 +2,7 @@
 // Body: arquivo binário. Headers: content-type + x-filename.
 
 import { createFileRoute } from "@tanstack/react-router";
-import { requireMedia } from "@/lib/cf.server";
+import { hasMedia, requireMedia } from "@/lib/cf.server";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
