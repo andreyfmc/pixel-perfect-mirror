@@ -195,6 +195,7 @@ function WarmupPage() {
             </div>
           )}
 
+          {tab === "distribute" && <DistributeTab />}
 
           {tab === "captions" && (
             <div className="space-y-4">
