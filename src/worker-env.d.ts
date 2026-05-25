@@ -12,6 +12,14 @@ declare global {
       IG_APP_SECRET?: string;
       IG_REDIRECT_URI?: string;
       CRON_SECRET?: string;
+      // Meta / Facebook Login (para contas que precisam de Página)
+      META_APP_ID?: string;
+      META_APP_SECRET?: string;
+      // Instagram Login direto (Business sem Página)
+      META_IG_APP_ID?: string;
+      META_IG_APP_SECRET?: string;
+      // Override opcional do origin público (caso o Worker rode atrás de proxy)
+      PUBLIC_BASE_URL?: string;
     }
   }
 }
