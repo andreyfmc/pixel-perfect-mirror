@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { buildAuthUrl } from "@/lib/oauth.server";
+import { ensureEnv } from "@/lib/cf.server";
 
 export const Route = createFileRoute("/api/auth/instagram")({
   server: {
