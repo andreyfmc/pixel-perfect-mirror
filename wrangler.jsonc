@@ -1,7 +1,36 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "tanstack-start-app",
+  "name": "insta-manager",
   "compatibility_date": "2025-09-24",
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/server.ts",
+
+  // ============================================================
+  // Bindings — substitua os IDs após rodar os comandos do SETUP.md
+  // ============================================================
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "insta-manager",
+      "database_id": "REPLACE_WITH_D1_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "insta-media"
+    }
+  ],
+
+  // Cron a cada minuto — varre a fila e publica o que estiver vencido
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+
+  "vars": {
+    // Não-secretos. Tokens do Instagram vão via `wrangler secret put`.
+    "APP_ENV": "production"
+  }
 }
