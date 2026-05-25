@@ -1,7 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { mockAccounts } from "@/lib/mock";
 import { api } from "@/lib/api-client";
+import { listDriveVideos, type DriveVideo } from "@/lib/drive.functions";
 import {
   UploadCloud,
   Type,
@@ -14,6 +16,9 @@ import {
   CheckCircle2,
   Loader2,
   AlertCircle,
+  Wand2,
+  Copy,
+  Check,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_app/warmup")({
@@ -23,6 +28,7 @@ export const Route = createFileRoute("/_app/warmup")({
 
 const tabs = [
   { id: "upload", label: "Upload", icon: UploadCloud },
+  { id: "distribute", label: "Distribuir", icon: Wand2 },
   { id: "captions", label: "Legendas", icon: Type },
   { id: "config", label: "Configurações", icon: Settings2 },
   { id: "preview", label: "Preview da Fila", icon: ListChecks },
