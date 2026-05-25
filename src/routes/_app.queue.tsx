@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { mockQueue } from "@/lib/mock";
+import { fmtDateTime } from "@/lib/format";
 import { GripVertical, Play, RefreshCw, Trash2 } from "lucide-react";
 
 export const Route = createFileRoute("/_app/queue")({
@@ -58,12 +59,7 @@ function QueuePage() {
                 <p className="mt-1 line-clamp-1 text-sm text-text2">{q.caption}</p>
               </div>
               <div className="hidden text-right text-xs text-text2 md:block">
-                {new Date(q.scheduled_at).toLocaleString("pt-BR", {
-                  day: "2-digit",
-                  month: "short",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
+                {fmtDateTime(q.scheduled_at)}
               </div>
               <button className="text-muted2 hover:text-danger" aria-label="Remover">
                 <Trash2 className="h-4 w-4" />

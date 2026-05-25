@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { mockAccounts, mockQueue, mockHistory } from "@/lib/mock";
+import { fmtDateTime } from "@/lib/format";
 import {
   Activity,
   TrendingUp,
@@ -103,14 +104,7 @@ function Dashboard() {
                   </div>
                   <p className="mt-0.5 truncate text-sm text-text2">{q.caption}</p>
                 </div>
-                <div className="text-right text-xs text-muted2">
-                  {new Date(q.scheduled_at).toLocaleString("pt-BR", {
-                    day: "2-digit",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </div>
+                <div className="text-right text-xs text-muted2">{fmtDateTime(q.scheduled_at)}</div>
               </li>
             ))}
           </ul>

@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { mockAccounts } from "@/lib/mock";
+import { fmtDateShort, fmtDateFull } from "@/lib/format";
 import { Plus, MoreHorizontal, ShieldCheck } from "lucide-react";
 
 export const Route = createFileRoute("/_app/accounts")({
@@ -64,16 +65,14 @@ function AccountsPage() {
               </div>
               <div className="rounded-lg bg-bg3 px-2 py-3">
                 <dt className="text-[10px] uppercase tracking-wider text-muted2">Último</dt>
-                <dd className="mt-1 text-base font-semibold">
-                  {new Date(a.last_post_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
-                </dd>
+                <dd className="mt-1 text-base font-semibold">{fmtDateShort(a.last_post_at)}</dd>
               </div>
             </dl>
 
             <div className="mt-4 flex items-center justify-between text-xs text-muted2">
               <span className="inline-flex items-center gap-1">
                 <ShieldCheck className="h-3.5 w-3.5" />
-                Token expira {new Date(a.token_expires_at).toLocaleDateString("pt-BR")}
+                Token expira {fmtDateFull(a.token_expires_at)}
               </span>
               <button className="font-medium text-text2 hover:text-foreground">renovar</button>
             </div>
