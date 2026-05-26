@@ -359,7 +359,9 @@ function ContingencyPage() {
         {selectMode && selected.size > 0 && (
           <button
             onClick={() => {
+              const ids = Array.from(selected);
               update((prev) => prev.filter((a) => !selected.has(a.id)));
+              ids.forEach(deleteOne);
               setSelected(new Set());
               toast.success("Removidas");
             }}
