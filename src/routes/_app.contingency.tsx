@@ -1025,17 +1025,27 @@ function ContingencyPage() {
         <button
           onClick={async () => {
             const csv = toCSV(list);
-            const filename = `contingencia-${new Date().toISOString().slice(0, 10)}.csv`;
-            toast.loading("Enviando ao Drive...", { id: "drive-save" });
-            const res = await uploadCsv({ data: { filename, csv } });
-            if (res.error) toast.error(`Falha: ${res.error}`, { id: "drive-save" });
-            else toast.success(`Salvo no Drive: ${filename}`, { id: "drive-save" });
+            const lastId = typeof window !== "undefined" ? localStorage.getItem("im_contingency_drive_file_id") : null;
+            const lastName = typeof window !== "undefined" ? localStorage.getItem("im_contingency_drive_file_name") : null;
+            const filename = lastName ?? `contingencia.csv`;
+            toast.loading(lastId ? "Atualizando no Drive..." : "Enviando ao Drive...", { id: "drive-save" });
+            const res = await uploadCsv({ data: { filename, csv, fileId: lastId ?? undefined } });
+            if (res.error) {
+              toast.error(`Falha: ${res.error}`, { id: "drive-save" });
+            } else {
+              if (res.id && typeof window !== "undefined") {
+                localStorage.setItem("im_contingency_drive_file_id", res.id);
+                localStorage.setItem("im_contingency_drive_file_name", filename);
+              }
+              toast.success(lastId ? `Sobrescrito: ${filename}` : `Salvo no Drive: ${filename}`, { id: "drive-save" });
+            }
           }}
           className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs hover:border-border2"
-          title="Salvar CSV no Google Drive (mesma conexão do app)"
+          title="Salvar/sobrescrever CSV no Google Drive"
         >
           <Save className="h-3.5 w-3.5" /> Salvar no Drive
         </button>
+
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
