@@ -115,11 +115,23 @@ async function instagramGet(path: string, params: Record<string, string>) {
   return graphRequest("GET", path, params, [GRAPH_HOSTS[1]]);
 }
 
+async function facebookPost(path: string, body: Record<string, string>) {
+  return graphRequest("POST", path, body, [GRAPH_HOSTS[0]]);
+}
+
+async function instagramPost(path: string, body: Record<string, string>) {
+  return graphRequest("POST", path, body, [GRAPH_HOSTS[1]]);
+}
+
 function normalizeInstagramUser(json: GraphJson): GraphJson {
   return {
     ...json,
     id: String(json.id ?? json.user_id ?? ""),
   };
+}
+
+function isSameId(a: unknown, b: unknown) {
+  return String(a ?? "") === String(b ?? "");
 }
 
 export const instagram = {
