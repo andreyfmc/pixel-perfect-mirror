@@ -57,7 +57,7 @@ export type ContainerStatus = {
 
 function shouldTryNextHost(failure: GraphFailure) {
   const err = failure.json.error as { code?: number; error_subcode?: number; type?: string; message?: string } | undefined;
-  return failure.status === 400 && err?.code === 100;
+  return (failure.status === 400 || failure.status === 401) && (err?.code === 100 || err?.code === 190);
 }
 
 async function graphRequest(
