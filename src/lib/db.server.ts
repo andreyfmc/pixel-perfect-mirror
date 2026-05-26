@@ -1,6 +1,44 @@
 // Helpers de acesso ao D1.
 import { requireDb } from "./cf.server";
 
+// Auto-migração: garante que colunas adicionadas após o deploy inicial
+// existam no banco do usuário (D1 não roda migrations automaticamente).
+let ensureSchemaPromise: Promise<void> | undefined;
+async function ensureSchema(): Promise<void> {
+  if (ensureSchemaPromise) return ensureSchemaPromise;
+  ensureSchemaPromise = (async () => {
+    const db = requireDb();
+    try {
+      const { results } = await db
+        .prepare("PRAGMA table_info(accounts)")
+        .all<{ name: string }>();
+      const cols = new Set((results ?? []).map((r) => r.name));
+      if (!cols.has("token_status")) {
+        await db
+          .prepare(
+            "ALTER TABLE accounts ADD COLUMN token_status TEXT NOT NULL DEFAULT 'valid'",
+          )
+          .run();
+        await db
+          .prepare(
+            `UPDATE accounts SET token_status = CASE
+               WHEN access_token IS NULL THEN 'expired'
+               WHEN token_expires_at IS NOT NULL AND datetime(token_expires_at) <= datetime('now') THEN 'expired'
+               ELSE 'valid' END`,
+          )
+          .run();
+      }
+    } catch (err) {
+      // Não bloqueia o app se o PRAGMA falhar — reseta a promise para tentar de novo
+      // na próxima request.
+      ensureSchemaPromise = undefined;
+      console.warn("[db] ensureSchema falhou:", err);
+    }
+  })();
+  return ensureSchemaPromise;
+}
+
+
 export type AccountRow = {
   id: string;
   username: string;
