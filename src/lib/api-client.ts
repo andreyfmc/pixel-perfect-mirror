@@ -36,9 +36,10 @@ function queueFromRow(r: QueueRow): QueueItem {
     scheduled_at: r.scheduled_at,
     media_type: r.media_type === "CAROUSEL" ? "IMAGE" : r.media_type,
     thumb: r.thumb_key ?? "",
-    status: r.status === "published" || r.status === "canceled" ? "scheduled" : r.status,
+    status: r.status,
   };
 }
+
 
 export const api = {
   async listAccounts(): Promise<Account[]> {
@@ -69,6 +70,31 @@ export const api = {
   async deleteAccount(id: string) {
     await fetch(`/api/accounts/${id}`, { method: "DELETE" });
   },
+
+  async deleteQueue(id: string) {
+    await fetch(`/api/queue/${id}`, { method: "DELETE" });
+  },
+
+  async updateQueueStatus(id: string, status: QueueItem["status"]) {
+    await fetch(`/api/queue/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+  },
+
+  async clearQueue(statuses: QueueItem["status"][]) {
+    await fetch(`/api/queue/clear`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ statuses }),
+    });
+  },
+
+  async runScheduler() {
+    await fetch(`/api/cron/tick`, { method: "POST" });
+  },
+
 
   async uploadMedia(file: File): Promise<{ key: string; url: string } | null> {
     try {
