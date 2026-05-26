@@ -32,12 +32,14 @@ export const Route = createFileRoute("/api/public/drive/$id")({
           });
         }
         const headers = new Headers();
-        const ct = upstream.headers.get("content-type");
-        if (ct) headers.set("content-type", ct);
+        const ct = upstream.headers.get("content-type") ?? "video/mp4";
+        headers.set("content-type", ct.startsWith("video/") ? ct : "video/mp4");
         const cl = upstream.headers.get("content-length");
         if (cl) headers.set("content-length", cl);
         headers.set("cache-control", "public, max-age=3600");
+        headers.set("accept-ranges", "bytes");
         return new Response(upstream.body, { status: 200, headers });
+
       },
     },
   },
