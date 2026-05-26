@@ -183,6 +183,14 @@ export async function runScheduler(
 
       processed++;
     } catch (err) {
+      if (isInvalidAccessTokenError(err)) {
+        await db.markAccountNeedsReconnect(item.account_id);
+        await db.setQueueStatus(item.id, "canceled", {
+          last_error: "Token OAuth inválido ou expirado. Reconecte esta conta antes de publicar.",
+        });
+        errors++;
+        continue;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("ainda processando")) {
         console.log(`[scheduler] queue=${item.id} aguardando processamento do Instagram`);
