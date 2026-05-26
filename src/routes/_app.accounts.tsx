@@ -51,6 +51,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useOAuthPopup } from "@/hooks/use-oauth-popup";
+import { ConnectLinkButton } from "@/components/ConnectLinkButton";
 
 export const Route = createFileRoute("/_app/accounts")({
   component: AccountsPage,
@@ -533,6 +534,7 @@ function AccountsPage() {
               )}
             </button>
           )}
+          <ConnectLinkButton />
           <ConnectDialog loading={loading} onConnect={handleConnect} />
         </div>
       </header>
