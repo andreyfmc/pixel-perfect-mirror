@@ -49,9 +49,9 @@ export async function runScheduler(
 
   for (const item of due) {
     try {
-      const account = await db.getAccount(item.account_id);
+      const account = await db.resolveAccountForPublishing(item.account_id);
       if (!account?.ig_user_id || !account?.access_token) {
-        throw new Error("Conta sem ig_user_id ou access_token");
+        throw new Error("Conta sem ig_user_id ou access_token — reconecte esta conta e recrie/retome a fila");
       }
       let igUserId = account.ig_user_id;
       let accessToken = account.access_token;
