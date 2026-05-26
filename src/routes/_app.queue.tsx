@@ -162,6 +162,14 @@ function isTokenExpired(account?: AccountMeta) {
   return account?.token_status === "expired" || (days !== null && days <= 0);
 }
 
+function queueGroupKey(item: QueueItem) {
+  if (item.group_id) return `group:${item.group_id}`;
+  const mediaKey = item.media_key || item.thumb || "media";
+  const ms = new Date(item.group_scheduled_at ?? item.scheduled_at).getTime();
+  const hourBucketMs = Math.round(ms / 3_600_000) * 3_600_000;
+  return [new Date(hourBucketMs).toISOString(), mediaKey, item.caption, item.media_type].join("::");
+}
+
 function QueuePage() {
   const qc = useQueryClient();
   const { connect, loading } = useOAuthPopup();
@@ -258,20 +266,7 @@ function QueuePage() {
   const groups = useMemo<QueueGroup[]>(() => {
     const map = new Map<string, QueueItem[]>();
     for (const item of visibleItems) {
-      // Agrupa por "ciclo" = mesma hora cheia + mesma legenda/mídia.
-      // Itens da mesma rodada podem ter scheduled_at minutos diferentes
-      // (intervalo entre contas para evitar rate limit), mas devem aparecer
-      // juntos como uma única publicação coletiva.
-      // Arredonda para a hora mais próxima — com jitter ±20min, todas as
-      // postagens de um mesmo ciclo caem no mesmo bucket horário.
-      const ms = new Date(item.scheduled_at).getTime();
-      const hourBucketMs = Math.round(ms / 3_600_000) * 3_600_000;
-      const key = [
-        new Date(hourBucketMs).toISOString(),
-        item.caption,
-        item.media_type,
-        item.thumb,
-      ].join("::");
+      const key = queueGroupKey(item);
       map.set(key, [...(map.get(key) ?? []), item]);
     }
 
@@ -291,8 +286,7 @@ function QueuePage() {
       for (const item of items) statusCounts[item.status]++;
       return {
         id,
-        // Usa o horário do primeiro item do ciclo para ordenação/labels.
-        scheduledAt: first.scheduled_at,
+        scheduledAt: first.group_scheduled_at ?? first.scheduled_at,
         caption: first.caption,
         mediaType: first.media_type,
         thumb: first.thumb,
