@@ -44,6 +44,7 @@ function queueFromRow(r: QueueRow): QueueItem {
     group_scheduled_at: r.group_scheduled_at,
     status: r.status,
     attempts: r.attempts,
+    retry_count: r.retry_count ?? 0,
     last_error: r.last_error,
   };
 }
