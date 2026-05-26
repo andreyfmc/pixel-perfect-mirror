@@ -142,11 +142,11 @@ function HistoryPage() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
+    <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-7 md:px-10 md:py-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Histórico</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Tudo que foi publicado</h1>
+          <h1 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight">Tudo que foi publicado</h1>
           <p className="mt-1 text-sm text-text2">
             {filtered.length} posts · alcance {totals.reach.toLocaleString("pt-BR")} · {totals.likes.toLocaleString("pt-BR")} likes ·{" "}
             {totals.comments.toLocaleString("pt-BR")} comentários

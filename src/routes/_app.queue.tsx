@@ -129,11 +129,11 @@ function QueuePage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
+    <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-7 md:px-10 md:py-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Fila</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Próximas publicações</h1>
+          <h1 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight">Próximas publicações</h1>
           <p className="mt-1 text-sm text-text2">
             {counts.scheduled} agendados · {counts.processing} processando · {counts.failed} com falha
           </p>
@@ -243,16 +243,16 @@ function QueuePage() {
             const checked = selected.has(q.id);
             const isCanceled = q.status === "canceled";
             return (
-              <article key={q.id} className="flex items-center gap-4 p-4 hover:bg-bg3/40">
+              <article key={q.id} className="flex items-start gap-3 p-3 sm:items-center sm:gap-4 sm:p-4 hover:bg-bg3/40">
                 <input
                   type="checkbox"
                   checked={checked}
                   onChange={() => toggle(q.id)}
-                  className="accent-accent"
+                  className="mt-1 sm:mt-0 accent-accent"
                   aria-label="Selecionar item"
                 />
-                <div className="relative">
-                  <img src={q.thumb} alt="" className="h-16 w-16 rounded-lg object-cover" />
+                <div className="relative shrink-0">
+                  <img src={q.thumb} alt="" className="h-14 w-14 sm:h-16 sm:w-16 rounded-lg object-cover" />
                   {q.media_type === "REEL" && (
                     <span className="absolute bottom-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70">
                       <Play className="h-3 w-3 text-white" />
@@ -260,7 +260,7 @@ function QueuePage() {
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-sm font-medium">@{q.account}</span>
                     <span className="rounded-md bg-bg3 px-1.5 py-0.5 text-[10px] uppercase text-text2">
                       {q.media_type}
@@ -273,6 +273,9 @@ function QueuePage() {
                     </span>
                   </div>
                   <p className="mt-1 line-clamp-1 text-sm text-text2">{q.caption}</p>
+                  <div className="mt-1 text-[11px] text-muted2 md:hidden">
+                    {fmtDateTime(q.scheduled_at)}
+                  </div>
                 </div>
                 <div className="hidden text-right text-xs text-text2 md:block">
                   {fmtDateTime(q.scheduled_at)}

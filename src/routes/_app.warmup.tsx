@@ -135,17 +135,17 @@ function WarmupPage() {
 
 
   return (
-    <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
+    <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-7 md:px-10 md:py-8">
       <header className="mb-6">
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Warmup</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Aquecimento de contas</h1>
+        <h1 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight">Aquecimento de contas</h1>
         <p className="mt-2 max-w-2xl text-sm text-text2">
           Programe uma série de posts gradual para esquentar contas novas e simular comportamento orgânico.
         </p>
       </header>
 
       <div className="im-card overflow-hidden">
-        <nav className="flex overflow-x-auto border-b border-border bg-bg2">
+        <nav className="flex overflow-x-auto border-b border-border bg-bg2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map(({ id, label, icon: Icon }) => {
             const active = tab === id;
             return (
@@ -153,7 +153,7 @@ function WarmupPage() {
                 key={id}
                 onClick={() => setTab(id)}
                 className={[
-                  "relative inline-flex items-center gap-2 whitespace-nowrap px-5 py-3.5 text-sm transition-colors",
+                  "relative inline-flex shrink-0 items-center gap-2 whitespace-nowrap px-3.5 py-3 text-xs sm:px-5 sm:py-3.5 sm:text-sm transition-colors",
                   active ? "text-foreground" : "text-text2 hover:text-foreground",
                 ].join(" ")}
               >
@@ -170,7 +170,7 @@ function WarmupPage() {
           })}
         </nav>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {tab === "upload" && (
             <div className="space-y-5">
               <div
