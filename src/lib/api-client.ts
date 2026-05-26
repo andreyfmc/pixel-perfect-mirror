@@ -26,6 +26,7 @@ function accountFromRow(r: AccountRow): Account {
     last_post_at: r.last_post_at ?? new Date().toISOString(),
     token_expires_at: r.token_expires_at ?? new Date().toISOString(),
     token_status: r.token_status ?? "valid",
+    provider: r.provider ?? "facebook",
   };
 }
 
