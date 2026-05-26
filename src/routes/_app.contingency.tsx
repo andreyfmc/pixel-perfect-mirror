@@ -9,6 +9,7 @@ import {
   type ContingencyAccount, type ContingencyStatus, type ContingencyQuality,
   STATUS_META, QUALITY_META,
   loadContingency, saveContingency, newAccount, toCSV, fromCSV,
+  fetchFromServer, pushOne, deleteOne, replaceAllOnServer,
 } from "@/lib/contingency-store";
 import { generateTOTP, totpSecondsRemaining } from "@/lib/totp";
 import {
@@ -26,6 +27,13 @@ function useContingency() {
   const [list, setList] = useState<ContingencyAccount[]>([]);
   useEffect(() => {
     setList(loadContingency());
+    // tenta hidratar do servidor; se ok, substitui cache local
+    fetchFromServer().then((items) => {
+      if (items) {
+        setList(items);
+        saveContingency(items);
+      }
+    });
     const onChange = () => setList(loadContingency());
     window.addEventListener("contingency:changed", onChange);
     return () => window.removeEventListener("contingency:changed", onChange);
