@@ -244,7 +244,18 @@ function WarmupPage() {
                     <Folder className="h-4 w-4" />
                     Selecionar pasta
                   </button>
+                  <button
+                    onClick={() => setTab("post")}
+                    className="inline-flex items-center gap-2 rounded-lg border border-border2 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50"
+                    title="Importar do Google Drive (vai para Postagem)"
+                  >
+                    <GoogleBadge className="h-4 w-4" />
+                    Importar do Google Drive
+                  </button>
                 </div>
+                <p className="mt-3 text-[11px] text-muted2">
+                  Arquivos locais são apenas armazenados no R2. Os metadados são limpos automaticamente no momento de publicar (re-encode + jitter visual por conta).
+                </p>
               </div>
 
               {uploads.length > 0 && (
