@@ -258,11 +258,26 @@ function QueuePage() {
   const groups = useMemo<QueueGroup[]>(() => {
     const map = new Map<string, QueueItem[]>();
     for (const item of visibleItems) {
-      const key = [item.scheduled_at, item.caption, item.media_type, item.thumb].join("::");
+      // Agrupa por "ciclo" = mesma hora cheia + mesma legenda/mídia.
+      // Itens da mesma rodada podem ter scheduled_at minutos diferentes
+      // (intervalo entre contas para evitar rate limit), mas devem aparecer
+      // juntos como uma única publicação coletiva.
+      const hourBucket = new Date(item.scheduled_at);
+      hourBucket.setMinutes(0, 0, 0);
+      const key = [
+        hourBucket.toISOString(),
+        item.caption,
+        item.media_type,
+        item.thumb,
+      ].join("::");
       map.set(key, [...(map.get(key) ?? []), item]);
     }
 
     return [...map.entries()].map(([id, items]) => {
+      // Ordena itens do ciclo por horário real de cada conta.
+      items.sort(
+        (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime(),
+      );
       const first = items[0];
       const statusCounts: Record<StatusKey, number> = {
         scheduled: 0,
@@ -274,6 +289,7 @@ function QueuePage() {
       for (const item of items) statusCounts[item.status]++;
       return {
         id,
+        // Usa o horário do primeiro item do ciclo para ordenação/labels.
         scheduledAt: first.scheduled_at,
         caption: first.caption,
         mediaType: first.media_type,
