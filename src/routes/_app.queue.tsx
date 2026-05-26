@@ -53,6 +53,16 @@ function QueuePage() {
     queryKey: ["queue"],
     queryFn: () => api.listQueue(),
   });
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api.listAccounts(),
+  });
+  const accountById = useMemo(() => {
+    const m = new Map<string, { username: string; profile_picture: string }>();
+    for (const a of accounts) m.set(a.id, { username: a.username, profile_picture: a.profile_picture });
+    return m;
+  }, [accounts]);
+
 
   const [filter, setFilter] = useState<FilterKey>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
