@@ -632,7 +632,11 @@ function ContingencyPage() {
   const [activateAccount, setActivateAccount] = useState<ContingencyAccount | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [privateMode, setPrivateMode] = useState(false);
+  const [driveOpen, setDriveOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const uploadCsv = useServerFn(uploadContingencyCsv);
+  const listCsvs = useServerFn(listContingencyCsvs);
+  const downloadCsv = useServerFn(downloadDriveCsv);
 
   // private-mode persistence + title indicator
   useEffect(() => {
