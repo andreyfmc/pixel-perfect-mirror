@@ -145,7 +145,7 @@ function WarmupPage() {
       </header>
 
       <div className="im-card overflow-hidden">
-        <nav className="flex overflow-x-auto border-b border-border bg-bg2">
+        <nav className="flex overflow-x-auto border-b border-border bg-bg2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map(({ id, label, icon: Icon }) => {
             const active = tab === id;
             return (
@@ -153,7 +153,7 @@ function WarmupPage() {
                 key={id}
                 onClick={() => setTab(id)}
                 className={[
-                  "relative inline-flex items-center gap-2 whitespace-nowrap px-5 py-3.5 text-sm transition-colors",
+                  "relative inline-flex shrink-0 items-center gap-2 whitespace-nowrap px-3.5 py-3 text-xs sm:px-5 sm:py-3.5 sm:text-sm transition-colors",
                   active ? "text-foreground" : "text-text2 hover:text-foreground",
                 ].join(" ")}
               >
@@ -170,7 +170,7 @@ function WarmupPage() {
           })}
         </nav>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {tab === "upload" && (
             <div className="space-y-5">
               <div
