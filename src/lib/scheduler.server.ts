@@ -97,7 +97,10 @@ export async function runScheduler(
           `[scheduler] queue=${item.id} renovação de token falhou: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
-      await db.setQueueStatus(item.id, "processing");
+      // NÃO flipar para 'processing' aqui — só quando o container existir
+      // (markQueueProcessing faz isso). Se o Worker for morto por timeout
+      // entre este ponto e a criação do container, o item ficaria órfão
+      // como 'processing' com ig_container_id=NULL e nunca seria reprocessado.
       try {
         const validated = await instagram.validateCredentials({
           igUserId,

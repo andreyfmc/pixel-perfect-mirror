@@ -405,17 +405,23 @@ const rawDb = {
       .all<QueueRow>();
     return results ?? [];
   },
-  async dueQueueItems(nowIso: string): Promise<QueueRow[]> {
+  async dueQueueItems(nowIso: string, limit = 4): Promise<QueueRow[]> {
+    // Inclui:
+    //  - 'scheduled' vencidos
+    //  - 'processing' COM container (aguardando FINISHED no Instagram)
+    //  - 'processing' SEM container e parados há >2min (órfãos de tick anterior
+    //    que morreu por timeout do Worker antes de criar o container)
     const { results } = await requireDb()
       .prepare(
         `SELECT * FROM queue
          WHERE (status = 'scheduled' AND scheduled_at <= ?)
-            OR (status = 'processing' AND ig_container_id IS NOT NULL
-                AND created_at <= datetime(?, '-60 seconds'))
+            OR (status = 'processing' AND ig_container_id IS NOT NULL)
+            OR (status = 'processing' AND ig_container_id IS NULL
+                AND scheduled_at <= datetime(?, '-2 minutes'))
          ORDER BY scheduled_at ASC
-         LIMIT 10`,
+         LIMIT ?`,
       )
-      .bind(nowIso, nowIso)
+      .bind(nowIso, nowIso, limit)
       .all<QueueRow>();
     return results ?? [];
   },
