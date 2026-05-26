@@ -13,7 +13,7 @@ import {
   refreshLongLivedInstagramToken,
 } from "./instagram.server";
 import { hasDb, env } from "./cf.server";
-import { buildVariantFor } from "../routes/api/variants.build";
+import { buildVariantFor } from "./variant-builder.server";
 
 // URL pública dos arquivos no R2 (Public Access ativado no bucket insta-media).
 export const R2_PUBLIC_BASE = "https://pub-5fcd7291327547a084c1e911d5141d6f.r2.dev";
