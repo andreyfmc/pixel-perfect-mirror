@@ -13,6 +13,7 @@ const GRAPH_HOSTS = [
 ] as const;
 
 type GraphHostId = (typeof GRAPH_HOSTS)[number]["id"];
+type GraphHost = (typeof GRAPH_HOSTS)[number];
 type GraphJson = Record<string, unknown>;
 type GraphFailure = {
   host: GraphHostId;
@@ -63,7 +64,7 @@ async function graphRequest(
   method: "GET" | "POST",
   path: string,
   input: Record<string, string>,
-  hosts = GRAPH_HOSTS,
+  hosts: readonly GraphHost[] = GRAPH_HOSTS,
 ): Promise<GraphJson> {
   const failures: GraphFailure[] = [];
   for (const host of hosts) {
@@ -96,18 +97,6 @@ async function gget(path: string, params: Record<string, string>) {
 
 async function facebookGet(path: string, params: Record<string, string>) {
   return graphRequest("GET", path, params, [GRAPH_HOSTS[0]]);
-}
-
-async function oldGpost(path: string, body: Record<string, string>) {
-  const url = new URL(GRAPH_HOSTS[0].base + path);
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams(body).toString(),
-  });
-  const json = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) throw new Error(`Graph ${res.status}: ${JSON.stringify(json)}`);
-  return json;
 }
 
 export const instagram = {
