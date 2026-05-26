@@ -28,6 +28,23 @@ async function ensureSchema(): Promise<void> {
           )
           .run();
       }
+      if (!cols.has("provider")) {
+        // Tokens de Página do Facebook começam com "EAA"; tokens longos do
+        // Instagram Login direto começam com "IGAA". Usa esse heurístico para
+        // backfill — novas contas gravam o provider explícito.
+        await db
+          .prepare(
+            "ALTER TABLE accounts ADD COLUMN provider TEXT NOT NULL DEFAULT 'facebook'",
+          )
+          .run();
+        await db
+          .prepare(
+            `UPDATE accounts SET provider = CASE
+               WHEN access_token LIKE 'IGAA%' THEN 'instagram'
+               ELSE 'facebook' END`,
+          )
+          .run();
+      }
     } catch (err) {
       // Não bloqueia o app se o PRAGMA falhar — reseta a promise para tentar de novo
       // na próxima request.
