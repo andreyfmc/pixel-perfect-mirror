@@ -944,8 +944,12 @@ function ContingencyPage() {
   };
 
   const handleAdd = (a: ContingencyAccount) => {
-    update((prev) => [a, ...prev]);
-    pushOne(a);
+    update((prev) => {
+      const maxOrder = prev.reduce((m, x) => (typeof x.order === "number" && x.order > m ? x.order : m), 0);
+      const withOrder = { ...a, order: a.order ?? maxOrder + 1 };
+      pushOne(withOrder);
+      return [withOrder, ...prev];
+    });
     toast.success("Conta adicionada");
   };
 
