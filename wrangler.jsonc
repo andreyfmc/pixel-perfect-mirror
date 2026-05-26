@@ -5,6 +5,14 @@
   "compatibility_flags": ["nodejs_compat"],
   "main": "src/server.ts",
 
+  // URL pública do worker — usada pelo Cron Trigger para construir as URLs
+  // absolutas do proxy /api/public/drive/* que a Instagram Graph API baixa.
+  // Ajuste se o subdomínio do worker mudar.
+  "vars": {
+    "PUBLIC_BASE_URL": "https://insta-manager.andreyfmc.workers.dev"
+  },
+
+
   "d1_databases": [
     {
       "binding": "DB",
