@@ -402,15 +402,27 @@ function ContingencyPage() {
             placeholder="Buscar por username ou nome..."
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted2" />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-          className="w-full rounded-lg border border-border bg-bg2 px-3 py-2.5 text-sm">
-          <option value="all">● Todos os status</option>
-          {(Object.keys(STATUS_META) as ContingencyStatus[]).map((s) => (
-            <option key={s} value={s}>● {STATUS_META[s].label}</option>
-          ))}
-        </select>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+            className="w-full rounded-lg border border-border bg-bg2 px-3 py-2.5 text-sm">
+            <option value="all">● Todos os status</option>
+            {(Object.keys(STATUS_META) as ContingencyStatus[]).map((s) => (
+              <option key={s} value={s}>● {STATUS_META[s].label}</option>
+            ))}
+          </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            className="w-full rounded-lg border border-border bg-bg2 px-3 py-2.5 text-sm">
+            <option value="updated_desc">↓ Atualizadas recentemente</option>
+            <option value="username_asc">A → Z (username)</option>
+            <option value="username_desc">Z → A (username)</option>
+            <option value="status">Status (prontas primeiro)</option>
+            <option value="quality">Qualidade (boas primeiro)</option>
+          </select>
+        </div>
       </div>
 
       <div className="mb-2 text-right text-[11px] text-muted2">{filtered.length}/{list.length}</div>
