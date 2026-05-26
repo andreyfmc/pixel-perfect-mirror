@@ -4,6 +4,10 @@ import { requireDb } from "./cf.server";
 // Auto-migração: garante que colunas adicionadas após o deploy inicial
 // existam no banco do usuário (D1 não roda migrations automaticamente).
 let ensureSchemaPromise: Promise<void> | undefined;
+function normalizeUsername(value?: string | null): string {
+  return (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 async function ensureSchema(): Promise<void> {
   if (ensureSchemaPromise) return ensureSchemaPromise;
   ensureSchemaPromise = (async () => {
@@ -55,15 +59,6 @@ async function ensureSchema(): Promise<void> {
       if (!queueCols.has("group_scheduled_at")) {
         await db.prepare("ALTER TABLE queue ADD COLUMN group_scheduled_at TEXT").run();
       }
-      await db
-        .prepare(
-          `UPDATE accounts
-           SET token_status = 'valid'
-           WHERE access_token IS NOT NULL
-             AND (token_expires_at IS NULL OR datetime(token_expires_at) > datetime('now'))
-             AND token_status = 'expired'`,
-        )
-        .run();
     } catch (err) {
       // Não bloqueia o app se o PRAGMA falhar — reseta a promise para tentar de novo
       // na próxima request.
@@ -132,7 +127,16 @@ const rawDb = {
     const { results } = await requireDb()
       .prepare("SELECT * FROM accounts ORDER BY created_at DESC")
       .all<AccountRow>();
-    return results ?? [];
+    const accounts = results ?? [];
+    const repairable = accounts.filter((account) => !account.ig_user_id || !account.access_token);
+    if (repairable.length) {
+      await Promise.all(repairable.map((account) => rawDb.resolveAccountForPublishing(account.id)));
+      const repaired = await requireDb()
+        .prepare("SELECT * FROM accounts ORDER BY created_at DESC")
+        .all<AccountRow>();
+      return repaired.results ?? accounts;
+    }
+    return accounts;
   },
   async getAccount(id: string): Promise<AccountRow | null> {
     return (
@@ -144,6 +148,14 @@ const rawDb = {
   },
   async createAccount(a: Pick<AccountRow, "id" | "username" | "name"> & Partial<AccountRow>) {
     const provider = a.provider ?? "facebook";
+    const normalizedUsername = normalizeUsername(a.username);
+    const { results: existingAccounts } = await requireDb()
+      .prepare("SELECT * FROM accounts ORDER BY updated_at DESC, created_at DESC")
+      .all<AccountRow>();
+    const normalizedMatch = (existingAccounts ?? []).find((existing) => {
+      if (a.ig_user_id && existing.ig_user_id === a.ig_user_id) return true;
+      return normalizedUsername.length > 0 && normalizeUsername(existing.username) === normalizedUsername;
+    });
     // Atualiza qualquer registro já conhecido pelo username OU pelo ig_user_id.
     // Isso mantém itens antigos da fila apontando para uma linha com token novo.
     const updated = await requireDb()
@@ -160,7 +172,7 @@ const rawDb = {
              followers = ?,
              health_score = ?,
              updated_at = CURRENT_TIMESTAMP
-         WHERE username = ? OR (? IS NOT NULL AND ig_user_id = ?)`,
+         WHERE id = ? OR username = ? OR (? IS NOT NULL AND ig_user_id = ?)`,
       )
       .bind(
         a.username,
@@ -172,6 +184,7 @@ const rawDb = {
         provider,
         a.followers ?? 0,
         a.health_score ?? 100,
+        normalizedMatch?.id ?? "",
         a.username,
         a.ig_user_id ?? null,
         a.ig_user_id ?? null,
@@ -218,6 +231,7 @@ const rawDb = {
       profile_picture?: string | null;
       followers?: number | null;
       health_score?: number | null;
+      provider?: AccountRow["provider"] | null;
     },
   ) {
     await requireDb()
@@ -230,6 +244,7 @@ const rawDb = {
              profile_picture = COALESCE(?, profile_picture),
              followers = COALESCE(?, followers),
              health_score = COALESCE(?, health_score),
+              provider = COALESCE(?, provider),
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
       )
@@ -241,17 +256,61 @@ const rawDb = {
         input.profile_picture ?? null,
         input.followers ?? null,
         input.health_score ?? null,
+        input.provider ?? null,
         id,
       )
       .run();
+  },
+  async resolveAccountForPublishing(id: string): Promise<AccountRow | null> {
+    const account = await rawDb.getAccount(id);
+    if (!account) return null;
+    if (account.ig_user_id && account.access_token && account.token_status !== "expired") return account;
+
+    const { results } = await requireDb()
+      .prepare("SELECT * FROM accounts ORDER BY updated_at DESC, created_at DESC")
+      .all<AccountRow>();
+    const normalized = normalizeUsername(account.username);
+    const sibling = (results ?? []).find((candidate) => {
+      if (
+        candidate.id === account.id ||
+        !candidate.ig_user_id ||
+        !candidate.access_token ||
+        candidate.token_status === "expired"
+      ) {
+        return false;
+      }
+      if (account.ig_user_id && candidate.ig_user_id === account.ig_user_id) return true;
+      return normalized.length > 0 && normalizeUsername(candidate.username) === normalized;
+    });
+    if (!sibling) return account;
+
+    await rawDb.updateAccountCredentials(account.id, {
+      ig_user_id: sibling.ig_user_id,
+      access_token: sibling.access_token,
+      token_expires_at: sibling.token_expires_at,
+      token_status: "valid",
+      profile_picture: sibling.profile_picture,
+      followers: sibling.followers,
+      health_score: Math.max(account.health_score, sibling.health_score, 90),
+      provider: sibling.provider,
+    });
+    return {
+      ...account,
+      ig_user_id: sibling.ig_user_id,
+      access_token: sibling.access_token,
+      token_expires_at: sibling.token_expires_at,
+      token_status: "valid",
+      profile_picture: sibling.profile_picture ?? account.profile_picture,
+      followers: sibling.followers,
+      health_score: Math.max(account.health_score, sibling.health_score, 90),
+      provider: sibling.provider,
+    };
   },
   async markAccountNeedsReconnect(id: string) {
     await requireDb()
       .prepare(
         `UPDATE accounts
-         SET access_token = NULL,
-             token_expires_at = NULL,
-             token_status = 'expired',
+         SET token_status = 'expired',
              health_score = 0,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,

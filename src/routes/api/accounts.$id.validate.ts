@@ -17,7 +17,7 @@ export const Route = createFileRoute("/api/accounts/$id/validate")({
   server: {
     handlers: {
       POST: async ({ params }) => {
-        const account = await db.getAccount(params.id);
+        const account = await db.resolveAccountForPublishing(params.id);
         if (!account) return json({ ok: false, error: "Conta não encontrada" }, 404);
         if (!account.access_token) return json({ ok: false, error: "Sem access_token" }, 400);
         if (!account.ig_user_id) return json({ ok: false, error: "Sem ig_user_id" }, 400);

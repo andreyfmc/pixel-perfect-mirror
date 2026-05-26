@@ -63,10 +63,11 @@ export class InstagramGraphError extends Error {
 
 export function isInvalidAccessTokenError(err: unknown) {
   if (!(err instanceof InstagramGraphError)) return false;
-  return err.failures.some((failure) => {
+  const failures = err.failures.map((failure) => {
     const graphErr = failure.json.error as { code?: number; message?: string } | undefined;
-    return graphErr?.code === 190;
+    return { host: failure.host, code: graphErr?.code };
   });
+  return failures.length > 0 && failures.every((failure) => failure.code === 190);
 }
 
 function expiredTokenError(message = "Token OAuth expirado") {
@@ -136,6 +137,7 @@ export function getInstagramClientSecret() {
 export type PublishInput = {
   igUserId: string;
   accessToken: string;
+  provider?: GraphHostId;
   mediaType: "REEL" | "IMAGE" | "STORY" | "CAROUSEL";
   mediaUrl: string; // URL pública (R2 + custom domain ou signed URL)
   caption?: string;
@@ -188,12 +190,16 @@ async function graphRequest(
   throw new InstagramGraphError(failures);
 }
 
-async function gpost(path: string, body: Record<string, string>) {
-  return graphRequest("POST", path, body);
+function preferredHosts(provider?: GraphHostId): readonly GraphHost[] {
+  return provider ? GRAPH_HOSTS.filter((host) => host.id === provider) : GRAPH_HOSTS;
 }
 
-async function gget(path: string, params: Record<string, string>) {
-  return graphRequest("GET", path, params);
+async function gpost(path: string, body: Record<string, string>, provider?: GraphHostId) {
+  return graphRequest("POST", path, body, preferredHosts(provider));
+}
+
+async function gget(path: string, params: Record<string, string>, provider?: GraphHostId) {
+  return graphRequest("GET", path, params, preferredHosts(provider));
 }
 
 async function facebookGet(path: string, params: Record<string, string>) {
@@ -384,34 +390,35 @@ export const instagram = {
     } else {
       body.image_url = input.mediaUrl;
     }
-    const json = await gpost(`/${input.igUserId}/media`, body);
+    const json = await gpost(`/${input.igUserId}/media`, body, input.provider);
     return String(json.id);
   },
 
   async publishContainer(input: {
     igUserId: string;
     accessToken: string;
+    provider?: GraphHostId;
     containerId: string;
   }): Promise<string> {
     const json = await gpost(`/${input.igUserId}/media_publish`, {
       access_token: input.accessToken,
       creation_id: input.containerId,
-    });
+    }, input.provider);
     return String(json.id);
   },
 
-  async fetchMediaInfo(mediaId: string, accessToken: string) {
+  async fetchMediaInfo(mediaId: string, accessToken: string, provider?: GraphHostId) {
     return gget(`/${mediaId}`, {
       access_token: accessToken,
       fields: "id,permalink,media_type,caption,timestamp",
-    });
+    }, provider);
   },
 
-  async fetchContainerStatus(containerId: string, accessToken: string): Promise<ContainerStatus> {
+  async fetchContainerStatus(containerId: string, accessToken: string, provider?: GraphHostId): Promise<ContainerStatus> {
     const json = await gget(`/${containerId}`, {
       access_token: accessToken,
       fields: "status_code,status",
-    });
+    }, provider);
     return {
       statusCode: String(json.status_code ?? "UNKNOWN"),
       status: typeof json.status === "string" ? json.status : undefined,
@@ -421,6 +428,7 @@ export const instagram = {
   async waitUntilReady(input: {
     containerId: string;
     accessToken: string;
+    provider?: GraphHostId;
     attempts?: number;
     delayMs?: number;
   }) {
@@ -429,7 +437,7 @@ export const instagram = {
     let last: ContainerStatus | null = null;
 
     for (let i = 0; i < attempts; i++) {
-      last = await this.fetchContainerStatus(input.containerId, input.accessToken);
+      last = await this.fetchContainerStatus(input.containerId, input.accessToken, input.provider);
       if (last.statusCode === "FINISHED" || last.statusCode === "PUBLISHED") return last;
       if (last.statusCode === "ERROR" || last.statusCode === "EXPIRED") {
         throw new Error(`Container Instagram ${last.statusCode}: ${last.status ?? "sem detalhe"}`);
@@ -445,15 +453,16 @@ export const instagram = {
   /** Helper completo: cria container → aguarda → publica. */
   async publish(input: PublishInput): Promise<PublishResult> {
     const containerId = await this.createContainer(input);
-    await this.waitUntilReady({ containerId, accessToken: input.accessToken });
+    await this.waitUntilReady({ containerId, accessToken: input.accessToken, provider: input.provider });
     const mediaId = await this.publishContainer({
       igUserId: input.igUserId,
       accessToken: input.accessToken,
+      provider: input.provider,
       containerId,
     });
     let permalink: string | undefined;
     try {
-      const info = await this.fetchMediaInfo(mediaId, input.accessToken);
+      const info = await this.fetchMediaInfo(mediaId, input.accessToken, input.provider);
       permalink = info.permalink as string | undefined;
     } catch {
       // ignore — campo opcional
