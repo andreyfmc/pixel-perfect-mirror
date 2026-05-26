@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api-client";
 import { fmtDateTime } from "@/lib/format";
 import type { QueueItem } from "@/lib/mock";
+import { useOAuthPopup } from "@/hooks/use-oauth-popup";
 import {
   AlertTriangle,
   BarChart3,
@@ -42,9 +43,12 @@ type DateFilterKey = "all" | "today" | "tomorrow" | "after-tomorrow" | string;
 type SortKey = "asc" | "desc";
 
 type AccountMeta = {
+  id: string;
   username: string;
   name: string;
   profile_picture: string;
+  token_status?: "valid" | "expired";
+  token_expires_at?: string | null;
 };
 
 type QueueGroup = {
@@ -127,9 +131,11 @@ function dateChipLabel(key: DateFilterKey) {
   if (key === "tomorrow" || key === tomorrow) return "Amanhã";
   if (key === "after-tomorrow" || key === afterTomorrow) return "Depois de amanhã";
   const [year, month, day] = key.split("-").map(Number);
-  return new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" }).format(
-    new Date(year, month - 1, day),
-  );
+  return new Intl.DateTimeFormat("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+  }).format(new Date(year, month - 1, day));
 }
 
 function dateFilterToKey(filter: DateFilterKey) {
@@ -144,8 +150,21 @@ function groupStatus(items: QueueItem[]): StatusKey {
   return STATUS_PRIORITY.find((status) => items.some((q) => q.status === status)) ?? "scheduled";
 }
 
+function tokenDaysLeft(expiresAt?: string | null) {
+  if (!expiresAt) return null;
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return null;
+  return Math.ceil(ms / 86_400_000);
+}
+
+function isTokenExpired(account?: AccountMeta) {
+  const days = tokenDaysLeft(account?.token_expires_at);
+  return account?.token_status === "expired" || (days !== null && days <= 0);
+}
+
 function QueuePage() {
   const qc = useQueryClient();
+  const { connect, loading } = useOAuthPopup();
   const { data: queue = [] } = useQuery({
     queryKey: ["queue"],
     queryFn: () => api.listQueue(),
@@ -158,7 +177,14 @@ function QueuePage() {
   const accountById = useMemo(() => {
     const m = new Map<string, AccountMeta>();
     for (const a of accounts) {
-      m.set(a.id, { username: a.username, name: a.name, profile_picture: a.profile_picture });
+      m.set(a.id, {
+        id: a.id,
+        username: a.username,
+        name: a.name,
+        profile_picture: a.profile_picture,
+        token_status: a.token_status,
+        token_expires_at: a.token_expires_at,
+      });
     }
     return m;
   }, [accounts]);
@@ -184,14 +210,18 @@ function QueuePage() {
 
   const dayCounts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const q of queue) m.set(localDateKey(q.scheduled_at), (m.get(localDateKey(q.scheduled_at)) ?? 0) + 1);
+    for (const q of queue)
+      m.set(localDateKey(q.scheduled_at), (m.get(localDateKey(q.scheduled_at)) ?? 0) + 1);
     return m;
   }, [queue]);
 
   const dateFilters = useMemo(() => {
     const base: DateFilterKey[] = ["all", "today", "tomorrow", "after-tomorrow"];
     const known = new Set(base.map(dateFilterToKey));
-    const nextDates = [...dayCounts.keys()].sort().filter((key) => !known.has(key)).slice(0, 4);
+    const nextDates = [...dayCounts.keys()]
+      .sort()
+      .filter((key) => !known.has(key))
+      .slice(0, 4);
     return [...base, ...nextDates];
   }, [dayCounts]);
 
@@ -251,12 +281,16 @@ function QueuePage() {
         items,
         status: groupStatus(items),
         counts: statusCounts,
-        accounts: items.map((item) =>
-          accountById.get(item.account) ?? {
-            username: item.account.startsWith("@") ? item.account.slice(1) : item.account.slice(0, 16),
-            name: item.account,
-            profile_picture: "",
-          },
+        accounts: items.map(
+          (item) =>
+            accountById.get(item.account) ?? {
+              username: item.account.startsWith("@")
+                ? item.account.slice(1)
+                : item.account.slice(0, 16),
+              name: item.account,
+              profile_picture: "",
+              id: item.account,
+            },
         ),
       };
     });
@@ -339,9 +373,33 @@ function QueuePage() {
     if (!ids.length) return;
     const t = toast.loading(`Preparando ${ids.length} item(ns) para publicar…`);
     try {
+      const expiredIds = ids.filter((id) => {
+        const item = queue.find((q) => q.id === id);
+        return isTokenExpired(item ? accountById.get(item.account) : undefined);
+      });
+      if (expiredIds.length) {
+        await Promise.all(
+          expiredIds.map((id) =>
+            api.updateQueueStatus(id, "canceled", {
+              reset_container: true,
+              last_error: "Token expirado. Reconecte a conta antes de publicar.",
+            }),
+          ),
+        );
+        toast.warning(
+          `${expiredIds.length} item(ns) pausado(s): token expirado. Reconecte a conta.`,
+        );
+      }
+      const runnableIds = ids.filter((id) => !expiredIds.includes(id));
+      if (!runnableIds.length) {
+        setSelected(new Set());
+        qc.invalidateQueries({ queryKey: ["queue"] });
+        qc.invalidateQueries({ queryKey: ["accounts"] });
+        return;
+      }
       const nowIso = new Date().toISOString();
       await Promise.all(
-        ids.map((id) =>
+        runnableIds.map((id) =>
           api.updateQueueStatus(id, "scheduled", {
             scheduled_at: nowIso,
             reset_container: true,
@@ -352,10 +410,26 @@ function QueuePage() {
       toast.success("Scheduler disparado");
       setSelected(new Set());
       qc.invalidateQueries({ queryKey: ["queue"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao disparar scheduler");
     } finally {
       toast.dismiss(t);
+    }
+  }
+
+  async function handleReconnect(username: string) {
+    const t = toast.loading(`Reconectando @${username}…`);
+    const res = await connect("instagram");
+    toast.dismiss(t);
+    if (res.ok) {
+      toast.success(
+        `Reconectado: ${(res.saved ?? []).map((u) => `@${u}`).join(", ") || `@${username}`}`,
+      );
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["queue"] });
+    } else {
+      toast.error(res.error ?? "Falha na reconexão");
     }
   }
 
@@ -372,7 +446,8 @@ function QueuePage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex rounded-xl border border-border bg-bg2 p-1">
             <button className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-primary-foreground im-glow">
-              <ListChecks className="h-4 w-4" /> Fila <span className="rounded-full bg-bg3/40 px-2 py-0.5 text-[11px]">{counts.all}</span>
+              <ListChecks className="h-4 w-4" /> Fila{" "}
+              <span className="rounded-full bg-bg3/40 px-2 py-0.5 text-[11px]">{counts.all}</span>
             </button>
             <button className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-text2 hover:text-foreground">
               <BarChart3 className="h-4 w-4" /> Monitor
@@ -399,12 +474,32 @@ function QueuePage() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuItem onSelect={() => clearByStatus(["scheduled"], "Remover agendados")}>Remover agendados ({counts.scheduled})</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => clearByStatus(["failed"], "Remover erros")}>Remover erros ({counts.failed})</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => clearByStatus(["canceled"], "Remover pausados")}>Remover pausados ({counts.canceled})</DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => clearByStatus(["published"], "Limpar publicados")}>Limpar publicados ({counts.published})</DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => clearByStatus(["scheduled"], "Remover agendados")}
+                >
+                  Remover agendados ({counts.scheduled})
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => clearByStatus(["failed"], "Remover erros")}>
+                  Remover erros ({counts.failed})
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => clearByStatus(["canceled"], "Remover pausados")}>
+                  Remover pausados ({counts.canceled})
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => clearByStatus(["published"], "Limpar publicados")}
+                >
+                  Limpar publicados ({counts.published})
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => clearByStatus(["scheduled", "processing", "failed", "canceled", "published"], "Limpar tudo")} className="text-danger focus:text-danger">
+                <DropdownMenuItem
+                  onSelect={() =>
+                    clearByStatus(
+                      ["scheduled", "processing", "failed", "canceled", "published"],
+                      "Limpar tudo",
+                    )
+                  }
+                  className="text-danger focus:text-danger"
+                >
                   Limpar tudo ({queue.length})
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -436,7 +531,11 @@ function QueuePage() {
               className="h-10 w-full rounded-lg border border-border bg-bg3 pl-9 pr-9 text-sm outline-none transition focus:border-accent"
             />
             {query && (
-              <button onClick={() => setQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted2 hover:text-foreground" aria-label="Limpar busca">
+              <button
+                onClick={() => setQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted2 hover:text-foreground"
+                aria-label="Limpar busca"
+              >
                 <X className="h-4 w-4" />
               </button>
             )}
@@ -445,7 +544,8 @@ function QueuePage() {
             onClick={() => setSort((s) => (s === "asc" ? "desc" : "asc"))}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border2 bg-bg2 px-4 text-sm text-text2 hover:text-foreground"
           >
-            <CalendarDays className="h-4 w-4" /> {sort === "asc" ? "Mais cedo primeiro" : "Mais tarde primeiro"}
+            <CalendarDays className="h-4 w-4" />{" "}
+            {sort === "asc" ? "Mais cedo primeiro" : "Mais tarde primeiro"}
           </button>
         </div>
 
@@ -456,7 +556,9 @@ function QueuePage() {
               onClick={() => setFilter(f.id)}
               className={[
                 "shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold transition",
-                filter === f.id ? "border-accent bg-accent text-primary-foreground" : "border-border2 bg-bg2 text-text2 hover:text-foreground",
+                filter === f.id
+                  ? "border-accent bg-accent text-primary-foreground"
+                  : "border-border2 bg-bg2 text-text2 hover:text-foreground",
               ].join(" ")}
             >
               {f.label} <span className="opacity-80">({counts[f.id]})</span>
@@ -467,14 +569,16 @@ function QueuePage() {
         <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {dateFilters.map((f) => {
             const key = dateFilterToKey(f);
-            const count = f === "all" ? visibleItems.length : dayCounts.get(key) ?? 0;
+            const count = f === "all" ? visibleItems.length : (dayCounts.get(key) ?? 0);
             return (
               <button
                 key={f}
                 onClick={() => setDateFilter(f)}
                 className={[
                   "shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold transition",
-                  dateFilter === f ? "border-accent bg-accent text-primary-foreground" : "border-border2 bg-bg2 text-text2 hover:text-foreground",
+                  dateFilter === f
+                    ? "border-accent bg-accent text-primary-foreground"
+                    : "border-border2 bg-bg2 text-text2 hover:text-foreground",
                 ].join(" ")}
               >
                 {dateChipLabel(f)} <span className="opacity-80">({count})</span>
@@ -488,19 +592,34 @@ function QueuePage() {
         <div className="sticky top-3 z-20 mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-accent/40 bg-bg3 px-3 py-2 text-sm shadow-lg shadow-bg/40">
           <span className="font-semibold">{selected.size} selecionado(s)</span>
           <span className="text-xs text-muted2">{selectedVisibleCount} visível(is)</span>
-          <button onClick={() => runBulk("Pausando", (id) => api.updateQueueStatus(id, "canceled"))} className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent">
+          <button
+            onClick={() => runBulk("Pausando", (id) => api.updateQueueStatus(id, "canceled"))}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
+          >
             <Pause className="h-3.5 w-3.5" /> Pausar
           </button>
-          <button onClick={() => runBulk("Retomando", (id) => api.updateQueueStatus(id, "scheduled"))} className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent">
+          <button
+            onClick={() => runBulk("Retomando", (id) => api.updateQueueStatus(id, "scheduled"))}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
+          >
             <Play className="h-3.5 w-3.5" /> Retomar
           </button>
-          <button onClick={() => publishSelectedNow()} className="inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning hover:border-warning">
+          <button
+            onClick={() => publishSelectedNow()}
+            className="inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning hover:border-warning"
+          >
             <Zap className="h-3.5 w-3.5" /> Tentar agora
           </button>
-          <button onClick={() => setSelected(new Set())} className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-text2 hover:text-foreground">
+          <button
+            onClick={() => setSelected(new Set())}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-text2 hover:text-foreground"
+          >
             <X className="h-3.5 w-3.5" /> Limpar seleção
           </button>
-          <button onClick={() => runBulk("Removendo", (id) => api.deleteQueue(id))} className="inline-flex items-center gap-1.5 rounded-md border border-danger/35 bg-danger/10 px-2.5 py-1.5 text-xs text-danger hover:border-danger">
+          <button
+            onClick={() => runBulk("Removendo", (id) => api.deleteQueue(id))}
+            className="inline-flex items-center gap-1.5 rounded-md border border-danger/35 bg-danger/10 px-2.5 py-1.5 text-xs text-danger hover:border-danger"
+          >
             <Trash2 className="h-3.5 w-3.5" /> Remover
           </button>
         </div>
@@ -518,10 +637,15 @@ function QueuePage() {
             const groupIds = group.items.map((item) => item.id);
             const selectedInGroup = groupIds.filter((id) => selected.has(id)).length;
             const isGroupSelected = selectedInGroup === groupIds.length;
-            const overdue = group.items.some((item) => item.status === "scheduled" && new Date(item.scheduled_at).getTime() < Date.now());
-            const dayLabel = groupIndex === 0 || localDateKey(groups[groupIndex - 1].scheduledAt) !== localDateKey(group.scheduledAt)
-              ? dateChipLabel(localDateKey(group.scheduledAt))
-              : null;
+            const overdue = group.items.some(
+              (item) =>
+                item.status === "scheduled" && new Date(item.scheduled_at).getTime() < Date.now(),
+            );
+            const dayLabel =
+              groupIndex === 0 ||
+              localDateKey(groups[groupIndex - 1].scheduledAt) !== localDateKey(group.scheduledAt)
+                ? dateChipLabel(localDateKey(group.scheduledAt))
+                : null;
 
             return (
               <div key={group.id} className="space-y-3">
@@ -529,63 +653,157 @@ function QueuePage() {
                   <div className="flex items-center gap-3 pt-1">
                     <div className="h-px flex-1 bg-border" />
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg2 px-3 py-1 text-xs text-text2">
-                      <CalendarDays className="h-3.5 w-3.5" /> {dayLabel} — {dayCounts.get(localDateKey(group.scheduledAt)) ?? group.items.length} posts
+                      <CalendarDays className="h-3.5 w-3.5" /> {dayLabel} —{" "}
+                      {dayCounts.get(localDateKey(group.scheduledAt)) ?? group.items.length} posts
                     </span>
                     <div className="h-px flex-1 bg-border" />
                   </div>
                 )}
 
-                <article className={["overflow-hidden rounded-xl border bg-bg2", overdue ? "border-warning" : group.status === "failed" ? "border-danger/60" : "border-border"].join(" ")}>
+                <article
+                  className={[
+                    "overflow-hidden rounded-xl border bg-bg2",
+                    overdue
+                      ? "border-warning"
+                      : group.status === "failed"
+                        ? "border-danger/60"
+                        : "border-border",
+                  ].join(" ")}
+                >
                   <div className="flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-start">
                     <div className="flex items-start gap-3 lg:min-w-0 lg:flex-1">
-                      <input type="checkbox" checked={isGroupSelected} onChange={() => toggleIds(groupIds)} className="mt-1 accent-accent" aria-label="Selecionar grupo" />
+                      <input
+                        type="checkbox"
+                        checked={isGroupSelected}
+                        onChange={() => toggleIds(groupIds)}
+                        className="mt-1 accent-accent"
+                        aria-label="Selecionar grupo"
+                      />
                       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border bg-bg3 sm:h-20 sm:w-20">
-                        {group.thumb ? <img src={group.thumb} alt="Prévia da publicação" className="h-full w-full object-cover" loading="lazy" /> : <div className="flex h-full w-full items-center justify-center text-muted2"><Play className="h-5 w-5" /></div>}
+                        {group.thumb ? (
+                          <img
+                            src={group.thumb}
+                            alt="Prévia da publicação"
+                            className="h-full w-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-muted2">
+                            <Play className="h-5 w-5" />
+                          </div>
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {overdue && <span className="rounded-full border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] font-semibold text-warning"><AlertTriangle className="mr-1 inline h-3 w-3" />Atrasado</span>}
-                          <span className="rounded-full border border-border2 bg-bg3 px-2 py-1 text-[11px] font-semibold text-text2">{group.mediaType}</span>
-                          <span className="rounded-full px-2 py-1 text-[11px] font-semibold" style={{ background: meta.bg, color: meta.fg }}>{meta.label}</span>
-                          {group.items.some((item) => (item.attempts ?? 0) > 0) && <span className="rounded-full border border-accent/35 bg-accent/10 px-2 py-1 text-[11px] font-semibold text-accent2">+{Math.max(...group.items.map((item) => item.attempts ?? 0))} tentativa(s)</span>}
+                          {overdue && (
+                            <span className="rounded-full border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] font-semibold text-warning">
+                              <AlertTriangle className="mr-1 inline h-3 w-3" />
+                              Atrasado
+                            </span>
+                          )}
+                          <span className="rounded-full border border-border2 bg-bg3 px-2 py-1 text-[11px] font-semibold text-text2">
+                            {group.mediaType}
+                          </span>
+                          <span
+                            className="rounded-full px-2 py-1 text-[11px] font-semibold"
+                            style={{ background: meta.bg, color: meta.fg }}
+                          >
+                            {meta.label}
+                          </span>
+                          {group.items.some((item) => (item.attempts ?? 0) > 0) && (
+                            <span className="rounded-full border border-accent/35 bg-accent/10 px-2 py-1 text-[11px] font-semibold text-accent2">
+                              +{Math.max(...group.items.map((item) => item.attempts ?? 0))}{" "}
+                              tentativa(s)
+                            </span>
+                          )}
                         </div>
-                        <p className="mt-2 line-clamp-2 text-sm font-medium">{group.caption || "Sem legenda"}</p>
+                        <p className="mt-2 line-clamp-2 text-sm font-medium">
+                          {group.caption || "Sem legenda"}
+                        </p>
                         {group.items.some((item) => item.last_error) && (
-                          <p className="mt-1 line-clamp-2 text-xs text-danger">{group.items.find((item) => item.last_error)?.last_error}</p>
+                          <p className="mt-1 line-clamp-2 text-xs text-danger">
+                            {group.items.find((item) => item.last_error)?.last_error}
+                          </p>
                         )}
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {group.accounts.slice(0, 12).map((account, index) => (
-                            <span key={`${account.username}-${index}`} className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-bg3 px-2 py-1 text-[11px] font-semibold text-text2">
-                              {account.profile_picture ? <img src={account.profile_picture} alt="" className="h-4 w-4 rounded-full" /> : <Users className="h-3 w-3" />}
+                            <span
+                              key={`${account.username}-${index}`}
+                              className={[
+                                "inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold",
+                                isTokenExpired(account)
+                                  ? "border-danger/40 bg-danger/10 text-danger"
+                                  : "border-border bg-bg3 text-text2",
+                              ].join(" ")}
+                            >
+                              {account.profile_picture ? (
+                                <img
+                                  src={account.profile_picture}
+                                  alt=""
+                                  className="h-4 w-4 rounded-full"
+                                />
+                              ) : (
+                                <Users className="h-3 w-3" />
+                              )}
                               <span className="truncate">@{account.username}</span>
+                              {isTokenExpired(account) && (
+                                <span className="shrink-0">· Token expirado</span>
+                              )}
                             </span>
                           ))}
-                          {group.accounts.length > 12 && <span className="rounded-full border border-border bg-bg3 px-2 py-1 text-[11px] text-muted2">+{group.accounts.length - 12}</span>}
+                          {group.accounts.length > 12 && (
+                            <span className="rounded-full border border-border bg-bg3 px-2 py-1 text-[11px] text-muted2">
+                              +{group.accounts.length - 12}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between gap-3 border-t border-border pt-3 lg:w-64 lg:border-t-0 lg:pt-0">
                       <div className="text-left lg:text-right">
-                        <div className="text-sm font-bold text-warning"><Clock3 className="mr-1 inline h-3.5 w-3.5" />{fmtDateTime(group.scheduledAt)}</div>
+                        <div className="text-sm font-bold text-warning">
+                          <Clock3 className="mr-1 inline h-3.5 w-3.5" />
+                          {fmtDateTime(group.scheduledAt)}
+                        </div>
                         <div className="mt-1 text-xs text-muted2">
                           {group.counts.published}/{group.items.length} contas publicadas
                         </div>
                       </div>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="rounded-lg p-2 text-muted2 hover:bg-bg3 hover:text-foreground" aria-label="Ações">
+                          <button
+                            className="rounded-lg p-2 text-muted2 hover:bg-bg3 hover:text-foreground"
+                            aria-label="Ações"
+                          >
                             <MoreHorizontal className="h-4 w-4" />
                           </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-52">
                           <DropdownMenuItem onSelect={() => toggleIds(groupIds)}>
-                            <CheckCircle2 className="mr-2 h-4 w-4" /> {isGroupSelected ? "Desmarcar grupo" : "Selecionar grupo"}
+                            <CheckCircle2 className="mr-2 h-4 w-4" />{" "}
+                            {isGroupSelected ? "Desmarcar grupo" : "Selecionar grupo"}
                           </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => runBulk("Pausando", (id) => api.updateQueueStatus(id, "canceled"), groupIds)}>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              runBulk(
+                                "Pausando",
+                                (id) => api.updateQueueStatus(id, "canceled"),
+                                groupIds,
+                              )
+                            }
+                          >
                             <Pause className="mr-2 h-4 w-4" /> Pausar grupo
                           </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => runBulk("Retomando", (id) => api.updateQueueStatus(id, "scheduled"), groupIds)}>
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              runBulk(
+                                "Retomando",
+                                (id) => api.updateQueueStatus(id, "scheduled"),
+                                groupIds,
+                              )
+                            }
+                          >
                             <Play className="mr-2 h-4 w-4" /> Retomar grupo
                           </DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => publishSelectedNow(groupIds)}>
@@ -608,14 +826,61 @@ function QueuePage() {
 
                   <div className="space-y-1 border-t border-border bg-bg3/25 p-3">
                     {group.items.map((item) => {
-                      const account = accountById.get(item.account) ?? { username: item.account.slice(0, 16), name: item.account, profile_picture: "" };
+                      const account = accountById.get(item.account) ?? {
+                        id: item.account,
+                        username: item.account.slice(0, 16),
+                        name: item.account,
+                        profile_picture: "",
+                      };
                       const itemMeta = STATUS_META[item.status];
+                      const tokenExpired = isTokenExpired(account);
                       return (
-                        <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-bg3/60 px-3 py-2 text-sm hover:border-border2">
-                          <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggle(item.id)} className="accent-accent" />
-                          {account.profile_picture ? <img src={account.profile_picture} alt="" className="h-6 w-6 rounded-full" /> : <Users className="h-4 w-4 text-muted2" />}
-                          <span className="min-w-0 flex-1 truncate font-semibold">@{account.username}</span>
-                          <span className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold" style={{ background: itemMeta.bg, color: itemMeta.fg }}>{itemMeta.short}</span>
+                        <label
+                          key={item.id}
+                          className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-bg3/60 px-3 py-2 text-sm hover:border-border2"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selected.has(item.id)}
+                            onChange={() => toggle(item.id)}
+                            className="accent-accent"
+                          />
+                          {account.profile_picture ? (
+                            <img
+                              src={account.profile_picture}
+                              alt=""
+                              className="h-6 w-6 rounded-full"
+                            />
+                          ) : (
+                            <Users className="h-4 w-4 text-muted2" />
+                          )}
+                          <span className="min-w-0 flex-1 truncate font-semibold">
+                            @{account.username}
+                          </span>
+                          {tokenExpired && (
+                            <span className="shrink-0 rounded-md border border-danger/40 bg-danger/10 px-2 py-1 text-[11px] font-semibold text-danger">
+                              Token expirado
+                            </span>
+                          )}
+                          {tokenExpired && (
+                            <button
+                              type="button"
+                              disabled={loading !== null}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                void handleReconnect(account.username);
+                              }}
+                              className="shrink-0 rounded-md border border-border2 bg-bg2 px-2 py-1 text-[11px] font-semibold text-text2 hover:border-accent hover:text-foreground disabled:opacity-60"
+                            >
+                              Reconectar
+                            </button>
+                          )}
+                          <span
+                            className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold"
+                            style={{ background: itemMeta.bg, color: itemMeta.fg }}
+                          >
+                            {itemMeta.short}
+                          </span>
                         </label>
                       );
                     })}

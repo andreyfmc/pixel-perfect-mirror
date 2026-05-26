@@ -1,6 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { db } from "@/lib/db.server";
-import { InstagramGraphError, instagram, isInvalidAccessTokenError } from "@/lib/instagram.server";
+import {
+  ensureFreshAccessToken,
+  InstagramGraphError,
+  instagram,
+  isInvalidAccessTokenError,
+} from "@/lib/instagram.server";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -16,17 +21,35 @@ export const Route = createFileRoute("/api/accounts/$id/validate")({
         if (!account) return json({ ok: false, error: "Conta não encontrada" }, 404);
         if (!account.access_token) return json({ ok: false, error: "Sem access_token" }, 400);
         if (!account.ig_user_id) return json({ ok: false, error: "Sem ig_user_id" }, 400);
+        if (account.token_status === "expired") {
+          return json({ ok: false, needs_reconnect: true, error: "Token expirado" }, 200);
+        }
 
         try {
+          let accessToken = account.access_token;
+          const fresh = await ensureFreshAccessToken({
+            accessToken,
+            tokenExpiresAt: account.token_expires_at,
+          });
+          if (fresh.refreshed) {
+            accessToken = fresh.accessToken;
+            await db.updateAccountCredentials(params.id, {
+              access_token: fresh.accessToken,
+              token_expires_at: fresh.expiresAt,
+              token_status: "valid",
+              health_score: Math.max(account.health_score, 90),
+            });
+          }
           const result = await instagram.validateCredentials({
             igUserId: account.ig_user_id,
-            accessToken: account.access_token,
+            accessToken,
           });
 
           if (result.accessToken || result.ig?.id) {
             await db.updateAccountCredentials(params.id, {
               access_token: result.accessToken,
               ig_user_id: typeof result.ig?.id === "string" ? result.ig.id : undefined,
+              token_status: "valid",
               profile_picture:
                 typeof result.ig?.profile_picture_url === "string"
                   ? result.ig.profile_picture_url

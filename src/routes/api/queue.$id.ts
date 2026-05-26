@@ -12,6 +12,7 @@ const PatchSchema = z.object({
   status: z.enum(["scheduled", "processing", "published", "failed", "canceled"]),
   scheduled_at: z.string().optional(),
   reset_container: z.boolean().optional(),
+  last_error: z.string().max(500).optional(),
 });
 
 export const Route = createFileRoute("/api/queue/$id")({

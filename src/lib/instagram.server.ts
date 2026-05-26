@@ -7,6 +7,8 @@
 //
 // Requer access_token de longa duração da conta + ig_user_id (Business).
 
+import { env } from "./cf.server";
+
 const GRAPH_HOSTS = [
   { id: "facebook", base: "https://graph.facebook.com/v21.0" },
   { id: "instagram", base: "https://graph.instagram.com/v21.0" },
@@ -20,6 +22,8 @@ type GraphFailure = {
   status: number;
   json: GraphJson;
 };
+
+const TOKEN_REFRESH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 type VisibleFacebookIgAccount = {
   page: string;
@@ -63,6 +67,70 @@ export function isInvalidAccessTokenError(err: unknown) {
     const graphErr = failure.json.error as { code?: number; message?: string } | undefined;
     return graphErr?.code === 190;
   });
+}
+
+function expiredTokenError(message = "Token OAuth expirado") {
+  return new InstagramGraphError([
+    {
+      host: "instagram",
+      status: 400,
+      json: { error: { message, type: "OAuthException", code: 190 } },
+    },
+  ]);
+}
+
+export function daysUntilTokenExpiration(expiresAt?: string | null) {
+  if (!expiresAt) return null;
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return null;
+  return Math.ceil(ms / (24 * 60 * 60 * 1000));
+}
+
+export async function refreshLongLivedInstagramToken(accessToken: string) {
+  const url = new URL("https://graph.instagram.com/refresh_access_token");
+  url.searchParams.set("grant_type", "ig_refresh_token");
+  url.searchParams.set("access_token", accessToken);
+  const res = await fetch(url);
+  const json = (await res.json()) as { access_token?: string; expires_in?: number } & GraphJson;
+  if (!res.ok || !json.access_token) {
+    throw new InstagramGraphError([{ host: "instagram", status: res.status, json }]);
+  }
+  const expiresIn = json.expires_in ?? 60 * 24 * 3600;
+  return {
+    accessToken: json.access_token,
+    expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
+  };
+}
+
+export async function ensureFreshAccessToken(input: {
+  accessToken: string;
+  tokenExpiresAt?: string | null;
+  force?: boolean;
+}) {
+  const expiresTime = input.tokenExpiresAt ? new Date(input.tokenExpiresAt).getTime() : NaN;
+  if (Number.isFinite(expiresTime) && expiresTime <= Date.now()) {
+    throw expiredTokenError("Token OAuth expirado. Reconecte a conta para gerar um novo token.");
+  }
+  const shouldRefresh =
+    input.force ||
+    (Number.isFinite(expiresTime) && expiresTime - Date.now() <= TOKEN_REFRESH_WINDOW_MS);
+  if (!shouldRefresh) {
+    return {
+      accessToken: input.accessToken,
+      expiresAt: input.tokenExpiresAt ?? null,
+      refreshed: false,
+    };
+  }
+  const refreshed = await refreshLongLivedInstagramToken(input.accessToken);
+  return { ...refreshed, refreshed: true };
+}
+
+export function getInstagramClientId() {
+  return env.META_IG_APP_ID ?? env.IG_APP_ID;
+}
+
+export function getInstagramClientSecret() {
+  return env.META_IG_APP_SECRET ?? env.IG_APP_SECRET;
 }
 
 export type PublishInput = {

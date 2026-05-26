@@ -7,6 +7,7 @@ export type Account = {
   followers: number;
   last_post_at: string;
   token_expires_at: string;
+  token_status: "valid" | "expired";
 };
 
 export const mockAccounts: Account[] = [
@@ -19,6 +20,7 @@ export const mockAccounts: Account[] = [
     followers: 18420,
     last_post_at: "2026-05-24T18:30:00Z",
     token_expires_at: "2026-07-12T00:00:00Z",
+    token_status: "valid",
   },
   {
     id: "2",
@@ -29,6 +31,7 @@ export const mockAccounts: Account[] = [
     followers: 6320,
     last_post_at: "2026-05-23T09:12:00Z",
     token_expires_at: "2026-06-02T00:00:00Z",
+    token_status: "valid",
   },
   {
     id: "3",
@@ -39,6 +42,7 @@ export const mockAccounts: Account[] = [
     followers: 2104,
     last_post_at: "2026-05-20T22:00:00Z",
     token_expires_at: "2026-05-30T00:00:00Z",
+    token_status: "expired",
   },
   {
     id: "4",
@@ -49,6 +53,7 @@ export const mockAccounts: Account[] = [
     followers: 9870,
     last_post_at: "2026-05-25T07:45:00Z",
     token_expires_at: "2026-08-01T00:00:00Z",
+    token_status: "valid",
   },
 ];
 
@@ -65,16 +70,82 @@ export type QueueItem = {
 };
 
 export const mockQueue: QueueItem[] = [
-  { id: "q1", account: "atelier.noir", caption: "Drop 03 — bastidores do shoot ✦", scheduled_at: "2026-05-25T19:00:00Z", media_type: "REEL", thumb: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400", status: "scheduled" },
-  { id: "q2", account: "neon.diary", caption: "Sexta-feira, cidade acordando 🌃", scheduled_at: "2026-05-25T21:30:00Z", media_type: "IMAGE", thumb: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=400", status: "scheduled" },
-  { id: "q3", account: "lume.cafe", caption: "Novo grão da semana — Etiópia Yirgacheffe", scheduled_at: "2026-05-26T07:00:00Z", media_type: "STORY", thumb: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400", status: "processing" },
-  { id: "q4", account: "kombu.studio", caption: "Workshop de cerâmica — últimas vagas", scheduled_at: "2026-05-26T12:00:00Z", media_type: "REEL", thumb: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=400", status: "failed" },
-  { id: "q5", account: "neon.diary", caption: "Sequência pausada para revisão", scheduled_at: "2026-05-27T09:00:00Z", media_type: "IMAGE", thumb: "https://images.unsplash.com/photo-1520975954732-35dd22299614?w=400", status: "canceled" },
+  {
+    id: "q1",
+    account: "atelier.noir",
+    caption: "Drop 03 — bastidores do shoot ✦",
+    scheduled_at: "2026-05-25T19:00:00Z",
+    media_type: "REEL",
+    thumb: "https://images.unsplash.com/photo-1483985988355-763728e1935b?w=400",
+    status: "scheduled",
+  },
+  {
+    id: "q2",
+    account: "neon.diary",
+    caption: "Sexta-feira, cidade acordando 🌃",
+    scheduled_at: "2026-05-25T21:30:00Z",
+    media_type: "IMAGE",
+    thumb: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=400",
+    status: "scheduled",
+  },
+  {
+    id: "q3",
+    account: "lume.cafe",
+    caption: "Novo grão da semana — Etiópia Yirgacheffe",
+    scheduled_at: "2026-05-26T07:00:00Z",
+    media_type: "STORY",
+    thumb: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400",
+    status: "processing",
+  },
+  {
+    id: "q4",
+    account: "kombu.studio",
+    caption: "Workshop de cerâmica — últimas vagas",
+    scheduled_at: "2026-05-26T12:00:00Z",
+    media_type: "REEL",
+    thumb: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=400",
+    status: "failed",
+  },
+  {
+    id: "q5",
+    account: "neon.diary",
+    caption: "Sequência pausada para revisão",
+    scheduled_at: "2026-05-27T09:00:00Z",
+    media_type: "IMAGE",
+    thumb: "https://images.unsplash.com/photo-1520975954732-35dd22299614?w=400",
+    status: "canceled",
+  },
 ];
 
-
 export const mockHistory = [
-  { id: "h1", account: "atelier.noir", caption: "Editorial primavera", published_at: "2026-05-24T18:30:00Z", reach: 12400, likes: 980, comments: 42, thumb: "https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=400" },
-  { id: "h2", account: "lume.cafe", caption: "Latte art — domingo lento", published_at: "2026-05-24T09:00:00Z", reach: 4200, likes: 312, comments: 18, thumb: "https://images.unsplash.com/photo-1511920170033-f8396924c348?w=400" },
-  { id: "h3", account: "neon.diary", caption: "POV: 23h, Vila Madalena", published_at: "2026-05-23T09:12:00Z", reach: 8800, likes: 740, comments: 56, thumb: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400" },
+  {
+    id: "h1",
+    account: "atelier.noir",
+    caption: "Editorial primavera",
+    published_at: "2026-05-24T18:30:00Z",
+    reach: 12400,
+    likes: 980,
+    comments: 42,
+    thumb: "https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=400",
+  },
+  {
+    id: "h2",
+    account: "lume.cafe",
+    caption: "Latte art — domingo lento",
+    published_at: "2026-05-24T09:00:00Z",
+    reach: 4200,
+    likes: 312,
+    comments: 18,
+    thumb: "https://images.unsplash.com/photo-1511920170033-f8396924c348?w=400",
+  },
+  {
+    id: "h3",
+    account: "neon.diary",
+    caption: "POV: 23h, Vila Madalena",
+    published_at: "2026-05-23T09:12:00Z",
+    reach: 8800,
+    likes: 740,
+    comments: 56,
+    thumb: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=400",
+  },
 ];

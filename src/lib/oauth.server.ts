@@ -3,6 +3,7 @@
 
 import { env } from "./cf.server";
 import { db } from "./db.server";
+import { getInstagramClientId, getInstagramClientSecret } from "./instagram.server";
 
 export type Provider = "facebook" | "instagram";
 
@@ -146,7 +147,10 @@ export async function handleFacebookCallback(req: Request, code: string) {
   const long = await fbLongLived(userToken);
   const igs = await fbListIgAccounts(long.token);
   if (!igs.length) {
-    return { saved: [] as string[], error: "Nenhuma conta Instagram Business vinculada às suas Páginas." };
+    return {
+      saved: [] as string[],
+      error: "Nenhuma conta Instagram Business vinculada às suas Páginas.",
+    };
   }
   const saved: string[] = [];
   const expiresAt = new Date(Date.now() + long.expiresIn * 1000).toISOString();
@@ -191,7 +195,11 @@ async function igExchangeCode(req: Request, code: string) {
 async function igLongLived(shortToken: string) {
   const u = new URL(`${IG_GRAPH}/access_token`);
   u.searchParams.set("grant_type", "ig_exchange_token");
-  u.searchParams.set("client_secret", env.META_IG_APP_SECRET!);
+  const clientId = getInstagramClientId();
+  const clientSecret = getInstagramClientSecret();
+  if (!clientId || !clientSecret) throw new Error("Credenciais Instagram não configuradas");
+  u.searchParams.set("client_id", clientId);
+  u.searchParams.set("client_secret", clientSecret);
   u.searchParams.set("access_token", shortToken);
   const r = await fetch(u);
   const j = (await r.json()) as { access_token?: string; expires_in?: number };
@@ -267,5 +275,8 @@ export function popupResponseHtml(payload: Record<string, unknown>): Response {
   } catch (e) { document.body.innerText = "Erro: " + e.message; }
 })();
 </script>`;
-  return new Response(html, { status: 200, headers: { "content-type": "text/html; charset=utf-8" } });
+  return new Response(html, {
+    status: 200,
+    headers: { "content-type": "text/html; charset=utf-8" },
+  });
 }
