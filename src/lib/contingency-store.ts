@@ -199,6 +199,7 @@ export function fromCSV(text: string): ContingencyAccount[] {
   const iQuality = idxAny("quality", "qualidade");
   const iNotes = idxAny("notes", "notas");
   const iType = idxAny("tipo", "connection_type", "type");
+  const iOrder = idxAny("ordem", "order", "numero", "número", "n", "num", "#");
 
   const normStatus = (s: string): ContingencyStatus => {
     const v = s.trim().toLowerCase();
