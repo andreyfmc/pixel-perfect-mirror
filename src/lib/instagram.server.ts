@@ -170,11 +170,34 @@ export const instagram = {
 
   async validateCredentials(input: { igUserId: string; accessToken: string }) {
     try {
+      const pageMe = await facebookGet("/me", {
+        access_token: input.accessToken,
+        fields: "id,name,instagram_business_account{id,username,name,profile_picture_url,followers_count}",
+      });
+      const pageIg = pageMe.instagram_business_account as
+        | { id?: string; username?: string; name?: string; profile_picture_url?: string; followers_count?: number }
+        | undefined;
+      if (pageIg?.id) {
+        return {
+          me: pageMe,
+          ig: pageIg,
+          host: "facebook" as GraphHostId,
+          accessToken: input.accessToken,
+          suggestions: [{
+            page: String(pageMe.name ?? pageMe.id ?? "Página"),
+            pageId: String(pageMe.id ?? ""),
+            pageAccessToken: input.accessToken,
+            ig_id: pageIg.id,
+            ig_username: pageIg.username,
+            ig_name: pageIg.name,
+            profile_picture: pageIg.profile_picture_url,
+            followers: pageIg.followers_count,
+          }],
+        };
+      }
+
       const [me, accounts] = await Promise.all([
-        facebookGet("/me", {
-          access_token: input.accessToken,
-          fields: "id,name",
-        }),
+        Promise.resolve(pageMe),
         this.listVisibleFacebookIgAccounts(input.accessToken).catch(() => [] as VisibleFacebookIgAccount[]),
       ]);
       const suggestion = accounts.find((a) => isSameId(a.ig_id, input.igUserId));
