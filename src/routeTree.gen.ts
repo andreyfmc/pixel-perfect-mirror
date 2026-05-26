@@ -22,6 +22,7 @@ import { Route as AppHistoryRouteImport } from './routes/_app.history'
 import { Route as AppContingencyRouteImport } from './routes/_app.contingency'
 import { Route as AppAccountsRouteImport } from './routes/_app.accounts'
 import { Route as ApiQueueIdRouteImport } from './routes/api/queue.$id'
+import { Route as ApiPublicRevealKeyRouteImport } from './routes/api/public/_reveal-key'
 import { Route as ApiMediaUploadRouteImport } from './routes/api/media.upload'
 import { Route as ApiCronTickRouteImport } from './routes/api/cron.tick'
 import { Route as ApiAuthInstagramRouteImport } from './routes/api/auth.instagram'
@@ -93,6 +94,11 @@ const ApiQueueIdRoute = ApiQueueIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiQueueRoute,
 } as any)
+const ApiPublicRevealKeyRoute = ApiPublicRevealKeyRouteImport.update({
+  id: '/api/public/_reveal-key',
+  path: '/api/public',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMediaUploadRoute = ApiMediaUploadRouteImport.update({
   id: '/api/media/upload',
   path: '/api/media/upload',
@@ -142,6 +148,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/instagram': typeof ApiAuthInstagramRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
+  '/api/public': typeof ApiPublicRevealKeyRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
 }
 export interface FileRoutesByTo {
@@ -162,6 +169,7 @@ export interface FileRoutesByTo {
   '/api/auth/instagram': typeof ApiAuthInstagramRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
+  '/api/public': typeof ApiPublicRevealKeyRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
 }
 export interface FileRoutesById {
@@ -184,6 +192,7 @@ export interface FileRoutesById {
   '/api/auth/instagram': typeof ApiAuthInstagramRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
+  '/api/public/_reveal-key': typeof ApiPublicRevealKeyRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
 }
 export interface FileRouteTypes {
@@ -206,6 +215,7 @@ export interface FileRouteTypes {
     | '/api/auth/instagram'
     | '/api/cron/tick'
     | '/api/media/upload'
+    | '/api/public'
     | '/api/queue/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -226,6 +236,7 @@ export interface FileRouteTypes {
     | '/api/auth/instagram'
     | '/api/cron/tick'
     | '/api/media/upload'
+    | '/api/public'
     | '/api/queue/$id'
   id:
     | '__root__'
@@ -247,6 +258,7 @@ export interface FileRouteTypes {
     | '/api/auth/instagram'
     | '/api/cron/tick'
     | '/api/media/upload'
+    | '/api/public/_reveal-key'
     | '/api/queue/$id'
   fileRoutesById: FileRoutesById
 }
@@ -261,6 +273,7 @@ export interface RootRouteChildren {
   ApiAuthInstagramRoute: typeof ApiAuthInstagramRoute
   ApiCronTickRoute: typeof ApiCronTickRoute
   ApiMediaUploadRoute: typeof ApiMediaUploadRoute
+  ApiPublicRevealKeyRoute: typeof ApiPublicRevealKeyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -355,6 +368,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/queue/$id'
       preLoaderRoute: typeof ApiQueueIdRouteImport
       parentRoute: typeof ApiQueueRoute
+    }
+    '/api/public/_reveal-key': {
+      id: '/api/public/_reveal-key'
+      path: '/api/public'
+      fullPath: '/api/public'
+      preLoaderRoute: typeof ApiPublicRevealKeyRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/media/upload': {
       id: '/api/media/upload'
@@ -458,7 +478,18 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthInstagramRoute: ApiAuthInstagramRoute,
   ApiCronTickRoute: ApiCronTickRoute,
   ApiMediaUploadRoute: ApiMediaUploadRoute,
+  ApiPublicRevealKeyRoute: ApiPublicRevealKeyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
