@@ -603,6 +603,64 @@ const rawDb = {
       )
       .run();
   },
+
+  // ============ oauth_states (links únicos de conexão) ============
+  async createOAuthState(input: { state: string; redirectUri: string; ttlMinutes?: number }) {
+    const ttl = Math.max(1, input.ttlMinutes ?? 30);
+    const expires = new Date(Date.now() + ttl * 60_000).toISOString();
+    await requireDb()
+      .prepare(
+        `INSERT INTO oauth_states (state, status, redirect_uri, expires_at)
+         VALUES (?, 'pending', ?, ?)`,
+      )
+      .bind(input.state, input.redirectUri, expires)
+      .run();
+    return { state: input.state, expiresAt: expires };
+  },
+  async takeOAuthState(state: string): Promise<{ ok: boolean; reason?: string; redirectUri?: string }> {
+    const row = await requireDb()
+      .prepare("SELECT * FROM oauth_states WHERE state = ?")
+      .bind(state)
+      .first<{ status: string; expires_at: string; redirect_uri: string }>();
+    if (!row) return { ok: false, reason: "not_found" };
+    if (row.status !== "pending") return { ok: false, reason: "consumed" };
+    if (Date.parse(row.expires_at) <= Date.now()) {
+      await requireDb()
+        .prepare("UPDATE oauth_states SET status = 'expired' WHERE state = ?")
+        .bind(state)
+        .run();
+      return { ok: false, reason: "expired" };
+    }
+    await requireDb()
+      .prepare("UPDATE oauth_states SET status = 'consumed', consumed_at = datetime('now') WHERE state = ?")
+      .bind(state)
+      .run();
+    return { ok: true, redirectUri: row.redirect_uri };
+  },
+
+  // ============ token refresh ============
+  async listAccountsForTokenRefresh(daysAhead = 10): Promise<AccountRow[]> {
+    const cutoff = new Date(Date.now() + daysAhead * 24 * 60 * 60 * 1000).toISOString();
+    const { results } = await requireDb()
+      .prepare(
+        `SELECT * FROM accounts
+         WHERE provider = 'instagram'
+           AND access_token IS NOT NULL
+           AND token_status = 'valid'
+           AND (token_expires_at IS NULL OR datetime(token_expires_at) <= datetime(?))
+         ORDER BY token_expires_at ASC
+         LIMIT 50`,
+      )
+      .bind(cutoff)
+      .all<AccountRow>();
+    return results ?? [];
+  },
+  async markAccountTokenExpired(id: string) {
+    await requireDb()
+      .prepare("UPDATE accounts SET token_status = 'expired', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind(id)
+      .run();
+  },
 };
 
 // Proxy que garante a auto-migração antes de cada chamada de método.
