@@ -3,6 +3,7 @@
 
 import { db } from "./db.server";
 import {
+  type ContainerStatus,
   ensureFreshAccessToken,
   inferGraphProviderFromToken,
   instagram,
@@ -202,7 +203,7 @@ export async function runScheduler(
         await db.markQueueProcessing(item.id, containerId);
       }
 
-      let status;
+      let status: ContainerStatus;
       try {
         status = await instagram.fetchContainerStatus(containerId, accessToken, provider);
       } catch (err) {
