@@ -95,7 +95,6 @@ type IgBizAccount = {
   name: string;
   profilePicture: string;
   followers: number;
-  pageAccessToken: string;
   pageId: string;
 };
 
@@ -135,7 +134,6 @@ async function fbListIgAccounts(userToken: string): Promise<IgBizAccount[]> {
       name: ij.name ?? ij.username,
       profilePicture: ij.profile_picture_url ?? "",
       followers: ij.followers_count ?? 0,
-      pageAccessToken: p.access_token,
       pageId: p.id,
     });
   }
@@ -162,7 +160,10 @@ export async function handleFacebookCallback(req: Request, code: string) {
       name: ig.name,
       profile_picture: ig.profilePicture,
       ig_user_id: ig.igUserId,
-      access_token: ig.pageAccessToken,
+      // Publicação de conteúdo via Facebook Login exige o User token.
+      // O Page token acessa a Página/IG para leitura, mas falha em containers
+      // com GraphMethodException code=100 subcode=33.
+      access_token: long.token,
       token_expires_at: expiresAt,
       provider: "facebook",
       followers: ig.followers,
