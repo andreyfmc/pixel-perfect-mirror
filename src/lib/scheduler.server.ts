@@ -8,20 +8,28 @@ import { hasDb, env } from "./cf.server";
 // URL pública dos arquivos no R2 (Public Access ativado no bucket insta-media).
 export const R2_PUBLIC_BASE = "https://pub-5fcd7291327547a084c1e911d5141d6f.r2.dev";
 
+// Cache do último origin visto numa request — fallback para o Cron Trigger
+// (que não tem request) quando PUBLIC_BASE_URL não está setado.
+let lastKnownOrigin: string | undefined;
+export function rememberOrigin(origin: string) {
+  if (origin) lastKnownOrigin = origin.replace(/\/$/, "");
+}
+
 /**
  * Resolve a URL pública que a Instagram Graph API vai baixar.
  *
  * - `drive:<fileId>`  → proxy público do worker: /api/public/drive/<fileId>
- *   (precisa de `baseUrl` ou env `PUBLIC_BASE_URL`)
  * - qualquer outra    → R2 público
+ *
+ * Origin para `drive:`: baseUrl arg → PUBLIC_BASE_URL → último origin visto.
  */
 export function publicMediaUrl(key: string, baseUrl?: string): string {
   if (key.startsWith("drive:")) {
     const fileId = key.slice("drive:".length);
-    const origin = (baseUrl ?? env.PUBLIC_BASE_URL ?? "").replace(/\/$/, "");
+    const origin = (baseUrl ?? env.PUBLIC_BASE_URL ?? lastKnownOrigin ?? "").replace(/\/$/, "");
     if (!origin) {
       throw new Error(
-        "PUBLIC_BASE_URL não configurado — defina a URL pública do worker para servir vídeos do Drive à Instagram",
+        "URL pública do worker desconhecida — abra a Fila no navegador uma vez ou defina PUBLIC_BASE_URL no wrangler para servir vídeos do Drive à Instagram",
       );
     }
     return `${origin}/api/public/drive/${fileId}`;
