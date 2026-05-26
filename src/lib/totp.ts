@@ -35,17 +35,18 @@ export async function generateTOTP(
   view.setUint32(0, Math.floor(counter / 0x100000000));
   view.setUint32(4, counter >>> 0);
 
-  let keyBytes: Uint8Array;
+  let keyBuf: ArrayBuffer;
   try {
-    keyBytes = base32Decode(secret);
-    if (keyBytes.length === 0) return "------";
+    const bytes = base32Decode(secret);
+    if (bytes.length === 0) return "------";
+    keyBuf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
   } catch {
     return "------";
   }
 
   const key = await crypto.subtle.importKey(
     "raw",
-    keyBytes,
+    keyBuf,
     { name: "HMAC", hash: "SHA-1" },
     false,
     ["sign"],
