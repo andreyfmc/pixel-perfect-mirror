@@ -105,7 +105,7 @@ export const api = {
   async updateQueueStatus(
     id: string,
     status: QueueItem["status"],
-    options?: { scheduled_at?: string; reset_container?: boolean },
+    options?: { scheduled_at?: string; reset_container?: boolean; last_error?: string },
   ) {
     await fetch(`/api/queue/${id}`, {
       method: "PATCH",
