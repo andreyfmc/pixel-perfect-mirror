@@ -1321,7 +1321,7 @@ function DriveImportDialog({
   onOpenChange: (v: boolean) => void;
   listCsvs: () => Promise<{ files: DriveCsvFile[]; error: string | null }>;
   downloadCsv: (args: { data: { fileId: string } }) => Promise<{ content: string | null; error: string | null }>;
-  onImport: (text: string) => void;
+  onImport: (text: string, file: DriveCsvFile) => void;
 }) {
   const [files, setFiles] = useState<DriveCsvFile[]>([]);
   const [loading, setLoading] = useState(false);
