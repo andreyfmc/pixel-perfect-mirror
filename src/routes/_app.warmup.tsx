@@ -877,6 +877,47 @@ function DistributeTab() {
                 {copied ? "copiado" : "copiar"}
               </button>
             )}
+        <div className="space-y-2">
+          <button
+            onClick={enqueueAll}
+            disabled={enqueueing || !selectedList.length || !selectedAccounts.length}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {enqueueing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Agendando…
+              </>
+            ) : (
+              <>
+                <Wand2 className="h-4 w-4" /> Agendar nas contas selecionadas
+              </>
+            )}
+          </button>
+          {enqueueMsg && (
+            <div className="rounded-md border border-border bg-bg3 px-3 py-2 text-xs text-text2">
+              {enqueueMsg}
+            </div>
+          )}
+          <p className="text-[11px] text-muted2">
+            Cria 1 item na fila por conta × vídeo selecionado, espaçado pelo gap. As publicações
+            ocorrem no horário agendado pelo scheduler do servidor.
+          </p>
+        </div>
+
+        <div>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="text-xs uppercase tracking-wider text-muted2">
+              Comando local (avançado · gera variantes únicas com ffmpeg)
+            </label>
+            {command && (
+              <button
+                onClick={copy}
+                className="inline-flex items-center gap-1 text-xs text-text2 hover:text-foreground"
+              >
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? "copiado" : "copiar"}
+              </button>
+            )}
           </div>
           <pre className="overflow-x-auto rounded-lg border border-border bg-bg4 p-3 text-[11px] leading-relaxed text-text2">
 {command || "Selecione ao menos um vídeo do Drive e uma conta."}
