@@ -4,6 +4,7 @@
 import { db } from "./db.server";
 import {
   ensureFreshAccessToken,
+  inferGraphProviderFromToken,
   instagram,
   isInvalidAccessTokenError,
   isMismatchedCredentialsError,
@@ -60,7 +61,7 @@ export async function runScheduler(
       }
       let igUserId = account.ig_user_id;
       let accessToken = account.access_token;
-      let provider = account.provider;
+      let provider = inferGraphProviderFromToken(account.access_token, account.provider);
       try {
         const fresh =
           account.provider === "instagram"
@@ -71,9 +72,11 @@ export async function runScheduler(
             : { accessToken, expiresAt: account.token_expires_at, refreshed: false };
         if (fresh.refreshed || account.token_status === "expired") {
           accessToken = fresh.accessToken;
+          provider = inferGraphProviderFromToken(accessToken, provider);
           await db.updateAccountCredentials(item.account_id, {
             access_token: fresh.accessToken,
             token_expires_at: fresh.expiresAt,
+            provider,
             token_status: "valid",
             health_score: Math.max(account.health_score, 90),
           });
