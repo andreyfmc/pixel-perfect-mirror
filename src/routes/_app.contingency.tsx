@@ -2,138 +2,152 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus, CheckSquare, FileUp, HardDrive, Save, FileDown, Search,
-  Copy, Eye, EyeOff, Trash2, ArrowRightLeft, ChevronDown, X,
+  Copy, Eye, EyeOff, Trash2, ChevronDown, ChevronRight, MoreHorizontal,
+  Zap, Lock, Unlock, AlertTriangle, MoreVertical, History,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   type ContingencyAccount, type ContingencyStatus, type ContingencyQuality,
+  type ConnectionType, type ActivationLog,
   STATUS_META, QUALITY_META,
   loadContingency, saveContingency, newAccount, toCSV, fromCSV,
   fetchFromServer, pushOne, deleteOne, replaceAllOnServer,
+  appendActivationLog, logsForContingency,
 } from "@/lib/contingency-store";
 import { generateTOTP, totpSecondsRemaining } from "@/lib/totp";
+import { api } from "@/lib/api-client";
+import type { Account } from "@/lib/mock";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 
 export const Route = createFileRoute("/_app/contingency")({
   component: ContingencyPage,
   head: () => ({ meta: [{ title: "Contingência · Insta Manager" }] }),
 });
 
-// ---- Hook: estado sincronizado com localStorage ----
+// =====================  helpers  =====================
+
+const PRIVATE_KEY = "im_contingency_private_v1";
+
 function useContingency() {
   const [list, setList] = useState<ContingencyAccount[]>([]);
   useEffect(() => {
     const local = loadContingency();
     setList(local);
-    // tenta hidratar do servidor (sem apagar o cache local se vier vazio/indisponível)
     fetchFromServer().then((res) => {
-      if (!res) return; // servidor indisponível → mantém cache local
-      if (res.items.length === 0 && local.length > 0) {
-        // servidor vazio mas temos cache local → empurra local pro servidor
-        replaceAllOnServer(local);
-        return;
-      }
-      if (res.items.length > 0) {
-        setList(res.items);
-        saveContingency(res.items);
-      }
+      if (!res) return;
+      if (res.items.length === 0 && local.length > 0) { replaceAllOnServer(local); return; }
+      if (res.items.length > 0) { setList(res.items); saveContingency(res.items); }
     });
     const onChange = () => setList(loadContingency());
     window.addEventListener("contingency:changed", onChange);
     return () => window.removeEventListener("contingency:changed", onChange);
   }, []);
   const update = useCallback((updater: (prev: ContingencyAccount[]) => ContingencyAccount[]) => {
-    setList((prev) => {
-      const next = updater(prev);
-      saveContingency(next);
-      return next;
-    });
+    setList((prev) => { const next = updater(prev); saveContingency(next); return next; });
   }, []);
   return [list, update] as const;
 }
 
-// ---- TOTP cell ----
-function TotpCell({ secret }: { secret: string }) {
+function relTime(iso: string): string {
+  const d = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (d < 60) return "agora";
+  if (d < 3600) return `${Math.floor(d / 60)}min`;
+  if (d < 86400) return `${Math.floor(d / 3600)}h`;
+  return `${Math.floor(d / 86400)}d`;
+}
+
+// =====================  small bits  =====================
+
+function TypeIcon({ type }: { type: ConnectionType }) {
+  if (type === "facebook") {
+    return (
+      <span
+        title="Facebook"
+        className="inline-flex h-4 w-4 items-center justify-center rounded-[4px] text-[9px] font-bold text-white"
+        style={{ background: "#1877F2" }}
+      >f</span>
+    );
+  }
+  return (
+    <span
+      title="Instagram"
+      className="inline-flex h-4 w-4 items-center justify-center rounded-[4px] text-[8px] font-bold text-white"
+      style={{ background: "linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)" }}
+    >IG</span>
+  );
+}
+
+function TotpInline({ secret, privateMode }: { secret: string; privateMode: boolean }) {
   const [code, setCode] = useState("------");
   const [left, setLeft] = useState(30);
   useEffect(() => {
     let mounted = true;
     const tick = async () => {
+      if (!secret) { setCode("------"); setLeft(30); return; }
       const c = await generateTOTP(secret);
-      if (mounted) {
-        setCode(c);
-        setLeft(totpSecondsRemaining(30));
-      }
+      if (mounted) { setCode(c); setLeft(totpSecondsRemaining(30)); }
     };
     tick();
     const id = setInterval(tick, 1000);
     return () => { mounted = false; clearInterval(id); };
   }, [secret]);
   const pct = (left / 30) * 100;
-  return (
-    <div className="space-y-1.5">
+  const danger = left <= 5;
+  if (privateMode || !secret) {
+    return (
       <div className="flex items-center gap-1.5">
-        <div className="flex-1 rounded-md border border-border bg-bg3 px-2 py-1.5 font-mono text-xs tracking-widest text-muted2">
-          ••••••••••••••••••••
-        </div>
-        <button
-          type="button"
-          onClick={() => { navigator.clipboard.writeText(secret); toast.success("Secret copiado"); }}
-          className="rounded-md border border-border bg-bg3 px-2 py-1.5 text-[11px] hover:border-border2"
-          title="Copiar secret"
-        ><Copy className="h-3 w-3" /></button>
+        <span className="font-mono text-[11px] tracking-widest text-muted2">••••••••</span>
       </div>
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-sm tabular-nums">
-          {code.slice(0, 3)} {code.slice(3)}
-        </span>
-        <div className="h-1 flex-1 overflow-hidden rounded-full bg-bg3">
-          <div className="h-full transition-all" style={{ width: `${pct}%`, background: left > 5 ? "var(--accent2)" : "var(--danger)" }} />
-        </div>
-        <span className="w-6 text-right text-[10px] tabular-nums text-muted2">{left}s</span>
-        <button
-          type="button"
-          onClick={() => { navigator.clipboard.writeText(code); toast.success("Código TOTP copiado"); }}
-          className="rounded-md border border-border bg-bg3 p-1 hover:border-border2"
-          title="Copiar código"
-        ><Copy className="h-3 w-3" /></button>
-      </div>
-    </div>
-  );
-}
-
-// ---- Password cell ----
-function PasswordCell({
-  value, onChange,
-}: { value: string; onChange: (v: string) => void }) {
-  const [shown, setShown] = useState(false);
+    );
+  }
   return (
     <div className="flex items-center gap-1.5">
-      <input
-        type={shown ? "text" : "password"}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-border bg-bg3 px-2 py-1.5 text-xs font-mono"
-      />
       <button
         type="button"
-        onClick={() => setShown((v) => !v)}
-        className="rounded-md border border-border bg-bg3 p-1.5 hover:border-border2"
-      >{shown ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}</button>
-      <button
-        type="button"
-        onClick={() => { navigator.clipboard.writeText(value); toast.success("Senha copiada"); }}
-        className="inline-flex items-center gap-1 rounded-md border border-border bg-bg3 px-2 py-1.5 text-[11px] hover:border-border2"
-      ><Copy className="h-3 w-3" /> Copiar</button>
+        onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(code); toast.success("TOTP copiado"); }}
+        className="inline-flex items-center gap-1 rounded-md border border-border bg-bg3 px-1.5 py-0.5 font-mono text-[11px] tabular-nums hover:border-border2"
+        title="Copiar código TOTP"
+      >
+        <span className={danger ? "text-danger" : ""}>{code.slice(0, 3)} {code.slice(3)}</span>
+        <Copy className="h-2.5 w-2.5 opacity-60" />
+      </button>
+      <div className="h-1 w-10 overflow-hidden rounded-full bg-bg3">
+        <div
+          className="h-full transition-all"
+          style={{ width: `${pct}%`, background: danger ? "var(--danger)" : "var(--accent2)" }}
+        />
+      </div>
     </div>
   );
 }
 
-// ---- Status pill ----
-function StatusBadge({
+function MaskedField({
+  value, label, privateMode,
+}: { value: string; label: string; privateMode: boolean }) {
+  if (!value) return <span className="text-[11px] text-muted2/60">—</span>;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        if (privateMode) { toast.error("Modo privado ativo"); return; }
+        navigator.clipboard.writeText(value);
+        toast.success(`${label} copiado`);
+      }}
+      className="inline-flex items-center gap-1 rounded-md border border-border bg-bg3 px-1.5 py-0.5 font-mono text-[11px] hover:border-border2"
+      title={privateMode ? "Modo privado ativo" : `Copiar ${label.toLowerCase()}`}
+    >
+      <span className="tracking-widest text-muted2">••••••••</span>
+      <Copy className="h-2.5 w-2.5 opacity-60" />
+    </button>
+  );
+}
+
+function StatusPill({
   status, onChange,
 }: { status: ContingencyStatus; onChange: (s: ContingencyStatus) => void }) {
   const meta = STATUS_META[status];
@@ -141,14 +155,12 @@ function StatusBadge({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium"
-          style={{
-            background: `color-mix(in oklab, ${meta.color} 18%, transparent)`,
-            color: meta.color,
-          }}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+          style={{ background: `color-mix(in oklab, ${meta.color} 18%, transparent)`, color: meta.color }}
         >● {meta.label}<ChevronDown className="h-3 w-3" /></button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
+      <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
         {(Object.keys(STATUS_META) as ContingencyStatus[]).map((s) => (
           <DropdownMenuItem key={s} onClick={() => onChange(s)}>
             <span className="mr-2" style={{ color: STATUS_META[s].color }}>●</span>
@@ -160,7 +172,7 @@ function StatusBadge({
   );
 }
 
-function QualityBadge({
+function QualityPill({
   quality, onChange,
 }: { quality: ContingencyQuality; onChange: (q: ContingencyQuality) => void }) {
   const meta = QUALITY_META[quality];
@@ -168,14 +180,12 @@ function QualityBadge({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium"
-          style={{
-            background: `color-mix(in oklab, ${meta.color} 18%, transparent)`,
-            color: meta.color,
-          }}
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide"
+          style={{ background: `color-mix(in oklab, ${meta.color} 18%, transparent)`, color: meta.color }}
         >● {meta.label}<ChevronDown className="h-3 w-3" /></button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
+      <DropdownMenuContent align="start" onClick={(e) => e.stopPropagation()}>
         {(Object.keys(QUALITY_META) as ContingencyQuality[]).map((q) => (
           <DropdownMenuItem key={q} onClick={() => onChange(q)}>
             <span className="mr-2" style={{ color: QUALITY_META[q].color }}>●</span>
@@ -187,17 +197,34 @@ function QualityBadge({
   );
 }
 
-// ---- Add Account Modal ----
+// =====================  Add modal  =====================
+
 function AddAccountModal({
   open, onOpenChange, onSave,
 }: { open: boolean; onOpenChange: (v: boolean) => void; onSave: (a: ContingencyAccount) => void }) {
   const [form, setForm] = useState(() => newAccount());
-  useEffect(() => { if (open) setForm(newAccount()); }, [open]);
+  useEffect(() => { if (open) setForm(newAccount({ connection_type: "instagram" })); }, [open]);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-bg2 border-border max-w-md">
         <DialogHeader><DialogTitle>Adicionar conta de contingência</DialogTitle></DialogHeader>
         <div className="space-y-3">
+          <Field label="Tipo de conexão">
+            <div className="grid grid-cols-2 gap-2">
+              {(["instagram", "facebook"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setForm({ ...form, connection_type: t })}
+                  className={`flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm ${
+                    (form.connection_type ?? "instagram") === t ? "border-accent bg-bg4" : "border-border bg-bg3"
+                  }`}
+                >
+                  <TypeIcon type={t} /> {t === "instagram" ? "Instagram" : "Facebook"}
+                </button>
+              ))}
+            </div>
+          </Field>
           <Field label="Username">
             <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })}
               className="w-full rounded-md border border-border bg-bg3 px-3 py-2 text-sm" placeholder="ex: minha.conta" />
@@ -252,26 +279,354 @@ function AddAccountModal({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs text-muted2">{label}</span>
+      <span className="mb-1 block text-[11px] uppercase tracking-wide text-muted2">{label}</span>
       {children}
     </label>
   );
 }
 
-// ---- main page ----
+// =====================  Password reveal modal  =====================
+
+function PasswordRevealModal({
+  open, onOpenChange, account,
+}: { open: boolean; onOpenChange: (v: boolean) => void; account: ContingencyAccount | null }) {
+  if (!account) return null;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-bg2 border-border max-w-sm">
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><Unlock className="h-4 w-4" /> Senha de @{account.username}</DialogTitle></DialogHeader>
+        <div className="rounded-md border border-border bg-bg3 p-3 font-mono text-sm break-all">
+          {account.password || <span className="text-muted2">— vazio —</span>}
+        </div>
+        <DialogFooter>
+          <button onClick={() => onOpenChange(false)} className="rounded-md border border-border bg-bg3 px-3 py-2 text-sm">Fechar</button>
+          <button
+            onClick={() => { navigator.clipboard.writeText(account.password); toast.success("Senha copiada"); }}
+            className="rounded-md im-grad-accent px-3 py-2 text-sm font-medium text-white">Copiar</button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// =====================  Activation drawer  =====================
+
+function ActivationDrawer({
+  open, onOpenChange, account, onConfirm,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  account: ContingencyAccount | null;
+  onConfirm: (replaced: Account, reason: string) => void;
+}) {
+  const [step, setStep] = useState<1 | 2>(1);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [replacedId, setReplacedId] = useState<string>("");
+  const [reason, setReason] = useState<string>("Shadowban");
+  useEffect(() => {
+    if (!open) return;
+    setStep(1); setReplacedId(""); setReason("Shadowban");
+    api.listAccounts().then(setAccounts).catch(() => setAccounts([]));
+  }, [open]);
+  const replaced = accounts.find((a) => a.id === replacedId);
+  if (!account) return null;
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent className="w-full sm:max-w-md bg-bg2 border-border">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-accent2" /> Ativar @{account.username} como principal
+          </SheetTitle>
+          <SheetDescription>Substitui uma conta principal por esta conta de contingência.</SheetDescription>
+        </SheetHeader>
+
+        <div className="mt-5 space-y-4">
+          {step === 1 && (
+            <>
+              <Field label="Qual conta principal está sendo substituída?">
+                <select
+                  value={replacedId}
+                  onChange={(e) => setReplacedId(e.target.value)}
+                  className="w-full rounded-md border border-border bg-bg3 px-3 py-2 text-sm"
+                >
+                  <option value="">— selecionar conta —</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>@{a.username} ({a.name})</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Motivo">
+                <select
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  className="w-full rounded-md border border-border bg-bg3 px-3 py-2 text-sm"
+                >
+                  <option>Ban</option>
+                  <option>Shadowban</option>
+                  <option>Problema técnico</option>
+                  <option>Outro</option>
+                </select>
+              </Field>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => onOpenChange(false)} className="rounded-md border border-border bg-bg3 px-3 py-2 text-sm">Cancelar</button>
+                <button
+                  disabled={!replacedId}
+                  onClick={() => setStep(2)}
+                  className="rounded-md im-grad-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >Continuar →</button>
+              </div>
+            </>
+          )}
+
+          {step === 2 && replaced && (
+            <>
+              <div className="rounded-lg border border-accent/40 bg-bg3 p-4 space-y-2 text-sm">
+                <p>
+                  <strong className="text-accent2">@{account.username}</strong> vai substituir{" "}
+                  <strong>@{replaced.username}</strong>
+                </p>
+                <p className="text-text2">Motivo: <strong>{reason}</strong></p>
+                <p className="text-[12px] text-muted2">
+                  A conta <strong>@{replaced.username}</strong> será movida para Arquivadas.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button onClick={() => setStep(1)} className="rounded-md border border-border bg-bg3 px-3 py-2 text-sm">← Voltar</button>
+                <button
+                  onClick={() => onConfirm(replaced, reason)}
+                  className="rounded-md im-grad-accent px-3 py-2 text-sm font-medium text-white"
+                >Confirmar ativação</button>
+              </div>
+            </>
+          )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+// =====================  Row  =====================
+
+function Row({
+  a, idx, privateMode, expanded, onToggleExpand, onPatch, onRemove, onCopyAll, onActivate, onReveal, selectMode, selected, onSelectChange,
+}: {
+  a: ContingencyAccount;
+  idx: number;
+  privateMode: boolean;
+  expanded: boolean;
+  onToggleExpand: () => void;
+  onPatch: (p: Partial<ContingencyAccount>) => void;
+  onRemove: () => void;
+  onCopyAll: () => void;
+  onActivate: () => void;
+  onReveal: () => void;
+  selectMode: boolean;
+  selected: boolean;
+  onSelectChange: (v: boolean) => void;
+}) {
+  const ctype = a.connection_type ?? "instagram";
+  const zebra = idx % 2 === 1 ? "bg-white/[0.02]" : "";
+  return (
+    <div
+      className="border-b border-border/60"
+      style={{ animation: `fadeUp .25s ease ${Math.min(idx * 20, 400)}ms backwards` }}
+    >
+      <div
+        onClick={onToggleExpand}
+        className={`flex h-12 cursor-pointer items-center gap-2 px-2 transition-colors hover:bg-white/[0.03] ${zebra}`}
+      >
+        {selectMode && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => onSelectChange(e.target.checked)}
+            className="ml-1"
+          />
+        )}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+          className="text-muted2 hover:text-text"
+        >
+          {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        </button>
+        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS_META[a.status].color }} />
+
+        {/* username */}
+        <div className="flex w-48 min-w-0 shrink-0 items-center gap-1.5">
+          <TypeIcon type={ctype} />
+          <span className="truncate font-mono text-[13px]">@{a.username || <span className="text-muted2">sem nome</span>}</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(a.username); toast.success("Copiado"); }}
+            className="shrink-0 text-muted2 hover:text-text"
+            title="Copiar username"
+          ><Copy className="h-3 w-3" /></button>
+        </div>
+
+        {/* password */}
+        <div className="flex w-32 shrink-0 items-center gap-1">
+          <MaskedField value={a.password} label="Senha" privateMode={privateMode} />
+          {!privateMode && a.password && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onReveal(); }}
+              className="text-muted2 hover:text-text"
+              title="Visualizar senha"
+            ><Eye className="h-3 w-3" /></button>
+          )}
+        </div>
+
+        {/* 2fa secret */}
+        <div className="flex w-28 shrink-0 items-center">
+          <MaskedField value={a.totp_secret} label="2FA secret" privateMode={privateMode} />
+        </div>
+
+        {/* TOTP code */}
+        <div className="w-36 shrink-0">
+          <TotpInline secret={a.totp_secret} privateMode={privateMode} />
+        </div>
+
+        {/* status / quality */}
+        <div className="shrink-0"><StatusPill status={a.status} onChange={(s) => onPatch({ status: s })} /></div>
+        <div className="shrink-0"><QualityPill quality={a.quality} onChange={(q) => onPatch({ quality: q })} /></div>
+
+        {/* notes inline (collapsed shows preview, click expands) */}
+        <input
+          value={a.notes}
+          onChange={(e) => onPatch({ notes: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="Observações..."
+          className="hidden flex-1 min-w-0 rounded-md border border-transparent bg-transparent px-2 py-1 text-[12px] hover:border-border focus:border-accent focus:bg-bg3 lg:block"
+        />
+
+        {/* updated */}
+        <span className="hidden w-16 shrink-0 text-right text-[10px] text-muted2 md:block">
+          {relTime(a.updated_at)}
+        </span>
+
+        {/* actions */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onActivate(); }}
+          className="hidden shrink-0 items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] font-medium text-accent2 hover:bg-accent/20 md:inline-flex"
+          title="Ativar como principal"
+        >
+          <Zap className="h-3 w-3" /> Ativar
+        </button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              onClick={(e) => e.stopPropagation()}
+              className="shrink-0 rounded-md p-1 text-muted2 hover:bg-bg3 hover:text-text"
+            ><MoreVertical className="h-4 w-4" /></button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuItem onClick={onCopyAll}><Copy className="mr-2 h-3.5 w-3.5" /> Copiar tudo</DropdownMenuItem>
+            <DropdownMenuItem onClick={onActivate}><Zap className="mr-2 h-3.5 w-3.5" /> Ativar como principal</DropdownMenuItem>
+            <DropdownMenuItem onClick={onToggleExpand}><History className="mr-2 h-3.5 w-3.5" /> Ver histórico de uso</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => { if (confirm(`Excluir @${a.username}?`)) onRemove(); }}
+              className="text-danger focus:text-danger"
+            ><Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* expanded */}
+      {expanded && (
+        <div className={`px-4 py-3 ${zebra}`} style={{ animation: "fadeIn .15s ease" }}>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <p className="mb-1 text-[10px] uppercase tracking-wide text-muted2">Notas</p>
+              <textarea
+                value={a.notes}
+                onChange={(e) => onPatch({ notes: e.target.value })}
+                rows={3}
+                placeholder="Observações..."
+                className="w-full rounded-md border border-border bg-bg3 px-2 py-1.5 text-[12px]"
+              />
+            </div>
+            <ExpandedHistory id={a.id} />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button onClick={onCopyAll}
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg3 px-2 py-1 text-[11px] hover:border-border2">
+              <Copy className="h-3 w-3" /> Copiar tudo
+            </button>
+            <button onClick={onActivate}
+              className="inline-flex items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] font-medium text-accent2 hover:bg-accent/20">
+              <Zap className="h-3 w-3" /> Ativar como principal
+            </button>
+            <button onClick={() => { if (confirm(`Excluir @${a.username}?`)) onRemove(); }}
+              className="inline-flex items-center gap-1 rounded-md border border-border bg-bg3 px-2 py-1 text-[11px] text-danger hover:border-danger">
+              <Trash2 className="h-3 w-3" /> Excluir
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExpandedHistory({ id }: { id: string }) {
+  const [logs, setLogs] = useState<ActivationLog[]>([]);
+  useEffect(() => { setLogs(logsForContingency(id)); }, [id]);
+  return (
+    <div>
+      <p className="mb-1 text-[10px] uppercase tracking-wide text-muted2">Histórico de uso</p>
+      {logs.length === 0 ? (
+        <p className="text-[12px] text-muted2/60">Nunca foi ativada.</p>
+      ) : (
+        <ul className="space-y-1 text-[12px]">
+          {logs.map((l) => (
+            <li key={l.id} className="rounded-md border border-border bg-bg3 px-2 py-1">
+              <span className="text-muted2">{new Date(l.activated_at).toLocaleString("pt-BR")} ·</span>{" "}
+              substituiu <strong>@{l.replaced_username}</strong> ({l.reason})
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// =====================  page  =====================
+
 function ContingencyPage() {
   const [list, update] = useContingency();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ContingencyStatus>("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | ConnectionType>("all");
   const [sortBy, setSortBy] = useState<"updated_desc" | "username_asc" | "username_desc" | "status" | "quality">("updated_desc");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
+  const [revealOpen, setRevealOpen] = useState(false);
+  const [revealAccount, setRevealAccount] = useState<ContingencyAccount | null>(null);
+  const [activateOpen, setActivateOpen] = useState(false);
+  const [activateAccount, setActivateAccount] = useState<ContingencyAccount | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [privateMode, setPrivateMode] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // private-mode persistence + title indicator
+  useEffect(() => {
+    try { setPrivateMode(localStorage.getItem(PRIVATE_KEY) === "1"); } catch { /* noop */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem(PRIVATE_KEY, privateMode ? "1" : "0"); } catch { /* noop */ }
+    const base = "Contingência · Insta Manager";
+    document.title = privateMode ? `🔒 ${base}` : base;
+  }, [privateMode]);
+
   const counts = useMemo(() => {
-    const c = { total: list.length, em_edicao: 0, pronta: 0, em_uso: 0, descartada: 0 };
-    for (const a of list) c[a.status]++;
+    const c = { total: list.length, em_edicao: 0, pronta: 0, em_uso: 0, descartada: 0, instagram: 0, facebook: 0 };
+    for (const a of list) {
+      c[a.status]++;
+      const t = a.connection_type ?? "instagram";
+      c[t]++;
+    }
     return c;
   }, [list]);
 
@@ -281,6 +636,7 @@ function ContingencyPage() {
     const qualityOrder: Record<string, number> = { boa: 0, media: 1, ruim: 2 };
     const out = list.filter((a) => {
       if (statusFilter !== "all" && a.status !== statusFilter) return false;
+      if (typeFilter !== "all" && (a.connection_type ?? "instagram") !== typeFilter) return false;
       if (q && !a.username.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -295,7 +651,7 @@ function ContingencyPage() {
       }
     });
     return out;
-  }, [list, query, statusFilter, sortBy]);
+  }, [list, query, statusFilter, typeFilter, sortBy]);
 
   const patch = (id: string, p: Partial<ContingencyAccount>) =>
     update((prev) => {
@@ -321,11 +677,7 @@ function ContingencyPage() {
       const text = await file.text();
       const imported = fromCSV(text);
       if (imported.length === 0) { toast.error("Nenhuma conta válida no arquivo"); return; }
-      update((prev) => {
-        const next = [...imported, ...prev];
-        replaceAllOnServer(next);
-        return next;
-      });
+      update((prev) => { const next = [...imported, ...prev]; replaceAllOnServer(next); return next; });
       toast.success(`${imported.length} conta(s) importada(s)`);
     } catch (e) {
       toast.error("Falha ao importar: " + (e as Error).message);
@@ -350,32 +702,101 @@ function ContingencyPage() {
     toast.success("Credenciais copiadas");
   };
 
+  const toggleExpand = (id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const onConfirmActivation = (replaced: Account, reason: string) => {
+    if (!activateAccount) return;
+    // mark contingency as in-use
+    patch(activateAccount.id, { status: "em_uso" });
+    appendActivationLog({
+      id: crypto.randomUUID(),
+      contingency_id: activateAccount.id,
+      contingency_username: activateAccount.username,
+      replaced_account_id: replaced.id,
+      replaced_username: replaced.username,
+      reason,
+      activated_at: new Date().toISOString(),
+    });
+    toast.success(`✓ @${activateAccount.username} ativada como principal`);
+    setActivateOpen(false);
+    setActivateAccount(null);
+  };
+
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-5 sm:px-6 sm:py-7 md:px-10 md:py-8">
-      <header className="mb-5">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Contingência</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight">Estoque de contas de backup</h1>
-        <p className="mt-1 text-sm text-text2">
-          Estoque de contas preparadas manualmente — prontas para substituir em caso de ban ou shadowban.
-        </p>
+      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}@keyframes fadeIn{from{opacity:0}to{opacity:1}}`}</style>
+
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Contingência</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight">Estoque de contas de backup</h1>
+          <p className="mt-1 text-sm text-text2">
+            Estoque de contas preparadas manualmente — prontas para substituir em caso de ban ou shadowban.
+          </p>
+        </div>
+        <button
+          onClick={() => setPrivateMode((v) => !v)}
+          className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors ${
+            privateMode ? "border-accent bg-accent/15 text-accent2" : "border-border bg-bg3 hover:border-border2"
+          }`}
+          title="Oculta senhas e tokens. Persistente."
+        >
+          {privateMode ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+          Modo privado {privateMode ? "ativo" : ""}
+        </button>
       </header>
 
-      {/* toolbar */}
+      {/* toolbar — primary + more menu */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <Tool icon={Plus} onClick={() => setAddOpen(true)}>Adicionar</Tool>
-        <Tool icon={CheckSquare} active={selectMode} onClick={() => { setSelectMode((v) => !v); setSelected(new Set()); }}>
-          Selecionar
-        </Tool>
-        <button
-          onClick={() => fileRef.current?.click()}
+        <button onClick={() => setAddOpen(true)}
           className="inline-flex items-center gap-1.5 rounded-lg im-grad-accent px-3 py-2 text-xs font-medium text-white">
-          <FileUp className="h-3.5 w-3.5" /> Importar CSV/XLSX
+          <Plus className="h-3.5 w-3.5" /> Adicionar
         </button>
+        <button
+          onClick={() => {
+            const ready = list.find((a) => a.status === "pronta") ?? list.find((a) => a.status === "em_edicao");
+            if (!ready) { toast.error("Nenhuma conta disponível"); return; }
+            setActivateAccount(ready); setActivateOpen(true);
+          }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2 text-xs font-medium text-accent2 hover:bg-accent/20"
+        >
+          <Zap className="h-3.5 w-3.5" /> Ativar conta
+        </button>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs hover:border-border2">
+              <MoreHorizontal className="h-3.5 w-3.5" /> Mais ações
+              <ChevronDown className="h-3 w-3" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onClick={() => { setSelectMode((v) => !v); setSelected(new Set()); }}>
+              <CheckSquare className="mr-2 h-3.5 w-3.5" /> {selectMode ? "Sair da seleção" : "Selecionar"}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => fileRef.current?.click()}>
+              <FileUp className="mr-2 h-3.5 w-3.5" /> Importar CSV/XLSX
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info("Conecte o Google Drive em Configurações")}>
+              <HardDrive className="mr-2 h-3.5 w-3.5" /> Drive
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => toast.info("Em breve: salvar no Drive")}>
+              <Save className="mr-2 h-3.5 w-3.5" /> Salvar no Drive
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleExport}>
+              <FileDown className="mr-2 h-3.5 w-3.5" /> Exportar CSV
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }} />
-        <Tool icon={HardDrive} onClick={() => toast.info("Conecte o Google Drive em Configurações")}>Drive</Tool>
-        <Tool icon={Save} onClick={() => toast.info("Em breve: salvar no Drive")}>Salvar no Drive</Tool>
-        <Tool icon={FileDown} onClick={handleExport}>Exportar CSV</Tool>
 
         {selectMode && selected.size > 0 && (
           <button
@@ -395,46 +816,92 @@ function ContingencyPage() {
       {/* stat cards */}
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
         <StatCard label="Total" value={counts.total} color="var(--accent2)" active={statusFilter === "all"} onClick={() => setStatusFilter("all")} />
-        <StatCard label="Em Edição" value={counts.em_edicao} color="var(--accent2)" active={statusFilter === "em_edicao"} onClick={() => setStatusFilter("em_edicao")} icon="✏️" />
-        <StatCard label="Pronta" value={counts.pronta} color="var(--success)" active={statusFilter === "pronta"} onClick={() => setStatusFilter("pronta")} icon="✓" />
+        <StatCard
+          label="Em Edição"
+          value={counts.em_edicao}
+          color="var(--accent2)"
+          active={statusFilter === "em_edicao"}
+          onClick={() => setStatusFilter("em_edicao")}
+          icon="✏️"
+          title="Contas que ainda precisam de senha ou 2FA preenchidos"
+        />
+        <StatCard
+          label="Pronta"
+          value={counts.pronta}
+          color="var(--success)"
+          active={statusFilter === "pronta"}
+          onClick={() => setStatusFilter("pronta")}
+          icon="✓"
+          warn={counts.pronta === 0}
+          warnText="Nenhuma conta pronta para uso imediato"
+        />
         <StatCard label="Em Uso" value={counts.em_uso} color="var(--info)" active={statusFilter === "em_uso"} onClick={() => setStatusFilter("em_uso")} icon="●" />
         <StatCard label="Descartada" value={counts.descartada} color="var(--danger)" active={statusFilter === "descartada"} onClick={() => setStatusFilter("descartada")} icon="✕" />
       </div>
 
-      {/* search + status filter */}
-      <div className="mb-3 space-y-2">
-        <div className="im-card flex items-center gap-2 px-3 py-2">
+      {/* type tabs */}
+      <div className="mb-3 flex flex-wrap items-center gap-1 border-b border-border">
+        {([
+          ["all", `Todas (${counts.total})`, null],
+          ["instagram", `Instagram (${counts.instagram})`, "instagram" as const],
+          ["facebook", `Facebook (${counts.facebook})`, "facebook" as const],
+        ] as const).map(([key, label, t]) => (
+          <button
+            key={key}
+            onClick={() => setTypeFilter(key as typeof typeFilter)}
+            className={`relative inline-flex items-center gap-1.5 px-3 py-2 text-xs transition-colors ${
+              typeFilter === key ? "text-text" : "text-muted2 hover:text-text"
+            }`}
+          >
+            {t && <TypeIcon type={t} />}
+            {label}
+            {typeFilter === key && (
+              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded bg-accent2" />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* search + filters compact */}
+      <div className="mb-3 grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
+        <div className="flex h-9 items-center gap-2 rounded-lg border border-border bg-bg2 px-3">
           <Search className="h-4 w-4 text-muted2" />
           <input value={query} onChange={(e) => setQuery(e.target.value)}
-            placeholder="Buscar por username ou nome..."
+            placeholder="Buscar por username..."
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted2" />
         </div>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-            className="w-full rounded-lg border border-border bg-bg2 px-3 py-2.5 text-sm">
-            <option value="all">● Todos os status</option>
-            {(Object.keys(STATUS_META) as ContingencyStatus[]).map((s) => (
-              <option key={s} value={s}>● {STATUS_META[s].label}</option>
-            ))}
-          </select>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            className="w-full rounded-lg border border-border bg-bg2 px-3 py-2.5 text-sm">
-            <option value="updated_desc">↓ Atualizadas recentemente</option>
-            <option value="username_asc">A → Z (username)</option>
-            <option value="username_desc">Z → A (username)</option>
-            <option value="status">Status (prontas primeiro)</option>
-            <option value="quality">Qualidade (boas primeiro)</option>
-          </select>
-        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+          className="h-9 rounded-lg border border-border bg-bg2 px-2 text-xs">
+          <option value="all">● Todos os status</option>
+          {(Object.keys(STATUS_META) as ContingencyStatus[]).map((s) => (
+            <option key={s} value={s}>● {STATUS_META[s].label}</option>
+          ))}
+        </select>
+        <select
+          value={typeFilter}
+          onChange={(e) => setTypeFilter(e.target.value as typeof typeFilter)}
+          className="h-9 rounded-lg border border-border bg-bg2 px-2 text-xs">
+          <option value="all">Tipo: Todos</option>
+          <option value="instagram">Instagram</option>
+          <option value="facebook">Facebook</option>
+        </select>
+        <select
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+          className="h-9 rounded-lg border border-border bg-bg2 px-2 text-xs">
+          <option value="updated_desc">↓ Recentes</option>
+          <option value="username_asc">A → Z</option>
+          <option value="username_desc">Z → A</option>
+          <option value="status">Status</option>
+          <option value="quality">Qualidade</option>
+        </select>
       </div>
 
       <div className="mb-2 text-right text-[11px] text-muted2">{filtered.length}/{list.length}</div>
 
-      {/* table */}
+      {/* list */}
       {filtered.length === 0 ? (
         <div className="im-card flex flex-col items-center justify-center p-12 text-center">
           <p className="text-sm text-text2">
@@ -445,126 +912,68 @@ function ContingencyPage() {
         </div>
       ) : (
         <div className="im-card overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-border text-[10px] uppercase tracking-wider text-muted2">
-              <tr>
-                {selectMode && <th className="w-8 p-3"></th>}
-                <th className="p-3 text-left">Username (@)</th>
-                <th className="p-3 text-left">Senha</th>
-                <th className="p-3 text-left">Token 2FA / TOTP</th>
-                <th className="p-3 text-left">Status</th>
-                <th className="p-3 text-left">Qualidade</th>
-                <th className="p-3 text-left">Notas</th>
-                <th className="p-3 text-left">Atualizado em</th>
-                <th className="p-3 text-left">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((a) => (
-                <tr key={a.id} className="border-b border-border/60 align-top">
-                  {selectMode && (
-                    <td className="p-3">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(a.id)}
-                        onChange={(e) => {
-                          const next = new Set(selected);
-                          if (e.target.checked) next.add(a.id); else next.delete(a.id);
-                          setSelected(next);
-                        }}
-                      />
-                    </td>
-                  )}
-                  <td className="p-3">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full" style={{ background: STATUS_META[a.status].color }} />
-                      <input
-                        value={a.username}
-                        onChange={(e) => patch(a.id, { username: e.target.value })}
-                        className="w-36 rounded-md border border-border bg-bg3 px-2 py-1.5 text-xs"
-                      />
-                      <button
-                        onClick={() => { navigator.clipboard.writeText(a.username); toast.success("Username copiado"); }}
-                        className="inline-flex items-center gap-1 rounded-md border border-border bg-bg3 px-2 py-1.5 text-[11px] hover:border-border2">
-                        <Copy className="h-3 w-3" /> Copiar
-                      </button>
-                    </div>
-                  </td>
-                  <td className="p-3 min-w-[220px]">
-                    <PasswordCell value={a.password} onChange={(v) => patch(a.id, { password: v })} />
-                  </td>
-                  <td className="p-3 min-w-[260px]">
-                    <TotpCell secret={a.totp_secret} />
-                  </td>
-                  <td className="p-3">
-                    <StatusBadge status={a.status} onChange={(s) => patch(a.id, { status: s })} />
-                  </td>
-                  <td className="p-3">
-                    <QualityBadge quality={a.quality} onChange={(q) => patch(a.id, { quality: q })} />
-                  </td>
-                  <td className="p-3 min-w-[180px]">
-                    <input
-                      value={a.notes}
-                      onChange={(e) => patch(a.id, { notes: e.target.value })}
-                      placeholder="Observações..."
-                      className="w-full rounded-md border border-border bg-bg3 px-2 py-1.5 text-xs"
-                    />
-                  </td>
-                  <td className="p-3 whitespace-nowrap text-[11px] text-text2">
-                    {new Date(a.updated_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                  </td>
-                  <td className="p-3">
-                    <div className="flex flex-col gap-1">
-                      <button onClick={() => copyFullCreds(a)}
-                        className="inline-flex items-center gap-1 rounded-md border border-border bg-bg3 px-2 py-1.5 text-[11px] hover:border-border2">
-                        <Copy className="h-3 w-3" /> Copiar tudo
-                      </button>
-                      <button
-                        onClick={() => { patch(a.id, { status: "em_uso" }); toast.success("Marcada como Em Uso"); }}
-                        className="inline-flex items-center gap-1 rounded-md border border-border bg-bg3 px-2 py-1.5 text-[11px] hover:border-accent"
-                        style={{ color: "var(--accent2)" }}>
-                        <ArrowRightLeft className="h-3 w-3" /> Principais
-                      </button>
-                      <button onClick={() => { if (confirm(`Excluir @${a.username}?`)) removeOne(a.id); }}
-                        className="inline-flex items-center gap-1 rounded-md border border-border bg-bg3 px-2 py-1.5 text-[11px] text-danger hover:border-danger">
-                        <Trash2 className="h-3 w-3" /> Excluir
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="min-w-[1000px]">
+            {filtered.map((a, i) => (
+              <Row
+                key={a.id}
+                a={a}
+                idx={i}
+                privateMode={privateMode}
+                expanded={expanded.has(a.id)}
+                onToggleExpand={() => toggleExpand(a.id)}
+                onPatch={(p) => patch(a.id, p)}
+                onRemove={() => removeOne(a.id)}
+                onCopyAll={() => copyFullCreds(a)}
+                onActivate={() => { setActivateAccount(a); setActivateOpen(true); }}
+                onReveal={() => { setRevealAccount(a); setRevealOpen(true); }}
+                selectMode={selectMode}
+                selected={selected.has(a.id)}
+                onSelectChange={(v) => {
+                  const next = new Set(selected);
+                  if (v) next.add(a.id); else next.delete(a.id);
+                  setSelected(next);
+                }}
+              />
+            ))}
+          </div>
         </div>
       )}
 
       <AddAccountModal open={addOpen} onOpenChange={setAddOpen} onSave={handleAdd} />
+      <PasswordRevealModal open={revealOpen} onOpenChange={setRevealOpen} account={revealAccount} />
+      <ActivationDrawer
+        open={activateOpen}
+        onOpenChange={(v) => { setActivateOpen(v); if (!v) setActivateAccount(null); }}
+        account={activateAccount}
+        onConfirm={onConfirmActivation}
+      />
     </div>
   );
 }
 
-function Tool({
-  icon: Icon, children, onClick, active,
-}: { icon: typeof Plus; children: React.ReactNode; onClick?: () => void; active?: boolean }) {
-  return (
-    <button onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors ${
-        active ? "border-accent bg-bg4" : "border-border bg-bg3 hover:border-border2"
-      }`}>
-      <Icon className="h-3.5 w-3.5" /> {children}
-    </button>
-  );
-}
-
 function StatCard({
-  label, value, color, active, onClick, icon,
-}: { label: string; value: number; color: string; active?: boolean; onClick?: () => void; icon?: string }) {
+  label, value, color, active, onClick, icon, warn, warnText, title,
+}: {
+  label: string; value: number; color: string; active?: boolean; onClick?: () => void;
+  icon?: string; warn?: boolean; warnText?: string; title?: string;
+}) {
   return (
     <button
       onClick={onClick}
-      className={`rounded-xl border bg-bg2 p-3 text-left transition-all ${active ? "border-accent" : "border-border hover:border-border2"}`}>
+      title={title}
+      className={`relative rounded-xl border bg-bg2 p-3 text-left transition-all ${
+        warn ? "border-warning" : active ? "border-accent" : "border-border hover:border-border2"
+      }`}>
       <div className="text-2xl font-semibold tabular-nums" style={{ color }}>{value}</div>
-      <div className="mt-1 text-[11px] text-text2">{icon && <span className="mr-1">{icon}</span>}{label}</div>
+      <div className="mt-1 flex items-center gap-1 text-[11px] text-text2">
+        {icon && <span>{icon}</span>}{label}
+      </div>
+      {warn && warnText && (
+        <div className="mt-1 flex items-start gap-1 text-[10px] text-warning">
+          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+          <span>{warnText}</span>
+        </div>
+      )}
     </button>
   );
 }
