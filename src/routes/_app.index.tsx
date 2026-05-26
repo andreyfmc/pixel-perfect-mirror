@@ -541,12 +541,12 @@ function Dashboard() {
             histórico →
           </Link>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:snap-none sm:gap-4 sm:overflow-visible sm:px-0 sm:grid-cols-2 lg:grid-cols-3">
           {history.slice(0, 3).map((h) => {
             const info = acctInfo(h.account);
             const permalink = (h as { permalink?: string }).permalink;
             return (
-              <article key={h.id} className="im-card im-card-hover group relative overflow-hidden">
+              <article key={h.id} className="im-card im-card-hover group relative w-[82%] shrink-0 snap-start overflow-hidden sm:w-auto sm:shrink">
                 <div className="relative">
                   {h.thumb ? (
                     <img src={h.thumb} alt="" className="h-40 w-full object-cover" />
