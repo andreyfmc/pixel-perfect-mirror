@@ -95,6 +95,27 @@ export const api = {
     await fetch(`/api/cron/tick`, { method: "POST" });
   },
 
+  async enqueue(body: {
+    account_id: string;
+    caption: string;
+    media_type: "REEL" | "IMAGE" | "STORY" | "CAROUSEL";
+    media_key: string;
+    thumb_key?: string;
+    scheduled_at: string;
+  }): Promise<{ id: string } | null> {
+    try {
+      const res = await fetch("/api/queue", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { id: string };
+    } catch {
+      return null;
+    }
+  },
+
 
   async uploadMedia(file: File): Promise<{ key: string; url: string } | null> {
     try {
