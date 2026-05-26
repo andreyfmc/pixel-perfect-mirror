@@ -4,7 +4,13 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api-client";
 import { fmtDateShort, fmtDateFull } from "@/lib/format";
-import { Plus, MoreHorizontal, ShieldCheck, Loader2, Instagram, Facebook } from "lucide-react";
+import { Plus, MoreHorizontal, ShieldCheck, Loader2, Instagram, Facebook, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useOAuthPopup } from "@/hooks/use-oauth-popup";
 
 export const Route = createFileRoute("/_app/accounts")({
@@ -121,11 +127,38 @@ function AccountsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <h3 className="truncate text-base font-semibold">@{a.username}</h3>
-                    <button className="ml-auto text-text2 hover:text-foreground" aria-label="Menu">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="ml-auto text-text2 hover:text-foreground" aria-label="Menu">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuItem
+                          className="text-red-500 focus:text-red-500"
+                          onSelect={async (e) => {
+                            e.preventDefault();
+                            if (!confirm(`Remover @${a.username}? Esta ação não pode ser desfeita.`)) return;
+                            const t = toast.loading("Removendo conta…");
+                            try {
+                              await api.deleteAccount(a.id);
+                              toast.success(`@${a.username} removida`);
+                              qc.invalidateQueries({ queryKey: ["accounts"] });
+                            } catch (err) {
+                              toast.error(err instanceof Error ? err.message : "Falha ao remover");
+                            } finally {
+                              toast.dismiss(t);
+                            }
+                          }}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Remover conta
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                   <p className="text-sm text-text2">{a.name}</p>
+
                 </div>
               </div>
 

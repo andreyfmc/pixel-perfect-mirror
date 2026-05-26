@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { mockAccounts } from "@/lib/mock";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { listDriveEntries, type DriveVideo, type DriveFolder, type DriveCrumb } from "@/lib/drive.functions";
 import { Folder, ChevronRight, Home } from "lucide-react";
@@ -95,6 +95,11 @@ function WarmupPage() {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api.listAccounts(),
+  });
+
 
   async function handleFiles(files: File[] | FileList | null) {
     if (!files) return;
@@ -357,7 +362,7 @@ function WarmupPage() {
               <div>
                 <h3 className="mb-3 text-sm font-semibold">Contas no aquecimento</h3>
                 <ul className="space-y-2">
-                  {mockAccounts.map((a, i) => (
+                  {accounts.map((a, i) => (
                     <li
                       key={a.id}
                       className="flex items-center gap-3 rounded-lg border border-border bg-bg3 p-3"
@@ -467,7 +472,7 @@ function WarmupPage() {
 
           {tab === "monitor" && (
             <ul className="space-y-3">
-              {mockAccounts.slice(0, 3).map((a, i) => {
+              {accounts.slice(0, 3).map((a, i) => {
                 const pct = [62, 28, 8][i];
                 return (
                   <li key={a.id} className="rounded-lg border border-border bg-bg3 p-4">
@@ -505,6 +510,10 @@ function DistributeTab() {
   const [selectedVideos, setSelectedVideos] = useState<Map<string, DriveVideo>>(new Map());
   const [loadingFolder, setLoadingFolder] = useState<string | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api.listAccounts(),
+  });
   const [caption, setCaption] = useState("");
   const [start, setStart] = useState(() => {
     const d = new Date(Date.now() + 60 * 60_000);
@@ -749,7 +758,7 @@ function DistributeTab() {
         <div>
           <h3 className="mb-2 text-sm font-semibold">Contas que recebem</h3>
           <ul className="space-y-1.5">
-            {mockAccounts.map((a) => (
+            {accounts.map((a) => (
               <li key={a.id}>
                 <label className="flex items-center gap-2 rounded-md border border-border bg-bg3 p-2 text-sm">
                   <input

@@ -14,7 +14,6 @@ import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as ApiQueueRouteImport } from './routes/api/queue'
 import { Route as ApiHistoryRouteImport } from './routes/api/history'
 import { Route as ApiAccountsRouteImport } from './routes/api/accounts'
-import { Route as ApiRevealKeyRouteImport } from './routes/api/_reveal-key'
 import { Route as AppWarmupRouteImport } from './routes/_app.warmup'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppQueueRouteImport } from './routes/_app.queue'
@@ -51,11 +50,6 @@ const ApiHistoryRoute = ApiHistoryRouteImport.update({
 const ApiAccountsRoute = ApiAccountsRouteImport.update({
   id: '/api/accounts',
   path: '/api/accounts',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiRevealKeyRoute = ApiRevealKeyRouteImport.update({
-  id: '/api/_reveal-key',
-  path: '/api',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppWarmupRoute = AppWarmupRouteImport.update({
@@ -132,7 +126,6 @@ export interface FileRoutesByFullPath {
   '/queue': typeof AppQueueRoute
   '/settings': typeof AppSettingsRoute
   '/warmup': typeof AppWarmupRoute
-  '/api': typeof ApiRevealKeyRoute
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
   '/api/queue': typeof ApiQueueRouteWithChildren
@@ -151,7 +144,6 @@ export interface FileRoutesByTo {
   '/queue': typeof AppQueueRoute
   '/settings': typeof AppSettingsRoute
   '/warmup': typeof AppWarmupRoute
-  '/api': typeof ApiRevealKeyRoute
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
   '/api/queue': typeof ApiQueueRouteWithChildren
@@ -173,7 +165,6 @@ export interface FileRoutesById {
   '/_app/queue': typeof AppQueueRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/warmup': typeof AppWarmupRoute
-  '/api/_reveal-key': typeof ApiRevealKeyRoute
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
   '/api/queue': typeof ApiQueueRouteWithChildren
@@ -196,7 +187,6 @@ export interface FileRouteTypes {
     | '/queue'
     | '/settings'
     | '/warmup'
-    | '/api'
     | '/api/accounts'
     | '/api/history'
     | '/api/queue'
@@ -215,7 +205,6 @@ export interface FileRouteTypes {
     | '/queue'
     | '/settings'
     | '/warmup'
-    | '/api'
     | '/api/accounts'
     | '/api/history'
     | '/api/queue'
@@ -236,7 +225,6 @@ export interface FileRouteTypes {
     | '/_app/queue'
     | '/_app/settings'
     | '/_app/warmup'
-    | '/api/_reveal-key'
     | '/api/accounts'
     | '/api/history'
     | '/api/queue'
@@ -252,7 +240,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
-  ApiRevealKeyRoute: typeof ApiRevealKeyRoute
   ApiAccountsRoute: typeof ApiAccountsRouteWithChildren
   ApiHistoryRoute: typeof ApiHistoryRoute
   ApiQueueRoute: typeof ApiQueueRouteWithChildren
@@ -298,13 +285,6 @@ declare module '@tanstack/react-router' {
       path: '/api/accounts'
       fullPath: '/api/accounts'
       preLoaderRoute: typeof ApiAccountsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/_reveal-key': {
-      id: '/api/_reveal-key'
-      path: '/api'
-      fullPath: '/api'
-      preLoaderRoute: typeof ApiRevealKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app/warmup': {
@@ -449,7 +429,6 @@ const ApiQueueRouteWithChildren = ApiQueueRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
-  ApiRevealKeyRoute: ApiRevealKeyRoute,
   ApiAccountsRoute: ApiAccountsRouteWithChildren,
   ApiHistoryRoute: ApiHistoryRoute,
   ApiQueueRoute: ApiQueueRouteWithChildren,
@@ -462,13 +441,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
