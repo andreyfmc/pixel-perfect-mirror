@@ -64,13 +64,6 @@ export const db = {
         .first<AccountRow>()) ?? null
     );
   },
-  async findAccountsByIgUserId(igUserId: string): Promise<AccountRow[]> {
-    const { results } = await requireDb()
-      .prepare("SELECT * FROM accounts WHERE ig_user_id = ? ORDER BY updated_at DESC, created_at DESC")
-      .bind(igUserId)
-      .all<AccountRow>();
-    return results ?? [];
-  },
   async createAccount(
     a: Pick<AccountRow, "id" | "username" | "name"> & Partial<AccountRow>,
   ) {
