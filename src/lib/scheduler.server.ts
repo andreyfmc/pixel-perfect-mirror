@@ -2,7 +2,7 @@
 // Lê itens vencidos da fila, publica no Instagram e grava no histórico.
 
 import { db } from "./db.server";
-import { instagram } from "./instagram.server";
+import { instagram, isInvalidAccessTokenError } from "./instagram.server";
 import { hasDb, env } from "./cf.server";
 
 // URL pública dos arquivos no R2 (Public Access ativado no bucket insta-media).
@@ -82,6 +82,12 @@ export async function runScheduler(
           });
         }
       } catch (err) {
+        if (isInvalidAccessTokenError(err)) {
+          await db.markAccountNeedsReconnect(item.account_id);
+          throw new Error(
+            "Token OAuth inválido ou expirado. Reconecte esta conta antes de publicar.",
+          );
+        }
         console.warn(
           `[scheduler] queue=${item.id} validação de credencial falhou: ${err instanceof Error ? err.message : String(err)}`,
         );

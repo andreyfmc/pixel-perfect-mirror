@@ -43,7 +43,9 @@ export class InstagramGraphError extends Error {
     const hint =
       err?.code === 100 && err?.error_subcode === 33
         ? " — credenciais incompatíveis: o token salvo não acessa este ig_user_id. Revalide/reconecte a conta."
-        : "";
+        : err?.code === 190
+          ? " — token OAuth inválido/expirado ou malformado. Reconecte a conta para gerar um novo token."
+          : "";
     const attempts = failures
       .map((f) => `${f.host} ${f.status}: ${JSON.stringify(f.json)}`)
       .join(" | ");
@@ -53,6 +55,14 @@ export class InstagramGraphError extends Error {
     this.name = "InstagramGraphError";
     this.failures = failures;
   }
+}
+
+export function isInvalidAccessTokenError(err: unknown) {
+  if (!(err instanceof InstagramGraphError)) return false;
+  return err.failures.some((failure) => {
+    const graphErr = failure.json.error as { code?: number; message?: string } | undefined;
+    return graphErr?.code === 190;
+  });
 }
 
 export type PublishInput = {
@@ -251,12 +261,23 @@ export const instagram = {
       });
       return { me, ig, host: "facebook" as GraphHostId, suggestions: accounts };
     } catch (facebookErr) {
-      const me = normalizeInstagramUser(
-        await instagramGet("/me", {
-          access_token: input.accessToken,
-          fields: "user_id,username,name,profile_picture_url,followers_count",
-        }),
-      );
+      let me: GraphJson;
+      try {
+        me = normalizeInstagramUser(
+          await instagramGet("/me", {
+            access_token: input.accessToken,
+            fields: "user_id,username,name,profile_picture_url,followers_count",
+          }),
+        );
+      } catch (instagramErr) {
+        if (
+          facebookErr instanceof InstagramGraphError &&
+          instagramErr instanceof InstagramGraphError
+        ) {
+          throw new InstagramGraphError([...facebookErr.failures, ...instagramErr.failures]);
+        }
+        throw instagramErr;
+      }
       if (!isSameId(me.id, input.igUserId)) {
         const instagramErr = new InstagramGraphError([
           {

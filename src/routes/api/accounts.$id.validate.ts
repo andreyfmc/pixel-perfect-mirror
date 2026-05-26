@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { db } from "@/lib/db.server";
-import { InstagramGraphError, instagram } from "@/lib/instagram.server";
+import { InstagramGraphError, instagram, isInvalidAccessTokenError } from "@/lib/instagram.server";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -48,12 +48,17 @@ export const Route = createFileRoute("/api/accounts/$id/validate")({
           });
         } catch (err) {
           if (err instanceof InstagramGraphError) {
+            const needsReconnect = isInvalidAccessTokenError(err);
+            if (needsReconnect) await db.markAccountNeedsReconnect(params.id);
             const first = err.failures[0];
             return json(
               {
                 ok: false,
                 scope: "graph",
-                error: first?.json ?? err.message,
+                needs_reconnect: needsReconnect,
+                error: needsReconnect
+                  ? "Token OAuth inválido/expirado. Reconecte a conta pelo Instagram ou Facebook."
+                  : (first?.json ?? err.message),
                 failures: err.failures,
               },
               200,
