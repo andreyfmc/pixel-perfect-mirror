@@ -38,6 +38,8 @@ function queueFromRow(r: QueueRow): QueueItem {
     scheduled_at: r.scheduled_at,
     media_type: r.media_type === "CAROUSEL" ? "IMAGE" : r.media_type,
     thumb: r.thumb_key ?? "",
+    group_id: r.group_id,
+    group_scheduled_at: r.group_scheduled_at,
     status: r.status,
     attempts: r.attempts,
     last_error: r.last_error,
@@ -155,6 +157,8 @@ export const api = {
     media_key: string;
     thumb_key?: string;
     scheduled_at: string;
+    group_id?: string;
+    group_scheduled_at?: string;
   }): Promise<{ id: string } | null> {
     try {
       const res = await fetch("/api/queue", {
