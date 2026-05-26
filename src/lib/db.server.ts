@@ -148,6 +148,14 @@ const rawDb = {
   },
   async createAccount(a: Pick<AccountRow, "id" | "username" | "name"> & Partial<AccountRow>) {
     const provider = a.provider ?? "facebook";
+    const normalizedUsername = normalizeUsername(a.username);
+    const { results: existingAccounts } = await requireDb()
+      .prepare("SELECT * FROM accounts ORDER BY updated_at DESC, created_at DESC")
+      .all<AccountRow>();
+    const normalizedMatch = (existingAccounts ?? []).find((existing) => {
+      if (a.ig_user_id && existing.ig_user_id === a.ig_user_id) return true;
+      return normalizedUsername.length > 0 && normalizeUsername(existing.username) === normalizedUsername;
+    });
     // Atualiza qualquer registro já conhecido pelo username OU pelo ig_user_id.
     // Isso mantém itens antigos da fila apontando para uma linha com token novo.
     const updated = await requireDb()
@@ -164,7 +172,7 @@ const rawDb = {
              followers = ?,
              health_score = ?,
              updated_at = CURRENT_TIMESTAMP
-         WHERE username = ? OR (? IS NOT NULL AND ig_user_id = ?)`,
+         WHERE id = ? OR username = ? OR (? IS NOT NULL AND ig_user_id = ?)`,
       )
       .bind(
         a.username,
@@ -176,6 +184,7 @@ const rawDb = {
         provider,
         a.followers ?? 0,
         a.health_score ?? 100,
+        normalizedMatch?.id ?? "",
         a.username,
         a.ig_user_id ?? null,
         a.ig_user_id ?? null,
