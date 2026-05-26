@@ -188,6 +188,9 @@ export async function runScheduler(
         published_at: new Date().toISOString(),
       });
 
+      await db.updateLastPostAt(item.account_id, new Date().toISOString());
+
+
       processed++;
     } catch (err) {
       if (isInvalidAccessTokenError(err)) {
