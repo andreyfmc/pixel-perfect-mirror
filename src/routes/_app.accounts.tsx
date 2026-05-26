@@ -15,7 +15,6 @@ import {
   Trash2,
   ArrowDownUp,
   BadgeCheck,
-  AlertTriangle as _AlertTriangle,
   RefreshCw,
   Users,
   Image as ImageIcon,
