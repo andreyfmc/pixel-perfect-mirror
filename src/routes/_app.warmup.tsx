@@ -362,7 +362,7 @@ function WarmupPage() {
               <div>
                 <h3 className="mb-3 text-sm font-semibold">Contas no aquecimento</h3>
                 <ul className="space-y-2">
-                  {mockAccounts.map((a, i) => (
+                  {accounts.map((a, i) => (
                     <li
                       key={a.id}
                       className="flex items-center gap-3 rounded-lg border border-border bg-bg3 p-3"
@@ -472,7 +472,7 @@ function WarmupPage() {
 
           {tab === "monitor" && (
             <ul className="space-y-3">
-              {mockAccounts.slice(0, 3).map((a, i) => {
+              {accounts.slice(0, 3).map((a, i) => {
                 const pct = [62, 28, 8][i];
                 return (
                   <li key={a.id} className="rounded-lg border border-border bg-bg3 p-4">
