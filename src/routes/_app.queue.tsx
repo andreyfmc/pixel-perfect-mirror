@@ -434,13 +434,14 @@ function QueuePage() {
     }
   }
 
-  async function handleReconnect(username: string) {
-    const t = toast.loading(`Reconectando @${username}…`);
-    const res = await connect("instagram");
+  async function handleReconnect(account: { username: string; provider?: "facebook" | "instagram" }) {
+    const provider = account.provider ?? "facebook";
+    const t = toast.loading(`Reconectando @${account.username} via ${provider === "facebook" ? "Facebook" : "Instagram"}…`);
+    const res = await connect(provider);
     toast.dismiss(t);
     if (res.ok) {
       toast.success(
-        `Reconectado: ${(res.saved ?? []).map((u) => `@${u}`).join(", ") || `@${username}`}`,
+        `Reconectado: ${(res.saved ?? []).map((u) => `@${u}`).join(", ") || `@${account.username}`}`,
       );
       qc.invalidateQueries({ queryKey: ["accounts"] });
       qc.invalidateQueries({ queryKey: ["queue"] });
