@@ -2,7 +2,12 @@
 // Lê itens vencidos da fila, publica no Instagram e grava no histórico.
 
 import { db } from "./db.server";
-import { ensureFreshAccessToken, instagram, isInvalidAccessTokenError } from "./instagram.server";
+import {
+  ensureFreshAccessToken,
+  instagram,
+  isInvalidAccessTokenError,
+  isMismatchedCredentialsError,
+} from "./instagram.server";
 import { hasDb, env } from "./cf.server";
 
 // URL pública dos arquivos no R2 (Public Access ativado no bucket insta-media).
