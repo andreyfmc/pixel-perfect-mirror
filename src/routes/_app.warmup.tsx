@@ -176,6 +176,7 @@ function WarmupPage() {
         <nav className="flex overflow-x-auto border-b border-border bg-bg2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map(({ id, label, icon: Icon }) => {
             const active = tab === id;
+            const badge = id === "post" && pendingCount > 0 ? pendingCount : null;
             return (
               <button
                 key={id}
@@ -187,16 +188,28 @@ function WarmupPage() {
               >
                 <Icon className="h-4 w-4" />
                 {label}
-                {active && (
+                {badge !== null && (
                   <span
-                    className="absolute inset-x-3 -bottom-px h-[2px] rounded-full"
+                    className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold text-white tabular-nums"
                     style={{ background: "var(--accent2)" }}
-                  />
+                  >
+                    {badge}
+                  </span>
                 )}
+                <span
+                  className="pointer-events-none absolute inset-x-3 -bottom-px h-[2px] rounded-full transition-all duration-300"
+                  style={{
+                    background: "var(--accent2)",
+                    transform: active ? "scaleX(1)" : "scaleX(0)",
+                    transformOrigin: "left",
+                    opacity: active ? 1 : 0,
+                  }}
+                />
               </button>
             );
           })}
         </nav>
+
 
         <div className="p-4 sm:p-6">
           {tab === "upload" && (
