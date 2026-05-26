@@ -667,8 +667,9 @@ function DistributeTab() {
 
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-      <div>
+    <div className="grid gap-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="min-w-0">
+
         <h3 className="mb-3 text-sm font-semibold flex items-center gap-2">
           <HardDrive className="h-4 w-4" /> Google Drive
         </h3>
