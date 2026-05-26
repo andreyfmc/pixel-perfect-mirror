@@ -120,7 +120,7 @@ function MetricCard({
   value: number;
   delta?: string;
   deltaTone?: "positive" | "negative" | "muted";
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
   accent: string;
   to?: string;
   sparkSeed: number;
