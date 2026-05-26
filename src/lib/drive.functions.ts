@@ -31,9 +31,10 @@ export type DriveListing = {
   error: string | null;
 };
 
-function headers(): { ok: true; h: Record<string, string> } | { ok: false; err: string } {
-  const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
-  const GOOGLE_DRIVE_API_KEY = process.env.GOOGLE_DRIVE_API_KEY;
+async function headers(): Promise<{ ok: true; h: Record<string, string> } | { ok: false; err: string }> {
+  const env = await ensureEnv();
+  const LOVABLE_API_KEY = env.LOVABLE_API_KEY ?? process.env.LOVABLE_API_KEY;
+  const GOOGLE_DRIVE_API_KEY = env.GOOGLE_DRIVE_API_KEY ?? process.env.GOOGLE_DRIVE_API_KEY;
   if (!LOVABLE_API_KEY) return { ok: false, err: "LOVABLE_API_KEY ausente" };
   if (!GOOGLE_DRIVE_API_KEY) return { ok: false, err: "Google Drive não conectado" };
   return {
