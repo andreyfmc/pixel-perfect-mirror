@@ -241,6 +241,10 @@ function isSameId(a: unknown, b: unknown) {
   return String(a ?? "") === String(b ?? "");
 }
 
+function normalizeUsername(value?: string | null) {
+  return (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 export const instagram = {
   async listVisibleFacebookIgAccounts(accessToken: string): Promise<VisibleFacebookIgAccount[]> {
     const pages = (await facebookGet("/me/accounts", {
@@ -276,7 +280,7 @@ export const instagram = {
       }));
   },
 
-  async validateCredentials(input: { igUserId: string; accessToken: string }) {
+  async validateCredentials(input: { igUserId: string; accessToken: string; expectedUsername?: string | null }) {
     try {
       const me = await facebookGet("/me", {
         access_token: input.accessToken,
@@ -324,7 +328,11 @@ export const instagram = {
       const accounts = await this.listVisibleFacebookIgAccounts(input.accessToken).catch(
         () => [] as VisibleFacebookIgAccount[],
       );
-      const suggestion = accounts.find((a) => isSameId(a.ig_id, input.igUserId));
+      const expectedUsername = normalizeUsername(input.expectedUsername);
+      const suggestion = accounts.find((a) => {
+        if (isSameId(a.ig_id, input.igUserId)) return true;
+        return expectedUsername.length > 0 && normalizeUsername(a.ig_username) === expectedUsername;
+      }) ?? (accounts.length === 1 ? accounts[0] : undefined);
       if (suggestion) {
         return {
           me,
