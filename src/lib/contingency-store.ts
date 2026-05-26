@@ -15,6 +15,7 @@ export type ContingencyAccount = {
   notes: string;
   updated_at: string;
   connection_type?: ConnectionType;
+  order?: number;
 };
 
 export type ActivationLog = {
