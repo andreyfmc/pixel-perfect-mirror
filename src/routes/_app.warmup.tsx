@@ -53,8 +53,8 @@ export const Route = createFileRoute("/_app/warmup")({
 
 const tabs = [
   { id: "upload", label: "Upload", icon: UploadCloud, emoji: "📤" },
-  { id: "post", label: "Postagem", icon: Wand2, emoji: "✨" },
-  { id: "config", label: "Rate Limit", icon: Settings2, emoji: "⚙️" },
+  { id: "post", label: "Postagem", icon: CalendarPlus, emoji: "✨" },
+  { id: "config", label: "Rate Limit", icon: Gauge, emoji: "⚙️" },
   { id: "monitor", label: "Monitor", icon: Activity, emoji: "📡" },
 ] as const;
 
