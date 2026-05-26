@@ -143,12 +143,19 @@ export async function runScheduler(
         await db.markQueueProcessing(item.id, containerId);
       }
 
-      await instagram.waitUntilReady({
-        containerId,
-        accessToken,
-        attempts: 1,
-        delayMs: 0,
-      });
+      const status = await instagram.fetchContainerStatus(containerId, accessToken);
+      if (status.statusCode === "ERROR" || status.statusCode === "EXPIRED") {
+        throw new Error(
+          `Container Instagram ${status.statusCode}: ${status.status ?? "sem detalhe"}`,
+        );
+      }
+      if (status.statusCode !== "FINISHED" && status.statusCode !== "PUBLISHED") {
+        console.log(
+          `[scheduler] queue=${item.id} container ainda ${status.statusCode}, aguardando próximo tick`,
+        );
+        continue;
+      }
+
 
       const mediaId = await instagram.publishContainer({
         igUserId,
@@ -180,6 +187,9 @@ export async function runScheduler(
         thumb_url: item.thumb_key ? publicMediaUrl(item.thumb_key, opts.baseUrl) : null,
         published_at: new Date().toISOString(),
       });
+
+      await db.updateLastPostAt(item.account_id, new Date().toISOString());
+
 
       processed++;
     } catch (err) {
