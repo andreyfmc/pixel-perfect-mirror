@@ -100,7 +100,7 @@ async function filesFromDataTransfer(dt: DataTransfer): Promise<File[]> {
 
 function WarmupPage() {
   const [tab, setTab] = useState<TabId>("upload");
-  const [coverTab, setCoverTab] = useState<"url" | "drive" | "local">("url");
+  
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
