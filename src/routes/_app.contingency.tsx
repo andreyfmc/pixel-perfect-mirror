@@ -765,12 +765,19 @@ function MobileCard({
         <div className="mb-3 rounded-lg border border-border bg-bg3 p-3">
           <div className="mb-2 flex items-center justify-between">
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted2">Código 2FA atual</p>
-            <CopyButton
-              getValue={async () => (await generateTOTP(a.totp_secret)).toString() as never as string}
-              label="código 2FA"
+            <button
+              type="button"
+              onClick={async (e) => {
+                e.stopPropagation();
+                const code = await generateTOTP(a.totp_secret);
+                navigator.clipboard.writeText(code);
+                hapticTap();
+                toast.success("Código 2FA copiado");
+              }}
+              className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border border-border bg-bg2 px-3 text-[13px] font-medium hover:border-border2 active:scale-[0.97]"
             >
               <Copy className="h-4 w-4" /> Copiar
-            </CopyButton>
+            </button>
           </div>
           <MobileTotp secret={a.totp_secret} privateMode={privateMode} />
         </div>
