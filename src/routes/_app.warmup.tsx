@@ -510,6 +510,10 @@ function DistributeTab() {
   const [selectedVideos, setSelectedVideos] = useState<Map<string, DriveVideo>>(new Map());
   const [loadingFolder, setLoadingFolder] = useState<string | null>(null);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api.listAccounts(),
+  });
   const [caption, setCaption] = useState("");
   const [start, setStart] = useState(() => {
     const d = new Date(Date.now() + 60 * 60_000);
@@ -754,7 +758,7 @@ function DistributeTab() {
         <div>
           <h3 className="mb-2 text-sm font-semibold">Contas que recebem</h3>
           <ul className="space-y-1.5">
-            {mockAccounts.map((a) => (
+            {accounts.map((a) => (
               <li key={a.id}>
                 <label className="flex items-center gap-2 rounded-md border border-border bg-bg3 p-2 text-sm">
                   <input
