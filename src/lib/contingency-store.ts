@@ -147,11 +147,11 @@ function csvEscape(s: string) {
 }
 
 export function toCSV(list: ContingencyAccount[]): string {
-  const header = ["username", "password", "totp_secret", "status", "quality", "notes", "updated_at"];
+  const header = ["username", "password", "totp_secret", "status", "quality", "notes", "tipo", "updated_at"];
   const lines = [header.join(",")];
   for (const a of list) {
     lines.push(
-      [a.username, a.password, a.totp_secret, a.status, a.quality, a.notes, a.updated_at]
+      [a.username, a.password, a.totp_secret, a.status, a.quality, a.notes, a.connection_type ?? "instagram", a.updated_at]
         .map((v) => csvEscape(String(v ?? "")))
         .join(","),
     );
