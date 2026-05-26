@@ -309,6 +309,19 @@ function AccountsPage() {
     return () => clearInterval(id);
   }, []);
 
+  // Toast pós-callback do link OAuth (/accounts?connected=@user)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("connected");
+    if (!connected) return;
+    toast.success(`${connected} conectada com sucesso`);
+    qc.invalidateQueries({ queryKey: ["accounts"] });
+    params.delete("connected");
+    const next = window.location.pathname + (params.toString() ? `?${params}` : "");
+    window.history.replaceState({}, "", next);
+  }, [qc]);
+
   // Restore tab/view from localStorage
   useEffect(() => {
     const t = localStorage.getItem(TAB_KEY);
