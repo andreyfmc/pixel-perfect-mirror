@@ -123,17 +123,18 @@ export type HistoryRow = {
 
 const rawDb = {
   // ============ accounts ============
-  async listAccounts(): Promise<AccountRow[]> {
-    const { results } = await requireDb()
-      .prepare("SELECT * FROM accounts ORDER BY created_at DESC")
-      .all<AccountRow>();
+  async listAccounts(): Promise<(AccountRow & { posts: number })[]> {
+    const sql = `
+      SELECT a.*,
+        (SELECT COUNT(*) FROM publications p WHERE p.account_id = a.id) AS posts
+      FROM accounts a
+      ORDER BY a.created_at DESC`;
+    const { results } = await requireDb().prepare(sql).all<AccountRow & { posts: number }>();
     const accounts = results ?? [];
     const repairable = accounts.filter((account) => !account.ig_user_id || !account.access_token);
     if (repairable.length) {
       await Promise.all(repairable.map((account) => rawDb.resolveAccountForPublishing(account.id)));
-      const repaired = await requireDb()
-        .prepare("SELECT * FROM accounts ORDER BY created_at DESC")
-        .all<AccountRow>();
+      const repaired = await requireDb().prepare(sql).all<AccountRow & { posts: number }>();
       return repaired.results ?? accounts;
     }
     return accounts;
