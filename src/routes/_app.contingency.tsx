@@ -9,6 +9,7 @@ import {
   type ContingencyAccount, type ContingencyStatus, type ContingencyQuality,
   STATUS_META, QUALITY_META,
   loadContingency, saveContingency, newAccount, toCSV, fromCSV,
+  fetchFromServer, pushOne, deleteOne, replaceAllOnServer,
 } from "@/lib/contingency-store";
 import { generateTOTP, totpSecondsRemaining } from "@/lib/totp";
 import {
@@ -26,6 +27,13 @@ function useContingency() {
   const [list, setList] = useState<ContingencyAccount[]>([]);
   useEffect(() => {
     setList(loadContingency());
+    // tenta hidratar do servidor; se ok, substitui cache local
+    fetchFromServer().then((items) => {
+      if (items) {
+        setList(items);
+        saveContingency(items);
+      }
+    });
     const onChange = () => setList(loadContingency());
     window.addEventListener("contingency:changed", onChange);
     return () => window.removeEventListener("contingency:changed", onChange);
@@ -269,12 +277,21 @@ function ContingencyPage() {
   }, [list, query, statusFilter]);
 
   const patch = (id: string, p: Partial<ContingencyAccount>) =>
-    update((prev) => prev.map((a) => (a.id === id ? { ...a, ...p, updated_at: new Date().toISOString() } : a)));
+    update((prev) => {
+      const next = prev.map((a) => (a.id === id ? { ...a, ...p, updated_at: new Date().toISOString() } : a));
+      const updated = next.find((a) => a.id === id);
+      if (updated) pushOne(updated);
+      return next;
+    });
 
-  const removeOne = (id: string) => update((prev) => prev.filter((a) => a.id !== id));
+  const removeOne = (id: string) => {
+    update((prev) => prev.filter((a) => a.id !== id));
+    deleteOne(id);
+  };
 
   const handleAdd = (a: ContingencyAccount) => {
     update((prev) => [a, ...prev]);
+    pushOne(a);
     toast.success("Conta adicionada");
   };
 
@@ -283,7 +300,11 @@ function ContingencyPage() {
       const text = await file.text();
       const imported = fromCSV(text);
       if (imported.length === 0) { toast.error("Nenhuma conta válida no arquivo"); return; }
-      update((prev) => [...imported, ...prev]);
+      update((prev) => {
+        const next = [...imported, ...prev];
+        replaceAllOnServer(next);
+        return next;
+      });
       toast.success(`${imported.length} conta(s) importada(s)`);
     } catch (e) {
       toast.error("Falha ao importar: " + (e as Error).message);
@@ -338,7 +359,9 @@ function ContingencyPage() {
         {selectMode && selected.size > 0 && (
           <button
             onClick={() => {
+              const ids = Array.from(selected);
               update((prev) => prev.filter((a) => !selected.has(a.id)));
+              ids.forEach(deleteOne);
               setSelected(new Set());
               toast.success("Removidas");
             }}

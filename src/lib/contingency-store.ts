@@ -50,6 +50,50 @@ export function saveContingency(list: ContingencyAccount[]) {
   window.dispatchEvent(new CustomEvent("contingency:changed"));
 }
 
+// ---- sync com servidor (D1). Falha silenciosamente em ambientes sem binding. ----
+export async function fetchFromServer(): Promise<ContingencyAccount[] | null> {
+  try {
+    const res = await fetch("/api/contingency");
+    if (!res.ok) return null;
+    const data = (await res.json()) as { items?: ContingencyAccount[] };
+    return data.items ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function pushOne(item: ContingencyAccount) {
+  try {
+    await fetch("/api/contingency", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(item),
+    });
+  } catch {
+    /* offline / sem binding — apenas cache local */
+  }
+}
+
+export async function deleteOne(id: string) {
+  try {
+    await fetch(`/api/contingency/${id}`, { method: "DELETE" });
+  } catch {
+    /* idem */
+  }
+}
+
+export async function replaceAllOnServer(items: ContingencyAccount[]) {
+  try {
+    await fetch("/api/contingency", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ replaceAll: true, items }),
+    });
+  } catch {
+    /* idem */
+  }
+}
+
 export function newAccount(partial: Partial<ContingencyAccount> = {}): ContingencyAccount {
   return {
     id: crypto.randomUUID(),
