@@ -70,6 +70,18 @@ export function isInvalidAccessTokenError(err: unknown) {
   return failures.length > 0 && failures.every((failure) => failure.code === 190);
 }
 
+/** True quando o Graph retorna code=100 subcode=33 — credenciais incompatíveis
+ *  (token salvo não acessa o ig_user_id da linha). */
+export function isMismatchedCredentialsError(err: unknown) {
+  if (!(err instanceof InstagramGraphError)) return false;
+  return err.failures.some((failure) => {
+    const graphErr = failure.json.error as
+      | { code?: number; error_subcode?: number }
+      | undefined;
+    return graphErr?.code === 100 && graphErr?.error_subcode === 33;
+  });
+}
+
 function expiredTokenError(message = "Token OAuth expirado") {
   return new InstagramGraphError([
     {
