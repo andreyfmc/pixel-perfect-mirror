@@ -31,6 +31,7 @@ import { Route as ApiAuthCallbackIgRouteImport } from './routes/api/auth.callbac
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth.callback'
 import { Route as ApiAccountsIdRouteImport } from './routes/api/accounts.$id'
 import { Route as ApiPublicDriveIdRouteImport } from './routes/api/public/drive.$id'
+import { Route as ApiAccountsIdValidateRouteImport } from './routes/api/accounts.$id.validate'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -141,6 +142,11 @@ const ApiPublicDriveIdRoute = ApiPublicDriveIdRouteImport.update({
   path: '/api/public/drive/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAccountsIdValidateRoute = ApiAccountsIdValidateRouteImport.update({
+  id: '/validate',
+  path: '/validate',
+  getParentRoute: () => ApiAccountsIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -154,7 +160,7 @@ export interface FileRoutesByFullPath {
   '/api/contingency': typeof ApiContingencyRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
   '/api/queue': typeof ApiQueueRouteWithChildren
-  '/api/accounts/$id': typeof ApiAccountsIdRoute
+  '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRoute
@@ -163,6 +169,7 @@ export interface FileRoutesByFullPath {
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
+  '/api/accounts/$id/validate': typeof ApiAccountsIdValidateRoute
   '/api/public/drive/$id': typeof ApiPublicDriveIdRoute
 }
 export interface FileRoutesByTo {
@@ -177,7 +184,7 @@ export interface FileRoutesByTo {
   '/api/history': typeof ApiHistoryRoute
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/': typeof AppIndexRoute
-  '/api/accounts/$id': typeof ApiAccountsIdRoute
+  '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRoute
@@ -186,6 +193,7 @@ export interface FileRoutesByTo {
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
+  '/api/accounts/$id/validate': typeof ApiAccountsIdValidateRoute
   '/api/public/drive/$id': typeof ApiPublicDriveIdRoute
 }
 export interface FileRoutesById {
@@ -202,7 +210,7 @@ export interface FileRoutesById {
   '/api/history': typeof ApiHistoryRoute
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/_app/': typeof AppIndexRoute
-  '/api/accounts/$id': typeof ApiAccountsIdRoute
+  '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRoute
@@ -211,6 +219,7 @@ export interface FileRoutesById {
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
+  '/api/accounts/$id/validate': typeof ApiAccountsIdValidateRoute
   '/api/public/drive/$id': typeof ApiPublicDriveIdRoute
 }
 export interface FileRouteTypes {
@@ -236,6 +245,7 @@ export interface FileRouteTypes {
     | '/api/media/upload'
     | '/api/queue/$id'
     | '/api/queue/clear'
+    | '/api/accounts/$id/validate'
     | '/api/public/drive/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -259,6 +269,7 @@ export interface FileRouteTypes {
     | '/api/media/upload'
     | '/api/queue/$id'
     | '/api/queue/clear'
+    | '/api/accounts/$id/validate'
     | '/api/public/drive/$id'
   id:
     | '__root__'
@@ -283,6 +294,7 @@ export interface FileRouteTypes {
     | '/api/media/upload'
     | '/api/queue/$id'
     | '/api/queue/clear'
+    | '/api/accounts/$id/validate'
     | '/api/public/drive/$id'
   fileRoutesById: FileRoutesById
 }
@@ -456,6 +468,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicDriveIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/accounts/$id/validate': {
+      id: '/api/accounts/$id/validate'
+      path: '/validate'
+      fullPath: '/api/accounts/$id/validate'
+      preLoaderRoute: typeof ApiAccountsIdValidateRouteImport
+      parentRoute: typeof ApiAccountsIdRoute
+    }
   }
 }
 
@@ -481,12 +500,24 @@ const AppRouteChildren: AppRouteChildren = {
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
+interface ApiAccountsIdRouteChildren {
+  ApiAccountsIdValidateRoute: typeof ApiAccountsIdValidateRoute
+}
+
+const ApiAccountsIdRouteChildren: ApiAccountsIdRouteChildren = {
+  ApiAccountsIdValidateRoute: ApiAccountsIdValidateRoute,
+}
+
+const ApiAccountsIdRouteWithChildren = ApiAccountsIdRoute._addFileChildren(
+  ApiAccountsIdRouteChildren,
+)
+
 interface ApiAccountsRouteChildren {
-  ApiAccountsIdRoute: typeof ApiAccountsIdRoute
+  ApiAccountsIdRoute: typeof ApiAccountsIdRouteWithChildren
 }
 
 const ApiAccountsRouteChildren: ApiAccountsRouteChildren = {
-  ApiAccountsIdRoute: ApiAccountsIdRoute,
+  ApiAccountsIdRoute: ApiAccountsIdRouteWithChildren,
 }
 
 const ApiAccountsRouteWithChildren = ApiAccountsRoute._addFileChildren(
