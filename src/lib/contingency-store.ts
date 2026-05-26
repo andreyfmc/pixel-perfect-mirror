@@ -183,15 +183,21 @@ function parseCSVLine(line: string): string[] {
 export function fromCSV(text: string): ContingencyAccount[] {
   const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
   if (lines.length === 0) return [];
-  const header = parseCSVLine(lines[0]).map((h) => h.trim().toLowerCase());
-  const idx = (k: string) => header.indexOf(k);
-  const iUser = idx("username");
-  const iPass = idx("password") >= 0 ? idx("password") : idx("senha");
-  const iTotp = idx("totp_secret") >= 0 ? idx("totp_secret") : idx("2fa");
-  const iStatus = idx("status");
-  const iQuality = idx("quality") >= 0 ? idx("quality") : idx("qualidade");
-  const iNotes = idx("notes") >= 0 ? idx("notes") : idx("notas");
-  const iType = idx("tipo") >= 0 ? idx("tipo") : idx("connection_type") >= 0 ? idx("connection_type") : idx("type");
+  const header = parseCSVLine(lines[0]).map((h) => h.trim().toLowerCase().replace(/\s+/g, ""));
+  const idxAny = (...keys: string[]) => {
+    for (const k of keys) {
+      const i = header.indexOf(k);
+      if (i >= 0) return i;
+    }
+    return -1;
+  };
+  const iUser = idxAny("username", "usuario", "usuário", "user");
+  const iPass = idxAny("password", "senha", "pass");
+  const iTotp = idxAny("token2fa", "totp_secret", "token_2fa", "2fa", "secret", "otp_secret");
+  const iStatus = idxAny("status");
+  const iQuality = idxAny("quality", "qualidade");
+  const iNotes = idxAny("notes", "notas");
+  const iType = idxAny("tipo", "connection_type", "type");
 
   const normStatus = (s: string): ContingencyStatus => {
     const v = s.trim().toLowerCase();
@@ -215,7 +221,9 @@ export function fromCSV(text: string): ContingencyAccount[] {
   const out: ContingencyAccount[] = [];
   for (let i = 1; i < lines.length; i++) {
     const cells = parseCSVLine(lines[i]);
-    const username = iUser >= 0 ? cells[iUser]?.trim() : "";
+    // Ignorar linhas em branco (todos os campos vazios)
+    if (cells.every((c) => (c ?? "").trim() === "")) continue;
+    const username = iUser >= 0 ? (cells[iUser] ?? "").trim() : "";
     if (!username) continue;
     out.push(
       newAccount({
@@ -231,3 +239,4 @@ export function fromCSV(text: string): ContingencyAccount[] {
   }
   return out;
 }
+
