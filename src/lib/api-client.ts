@@ -37,6 +37,7 @@ function queueFromRow(r: QueueRow): QueueItem {
     caption: r.caption,
     scheduled_at: r.scheduled_at,
     media_type: r.media_type === "CAROUSEL" ? "IMAGE" : r.media_type,
+    media_key: r.media_key,
     thumb: r.thumb_key ?? "",
     group_id: r.group_id,
     group_scheduled_at: r.group_scheduled_at,
