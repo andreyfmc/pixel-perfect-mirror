@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/accounts/$id/validate")({
           let accessToken = account.access_token;
           let provider = inferGraphProviderFromToken(account.access_token, account.provider);
           const fresh =
-            account.provider === "instagram"
+            provider === "instagram"
               ? await ensureFreshAccessToken({
                   accessToken,
                   tokenExpiresAt: account.token_expires_at,
