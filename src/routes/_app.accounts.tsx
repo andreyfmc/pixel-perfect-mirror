@@ -381,7 +381,8 @@ function AccountsPage() {
                       <ShieldCheck className="h-3.5 w-3.5" />
                     )}
                     <span className="truncate">
-                      {token.label} · {fmtDateFull(a.token_expires_at)}
+                      {token.label}
+                      {a.token_expires_at ? ` · ${fmtDateFull(a.token_expires_at)}` : ""}
                     </span>
                   </span>
                   <button
