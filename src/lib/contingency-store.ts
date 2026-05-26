@@ -15,6 +15,7 @@ export type ContingencyAccount = {
   notes: string;
   updated_at: string;
   connection_type?: ConnectionType;
+  order?: number;
 };
 
 export type ActivationLog = {
@@ -147,11 +148,11 @@ function csvEscape(s: string) {
 }
 
 export function toCSV(list: ContingencyAccount[]): string {
-  const header = ["username", "password", "token2fa", "status", "quality", "notes", "tipo", "updated_at"];
+  const header = ["ordem", "username", "password", "token2fa", "status", "quality", "notes", "tipo", "updated_at"];
   const lines = [header.join(",")];
   for (const a of list) {
     lines.push(
-      [a.username, a.password, a.totp_secret, a.status, a.quality, a.notes, a.connection_type ?? "instagram", a.updated_at]
+      [a.order ?? "", a.username, a.password, a.totp_secret, a.status, a.quality, a.notes, a.connection_type ?? "instagram", a.updated_at]
         .map((v) => csvEscape(String(v ?? "")))
         .join(","),
     );
@@ -198,6 +199,7 @@ export function fromCSV(text: string): ContingencyAccount[] {
   const iQuality = idxAny("quality", "qualidade");
   const iNotes = idxAny("notes", "notas");
   const iType = idxAny("tipo", "connection_type", "type");
+  const iOrder = idxAny("ordem", "order", "numero", "número", "n", "num", "#");
 
   const normStatus = (s: string): ContingencyStatus => {
     const v = s.trim().toLowerCase();
@@ -234,6 +236,8 @@ export function fromCSV(text: string): ContingencyAccount[] {
         quality: iQuality >= 0 ? normQuality(cells[iQuality] ?? "") : "boa",
         notes: iNotes >= 0 ? cells[iNotes] ?? "" : "",
         connection_type: iType >= 0 ? normType(cells[iType] ?? "") : "instagram",
+        order: iOrder >= 0 && (cells[iOrder] ?? "").trim() !== "" && Number.isFinite(Number(cells[iOrder]))
+          ? Number(cells[iOrder]) : undefined,
       }),
     );
   }

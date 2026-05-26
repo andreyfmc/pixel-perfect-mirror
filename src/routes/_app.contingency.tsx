@@ -481,6 +481,22 @@ function Row({
         </button>
         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS_META[a.status].color }} />
 
+        {/* order # */}
+        <input
+          type="number"
+          inputMode="numeric"
+          value={a.order ?? ""}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            const v = e.target.value;
+            onPatch({ order: v === "" ? undefined : Number(v) });
+          }}
+          placeholder="#"
+          aria-label="Número"
+          className="h-7 w-12 shrink-0 rounded-md border border-border bg-bg3 px-1 text-center font-mono text-[12px] tabular-nums outline-none focus:border-accent"
+        />
+
+
         {/* username */}
         <div className="flex w-48 min-w-0 shrink-0 items-center gap-1.5">
           <TypeToggle type={ctype} onChange={(t) => onPatch({ connection_type: t })} />
@@ -717,6 +733,18 @@ function MobileCard({
     <div className="rounded-xl border border-border bg-bg2 p-3 shadow-sm">
       {/* header */}
       <div className="mb-3 flex items-center gap-2">
+        <input
+          type="number"
+          inputMode="numeric"
+          value={a.order ?? ""}
+          onChange={(e) => {
+            const v = e.target.value;
+            onPatch({ order: v === "" ? undefined : Number(v) });
+          }}
+          placeholder="#"
+          aria-label="Número da conta"
+          className="h-9 w-14 shrink-0 rounded-md border border-border bg-bg3 px-2 text-center font-mono text-[14px] tabular-nums outline-none focus:border-accent"
+        />
         <TypeToggle type={ctype} onChange={(t) => onPatch({ connection_type: t })} />
         <span className="truncate font-mono text-[14px] font-medium">
           @{a.username || <span className="text-muted2">sem nome</span>}
@@ -837,7 +865,7 @@ function ContingencyPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ContingencyStatus>("all");
   const [typeFilter, setTypeFilter] = useState<"all" | ConnectionType>("all");
-  const [sortBy, setSortBy] = useState<"updated_desc" | "username_asc" | "username_desc" | "status" | "quality">("updated_desc");
+  const [sortBy, setSortBy] = useState<"order_asc" | "updated_desc" | "username_asc" | "username_desc" | "status" | "quality">("order_asc");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
@@ -885,6 +913,12 @@ function ContingencyPage() {
     });
     out.sort((a, b) => {
       switch (sortBy) {
+        case "order_asc": {
+          const ao = a.order ?? Number.POSITIVE_INFINITY;
+          const bo = b.order ?? Number.POSITIVE_INFINITY;
+          if (ao !== bo) return ao - bo;
+          return a.username.localeCompare(b.username);
+        }
         case "username_asc": return a.username.localeCompare(b.username);
         case "username_desc": return b.username.localeCompare(a.username);
         case "status": return statusOrder[a.status] - statusOrder[b.status];
@@ -910,8 +944,12 @@ function ContingencyPage() {
   };
 
   const handleAdd = (a: ContingencyAccount) => {
-    update((prev) => [a, ...prev]);
-    pushOne(a);
+    update((prev) => {
+      const maxOrder = prev.reduce((m, x) => (typeof x.order === "number" && x.order > m ? x.order : m), 0);
+      const withOrder = { ...a, order: a.order ?? maxOrder + 1 };
+      pushOne(withOrder);
+      return [withOrder, ...prev];
+    });
     toast.success("Conta adicionada");
   };
 
@@ -1214,6 +1252,7 @@ function ContingencyPage() {
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
           className="h-9 rounded-lg border border-border bg-bg2 px-2 text-xs">
+          <option value="order_asc">№ Número</option>
           <option value="updated_desc">↓ Recentes</option>
           <option value="username_asc">A → Z</option>
           <option value="username_desc">Z → A</option>
