@@ -20,6 +20,7 @@ import { Route as AppQueueRouteImport } from './routes/_app.queue'
 import { Route as AppHistoryRouteImport } from './routes/_app.history'
 import { Route as AppContingencyRouteImport } from './routes/_app.contingency'
 import { Route as AppAccountsRouteImport } from './routes/_app.accounts'
+import { Route as ApiQueueClearRouteImport } from './routes/api/queue.clear'
 import { Route as ApiQueueIdRouteImport } from './routes/api/queue.$id'
 import { Route as ApiMediaUploadRouteImport } from './routes/api/media.upload'
 import { Route as ApiCronTickRouteImport } from './routes/api/cron.tick'
@@ -82,6 +83,11 @@ const AppAccountsRoute = AppAccountsRouteImport.update({
   path: '/accounts',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiQueueClearRoute = ApiQueueClearRouteImport.update({
+  id: '/clear',
+  path: '/clear',
+  getParentRoute: () => ApiQueueRoute,
+} as any)
 const ApiQueueIdRoute = ApiQueueIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -136,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
+  '/api/queue/clear': typeof ApiQueueClearRoute
 }
 export interface FileRoutesByTo {
   '/accounts': typeof AppAccountsRoute
@@ -155,6 +162,7 @@ export interface FileRoutesByTo {
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
+  '/api/queue/clear': typeof ApiQueueClearRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -176,6 +184,7 @@ export interface FileRoutesById {
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
+  '/api/queue/clear': typeof ApiQueueClearRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/api/cron/tick'
     | '/api/media/upload'
     | '/api/queue/$id'
+    | '/api/queue/clear'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/accounts'
@@ -216,6 +226,7 @@ export interface FileRouteTypes {
     | '/api/cron/tick'
     | '/api/media/upload'
     | '/api/queue/$id'
+    | '/api/queue/clear'
   id:
     | '__root__'
     | '/_app'
@@ -236,6 +247,7 @@ export interface FileRouteTypes {
     | '/api/cron/tick'
     | '/api/media/upload'
     | '/api/queue/$id'
+    | '/api/queue/clear'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -329,6 +341,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAccountsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/queue/clear': {
+      id: '/api/queue/clear'
+      path: '/clear'
+      fullPath: '/api/queue/clear'
+      preLoaderRoute: typeof ApiQueueClearRouteImport
+      parentRoute: typeof ApiQueueRoute
+    }
     '/api/queue/$id': {
       id: '/api/queue/$id'
       path: '/$id'
@@ -417,10 +436,12 @@ const ApiAccountsRouteWithChildren = ApiAccountsRoute._addFileChildren(
 
 interface ApiQueueRouteChildren {
   ApiQueueIdRoute: typeof ApiQueueIdRoute
+  ApiQueueClearRoute: typeof ApiQueueClearRoute
 }
 
 const ApiQueueRouteChildren: ApiQueueRouteChildren = {
   ApiQueueIdRoute: ApiQueueIdRoute,
+  ApiQueueClearRoute: ApiQueueClearRoute,
 }
 
 const ApiQueueRouteWithChildren = ApiQueueRoute._addFileChildren(
@@ -441,3 +462,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

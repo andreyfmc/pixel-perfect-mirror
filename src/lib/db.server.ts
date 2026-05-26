@@ -126,9 +126,25 @@ export const db = {
       .bind(status, extra?.last_error ?? null, extra?.ig_container_id ?? null, extra?.ig_media_id ?? null, id)
       .run();
   },
+  async manualSetQueueStatus(id: string, status: QueueRow["status"]) {
+    await requireDb()
+      .prepare(`UPDATE queue SET status = ? WHERE id = ?`)
+      .bind(status, id)
+      .run();
+  },
   async deleteQueue(id: string) {
     await requireDb().prepare("DELETE FROM queue WHERE id = ?").bind(id).run();
   },
+  async clearQueueByStatuses(statuses: QueueRow["status"][]): Promise<number> {
+    if (!statuses.length) return 0;
+    const placeholders = statuses.map(() => "?").join(",");
+    const result = await requireDb()
+      .prepare(`DELETE FROM queue WHERE status IN (${placeholders})`)
+      .bind(...statuses)
+      .run();
+    return (result.meta as { changes?: number } | undefined)?.changes ?? 0;
+  },
+
 
   // ============ history ============
   async listHistory(): Promise<HistoryRow[]> {
