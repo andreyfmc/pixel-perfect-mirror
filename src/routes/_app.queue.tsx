@@ -456,7 +456,11 @@ function QueuePage() {
 
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => singleAction("Atualizando scheduler", () => api.runScheduler())}
+              onClick={() =>
+                singleAction("Atualizando scheduler", async () => {
+                  await api.runScheduler();
+                })
+              }
               className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm hover:border-accent"
             >
               <RefreshCw className="h-4 w-4" /> Atualizar

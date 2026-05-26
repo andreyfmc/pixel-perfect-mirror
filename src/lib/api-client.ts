@@ -122,8 +122,29 @@ export const api = {
     });
   },
 
-  async runScheduler() {
-    await fetch(`/api/cron/tick`, { method: "POST" });
+  async runScheduler(): Promise<{
+    processed: number;
+    errors: number;
+    error?: string;
+    stack?: string;
+  }> {
+    const res = await fetch(`/api/cron/tick`, { method: "POST" });
+    const text = await res.text();
+    let parsed: { processed?: number; errors?: number; error?: string; stack?: string } = {};
+    try {
+      parsed = text ? JSON.parse(text) : {};
+    } catch {
+      parsed = { error: text || `HTTP ${res.status}` };
+    }
+    if (!res.ok) {
+      throw new Error(parsed.error || `Scheduler falhou (HTTP ${res.status})`);
+    }
+    return {
+      processed: parsed.processed ?? 0,
+      errors: parsed.errors ?? 0,
+      error: parsed.error,
+      stack: parsed.stack,
+    };
   },
 
   async enqueue(body: {
