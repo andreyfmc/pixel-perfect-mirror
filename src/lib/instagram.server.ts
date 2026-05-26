@@ -302,6 +302,26 @@ export const instagram = {
             }
           | undefined;
         if (pageIg?.id) {
+          const expectedUsername = normalizeUsername(input.expectedUsername);
+          const pageIgMatches =
+            isSameId(pageIg.id, input.igUserId) ||
+            expectedUsername.length === 0 ||
+            normalizeUsername(pageIg.username) === expectedUsername;
+          if (!pageIgMatches) {
+            throw new InstagramGraphError([
+              {
+                host: "facebook",
+                status: 400,
+                json: {
+                  error: {
+                    message: `Facebook Page token pertence ao Instagram ${pageIg.username ?? pageIg.id}, mas a conta salva usa ${input.expectedUsername ?? input.igUserId}`,
+                    code: 100,
+                    error_subcode: 33,
+                  },
+                },
+              },
+            ]);
+          }
           return {
             me,
             ig: pageIg,
