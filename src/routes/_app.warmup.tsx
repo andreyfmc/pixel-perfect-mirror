@@ -900,6 +900,7 @@ type AccountLite = {
   profile_picture: string;
   health_score: number;
   token_status: "valid" | "expired";
+  last_post_at?: string;
 };
 
 const RL_STORAGE_KEY = "warmup.rate-limits.v1";
