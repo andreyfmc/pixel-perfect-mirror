@@ -65,6 +65,7 @@ export type AccountRow = {
   access_token: string | null;
   token_expires_at: string | null;
   token_status: "valid" | "expired";
+  provider: "facebook" | "instagram";
   followers: number;
   health_score: number;
   last_post_at: string | null;
