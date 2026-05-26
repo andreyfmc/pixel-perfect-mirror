@@ -193,14 +193,16 @@ export const db = {
       .prepare(
         `SELECT * FROM queue
          WHERE (status = 'scheduled' AND scheduled_at <= ?)
-            OR (status = 'processing' AND ig_container_id IS NOT NULL)
+            OR (status = 'processing' AND ig_container_id IS NOT NULL
+                AND created_at <= datetime(?, '-60 seconds'))
          ORDER BY scheduled_at ASC
          LIMIT 10`,
       )
-      .bind(nowIso)
+      .bind(nowIso, nowIso)
       .all<QueueRow>();
     return results ?? [];
   },
+
   async enqueue(
     q: Omit<
       QueueRow,
