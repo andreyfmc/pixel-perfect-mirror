@@ -1,7 +1,7 @@
-// Date formatters. Para datas vindas do servidor (ISO em UTC), usamos o fuso
-// LOCAL do dispositivo — assim o usuário vê o horário que ele agendou.
-// A formatação só roda no client (componentes), então não há mismatch de SSR.
+// Date formatters. Usa fuso fixo para SSR e client renderizarem o mesmo texto.
+const APP_TIME_ZONE = "America/Sao_Paulo";
 const dateTime = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: APP_TIME_ZONE,
   day: "2-digit",
   month: "short",
   hour: "2-digit",
@@ -9,11 +9,13 @@ const dateTime = new Intl.DateTimeFormat("pt-BR", {
 });
 
 const dateShort = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: APP_TIME_ZONE,
   day: "2-digit",
   month: "short",
 });
 
 const dateFull = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: APP_TIME_ZONE,
   day: "2-digit",
   month: "2-digit",
   year: "numeric",

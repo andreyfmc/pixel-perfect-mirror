@@ -53,21 +53,17 @@ export async function runScheduler(
       if (!account?.ig_user_id || !account?.access_token) {
         throw new Error("Conta sem ig_user_id ou access_token");
       }
-      if (account.token_status === "expired") {
-        await db.setQueueStatus(item.id, "canceled", {
-          last_error: "Token expirado. Reconecte a conta antes de publicar.",
-        });
-        errors++;
-        continue;
-      }
       let igUserId = account.ig_user_id;
       let accessToken = account.access_token;
       try {
-        const fresh = await ensureFreshAccessToken({
-          accessToken,
-          tokenExpiresAt: account.token_expires_at,
-        });
-        if (fresh.refreshed) {
+        const fresh =
+          account.provider === "instagram"
+            ? await ensureFreshAccessToken({
+                accessToken,
+                tokenExpiresAt: account.token_expires_at,
+              })
+            : { accessToken, expiresAt: account.token_expires_at, refreshed: false };
+        if (fresh.refreshed || account.token_status === "expired") {
           accessToken = fresh.accessToken;
           await db.updateAccountCredentials(item.account_id, {
             access_token: fresh.accessToken,

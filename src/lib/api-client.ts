@@ -24,7 +24,7 @@ function accountFromRow(r: AccountRow): Account {
     health_score: r.health_score,
     followers: r.followers,
     last_post_at: r.last_post_at ?? new Date().toISOString(),
-    token_expires_at: r.token_expires_at ?? new Date().toISOString(),
+    token_expires_at: r.token_expires_at,
     token_status: r.token_status ?? "valid",
     provider: r.provider ?? "facebook",
   };
@@ -37,7 +37,10 @@ function queueFromRow(r: QueueRow): QueueItem {
     caption: r.caption,
     scheduled_at: r.scheduled_at,
     media_type: r.media_type === "CAROUSEL" ? "IMAGE" : r.media_type,
+    media_key: r.media_key,
     thumb: r.thumb_key ?? "",
+    group_id: r.group_id,
+    group_scheduled_at: r.group_scheduled_at,
     status: r.status,
     attempts: r.attempts,
     last_error: r.last_error,
@@ -155,6 +158,8 @@ export const api = {
     media_key: string;
     thumb_key?: string;
     scheduled_at: string;
+    group_id?: string;
+    group_scheduled_at?: string;
   }): Promise<{ id: string } | null> {
     try {
       const res = await fetch("/api/queue", {

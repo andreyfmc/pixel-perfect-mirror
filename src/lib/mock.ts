@@ -6,7 +6,7 @@ export type Account = {
   health_score: number;
   followers: number;
   last_post_at: string;
-  token_expires_at: string;
+  token_expires_at: string | null;
   token_status: "valid" | "expired";
   provider: "facebook" | "instagram";
 };
@@ -68,7 +68,10 @@ export type QueueItem = {
   caption: string;
   scheduled_at: string;
   media_type: "REEL" | "IMAGE" | "STORY";
+  media_key?: string | null;
   thumb: string;
+  group_id?: string | null;
+  group_scheduled_at?: string | null;
   status: "scheduled" | "processing" | "failed" | "canceled" | "published";
   attempts?: number;
   last_error?: string | null;

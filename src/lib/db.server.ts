@@ -45,6 +45,25 @@ async function ensureSchema(): Promise<void> {
           )
           .run();
       }
+      const { results: queueResults } = await db
+        .prepare("PRAGMA table_info(queue)")
+        .all<{ name: string }>();
+      const queueCols = new Set((queueResults ?? []).map((r) => r.name));
+      if (!queueCols.has("group_id")) {
+        await db.prepare("ALTER TABLE queue ADD COLUMN group_id TEXT").run();
+      }
+      if (!queueCols.has("group_scheduled_at")) {
+        await db.prepare("ALTER TABLE queue ADD COLUMN group_scheduled_at TEXT").run();
+      }
+      await db
+        .prepare(
+          `UPDATE accounts
+           SET token_status = 'valid'
+           WHERE access_token IS NOT NULL
+             AND (token_expires_at IS NULL OR datetime(token_expires_at) > datetime('now'))
+             AND token_status = 'expired'`,
+        )
+        .run();
     } catch (err) {
       // Não bloqueia o app se o PRAGMA falhar — reseta a promise para tentar de novo
       // na próxima request.
@@ -81,6 +100,8 @@ export type QueueRow = {
   media_key: string;
   thumb_key: string | null;
   scheduled_at: string;
+  group_id: string | null;
+  group_scheduled_at: string | null;
   status: "scheduled" | "processing" | "published" | "failed" | "canceled";
   attempts: number;
   last_error: string | null;
@@ -267,13 +288,21 @@ const rawDb = {
   async enqueue(
     q: Omit<
       QueueRow,
-      "status" | "attempts" | "last_error" | "ig_container_id" | "ig_media_id" | "created_at"
-    >,
+      | "status"
+      | "attempts"
+      | "last_error"
+      | "ig_container_id"
+      | "ig_media_id"
+      | "created_at"
+      | "group_id"
+      | "group_scheduled_at"
+    > &
+      Partial<Pick<QueueRow, "group_id" | "group_scheduled_at">>,
   ) {
     await requireDb()
       .prepare(
-        `INSERT INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at, group_id, group_scheduled_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         q.id,
@@ -283,6 +312,8 @@ const rawDb = {
         q.media_key,
         q.thumb_key ?? null,
         q.scheduled_at,
+        q.group_id ?? null,
+        q.group_scheduled_at ?? null,
       )
       .run();
   },
