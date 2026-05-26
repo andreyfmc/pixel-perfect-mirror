@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
+import { variateCaption } from "@/lib/caption-variant";
 import { listDriveEntries, type DriveVideo, type DriveFolder, type DriveCrumb } from "@/lib/drive.functions";
 import {
   Folder,
@@ -647,21 +648,26 @@ function DistributeTab() {
           order === "random" ? shuffle(selectedAccounts) : selectedAccounts;
         for (const accId of accountsForCycle) {
           const v = selectedList[cycle];
-          // Jitter apenas para cima: cada item recebe um offset individual
-          // entre 0 e jitterMs, garantindo intervalo mínimo = gap.
           const jitterOffset = jitterMs ? Math.floor(Math.random() * (jitterMs + 1)) : 0;
           const scheduledAt = new Date(cycleStartMs + jitterOffset).toISOString();
+          const uniqueCaption = variateCaption(caption, `${accId}|${v.id}`);
           const res = await api.enqueue({
             account_id: accId,
-            caption,
+            caption: uniqueCaption,
             media_type: "REEL",
             media_key: `drive:${v.id}`,
             scheduled_at: scheduledAt,
             group_id: groupId,
             group_scheduled_at: groupScheduledAt,
           });
-          if (res) ok++;
-          else fail++;
+          if (res) {
+            ok++;
+            // Dispara build de variante em background (não bloqueia o agendamento
+            // dos próximos itens — o scheduler também faz fallback a cada tick).
+            void api.buildVariant(res.id);
+          } else {
+            fail++;
+          }
         }
       }
       setEnqueueOk(fail === 0 && ok > 0);
@@ -1192,60 +1198,16 @@ function DistributeTab() {
 
         <div className="border-t border-border/60" />
 
-        {/* --- Comando local --- */}
         <section>
-          <div className="mb-1 flex items-center justify-between">
-            <label className="text-[10px] uppercase tracking-wider text-muted2">
-              Comando local (avançado · ffmpeg)
-            </label>
-            {command && (
-              <button
-                onClick={copy}
-                className={[
-                  "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] transition",
-                  copied
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                    : "border-border2 bg-bg3 text-text2 hover:text-foreground",
-                ].join(" ")}
-              >
-                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                {copied ? "Copiado!" : "Copiar"}
-              </button>
-            )}
-          </div>
-          <pre className="overflow-x-auto rounded-[10px] border border-border bg-[#0a0a0a] p-3 text-[11px] leading-relaxed">
-            <code className="text-text2">
-              {command ? (
-                command.split("\n").map((line, i) => {
-                  // pseudo syntax-highlight
-                  if (line.trim().startsWith("bun")) {
-                    return (
-                      <div key={i}>
-                        <span className="text-[var(--accent2)]">bun</span>{" "}
-                        <span className="text-sky-400">scripts/distribute-reel.ts</span>{" "}
-                        <span className="text-muted2">\</span>
-                      </div>
-                    );
-                  }
-                  const flagMatch = line.match(/^(\s*--[\w-]+)(.*)$/);
-                  if (flagMatch) {
-                    return (
-                      <div key={i}>
-                        <span className="text-amber-300">{flagMatch[1]}</span>
-                        <span>{flagMatch[2]}</span>
-                      </div>
-                    );
-                  }
-                  return <div key={i}>{line}</div>;
-                })
-              ) : (
-                <span className="text-muted2">
-                  Selecione ao menos um vídeo do Drive e uma conta.
-                </span>
-              )}
-            </code>
-          </pre>
+          <p className="text-[11px] text-muted2">
+            ✓ Variantes únicas por conta são geradas automaticamente no servidor
+            (Cloudflare Workers) ao agendar — sem ffmpeg, sem comando local.
+            Cada conta recebe um MP4 binariamente único: uuid box exclusivo,
+            timestamps falsos, balance de áudio ±0.5% e legenda com espaços
+            invisíveis Unicode.
+          </p>
         </section>
+
       </div>
     </div>
   );

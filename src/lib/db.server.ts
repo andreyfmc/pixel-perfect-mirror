@@ -62,6 +62,20 @@ async function ensureSchema(): Promise<void> {
       if (!queueCols.has("retry_count")) {
         await db.prepare("ALTER TABLE queue ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0").run();
       }
+      if (!queueCols.has("variant_processed")) {
+        await db
+          .prepare("ALTER TABLE queue ADD COLUMN variant_processed INTEGER NOT NULL DEFAULT 0")
+          .run();
+      }
+      if (!queueCols.has("variant_method")) {
+        await db.prepare("ALTER TABLE queue ADD COLUMN variant_method TEXT").run();
+      }
+      if (!queueCols.has("variant_error")) {
+        await db.prepare("ALTER TABLE queue ADD COLUMN variant_error TEXT").run();
+      }
+      if (!queueCols.has("original_media_key")) {
+        await db.prepare("ALTER TABLE queue ADD COLUMN original_media_key TEXT").run();
+      }
       // oauth_states — links únicos de conexão (Instagram OAuth Tester).
       await db
         .prepare(
@@ -120,6 +134,10 @@ export type QueueRow = {
   last_error: string | null;
   ig_container_id: string | null;
   ig_media_id: string | null;
+  variant_processed: number;
+  variant_method: string | null;
+  variant_error: string | null;
+  original_media_key: string | null;
   created_at: string;
 };
 
@@ -457,13 +475,26 @@ const rawDb = {
       | "created_at"
       | "group_id"
       | "group_scheduled_at"
+      | "variant_processed"
+      | "variant_method"
+      | "variant_error"
+      | "original_media_key"
     > &
-      Partial<Pick<QueueRow, "group_id" | "group_scheduled_at">>,
+      Partial<
+        Pick<
+          QueueRow,
+          | "group_id"
+          | "group_scheduled_at"
+          | "variant_processed"
+          | "variant_method"
+          | "original_media_key"
+        >
+      >,
   ) {
     await requireDb()
       .prepare(
-        `INSERT INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at, group_id, group_scheduled_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at, group_id, group_scheduled_at, variant_processed, variant_method, original_media_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         q.id,
@@ -475,6 +506,9 @@ const rawDb = {
         q.scheduled_at,
         q.group_id ?? null,
         q.group_scheduled_at ?? null,
+        q.variant_processed ?? 0,
+        q.variant_method ?? null,
+        q.original_media_key ?? null,
       )
       .run();
   },
@@ -720,6 +754,55 @@ const rawDb = {
     await requireDb()
       .prepare("UPDATE accounts SET token_status = 'expired', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
       .bind(id)
+      .run();
+  },
+
+  // ============ variantes serverless ============
+  async getQueueItem(id: string): Promise<QueueRow | null> {
+    return (
+      (await requireDb()
+        .prepare("SELECT * FROM queue WHERE id = ?")
+        .bind(id)
+        .first<QueueRow>()) ?? null
+    );
+  },
+  async listPendingVariantItems(limit = 8): Promise<QueueRow[]> {
+    // Itens com variante ainda não processada, ordenados por proximidade do scheduled_at.
+    const { results } = await requireDb()
+      .prepare(
+        `SELECT * FROM queue
+         WHERE variant_processed = 0
+           AND status IN ('scheduled')
+           AND media_type IN ('REEL','STORY','IMAGE')
+           AND (media_key LIKE 'drive:%' OR original_media_key LIKE 'drive:%')
+         ORDER BY scheduled_at ASC
+         LIMIT ?`,
+      )
+      .bind(limit)
+      .all<QueueRow>();
+    return results ?? [];
+  },
+  async markVariantProcessed(
+    id: string,
+    input: { mediaKey: string; method: string; originalMediaKey?: string | null },
+  ) {
+    await requireDb()
+      .prepare(
+        `UPDATE queue
+         SET variant_processed = 1,
+             variant_method = ?,
+             variant_error = NULL,
+             original_media_key = COALESCE(original_media_key, ?),
+             media_key = ?
+         WHERE id = ?`,
+      )
+      .bind(input.method, input.originalMediaKey ?? null, input.mediaKey, id)
+      .run();
+  },
+  async markVariantFailed(id: string, error: string) {
+    await requireDb()
+      .prepare(`UPDATE queue SET variant_error = ? WHERE id = ?`)
+      .bind(error.slice(0, 500), id)
       .run();
   },
 };

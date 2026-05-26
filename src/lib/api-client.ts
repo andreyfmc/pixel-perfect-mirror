@@ -46,6 +46,9 @@ function queueFromRow(r: QueueRow): QueueItem {
     attempts: r.attempts,
     retry_count: r.retry_count ?? 0,
     last_error: r.last_error,
+    variant_processed: !!r.variant_processed,
+    variant_method: r.variant_method,
+    variant_error: r.variant_error,
   };
 }
 
@@ -192,6 +195,24 @@ export const api = {
       return { key, url: `https://pub-5fcd7291327547a084c1e911d5141d6f.r2.dev/${key}` };
     } catch {
       return null;
+    }
+  },
+
+  async buildVariant(queueId: string): Promise<{ ok: boolean; mediaKey?: string; error?: string }> {
+    try {
+      const res = await fetch("/api/variants/build", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ queue_id: queueId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        mediaKey?: string;
+        error?: string;
+      };
+      return { ok: !!data.ok, mediaKey: data.mediaKey, error: data.error };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   },
 };
