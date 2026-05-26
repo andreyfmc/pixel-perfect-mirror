@@ -341,7 +341,8 @@ export const instagram = {
             ],
           };
         }
-      } catch {
+      } catch (pageErr) {
+        if (isMismatchedCredentialsError(pageErr)) throw pageErr;
         // Se o token for de usuário Facebook, a conta IG vem por /me/accounts abaixo.
       }
 
