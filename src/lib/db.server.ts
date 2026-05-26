@@ -260,14 +260,19 @@ export const db = {
   },
   async manualUpdateQueue(
     id: string,
-    input: { status: QueueRow["status"]; scheduled_at?: string; reset_container?: boolean },
+    input: {
+      status: QueueRow["status"];
+      scheduled_at?: string;
+      reset_container?: boolean;
+      last_error?: string;
+    },
   ) {
     await requireDb()
       .prepare(
         `UPDATE queue
          SET status = ?,
              scheduled_at = COALESCE(?, scheduled_at),
-             last_error = NULL,
+             last_error = ?,
              ig_container_id = CASE WHEN ? THEN NULL ELSE ig_container_id END,
              ig_media_id = CASE WHEN ? THEN NULL ELSE ig_media_id END
          WHERE id = ?`,
@@ -275,6 +280,7 @@ export const db = {
       .bind(
         input.status,
         input.scheduled_at ?? null,
+        input.last_error ?? null,
         input.reset_container ? 1 : 0,
         input.reset_container ? 1 : 0,
         id,
