@@ -26,12 +26,6 @@ export const Route = createFileRoute("/_app/accounts")({
   head: () => ({ meta: [{ title: "Contas · Insta Manager" }] }),
 });
 
-
-export const Route = createFileRoute("/_app/accounts")({
-  component: AccountsPage,
-  head: () => ({ meta: [{ title: "Contas · Insta Manager" }] }),
-});
-
 function ringForHealth(score: number) {
   if (score >= 80) return "var(--success)";
   if (score >= 60) return "var(--warning)";
@@ -40,10 +34,27 @@ function ringForHealth(score: number) {
 
 function AccountsPage() {
   const qc = useQueryClient();
+  const [sortKey, setSortKey] = useState<SortKey>("followers");
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
   });
+  const sorted = useMemo(() => {
+    const arr = [...accounts];
+    switch (sortKey) {
+      case "followers":
+        return arr.sort((a, b) => b.followers - a.followers);
+      case "health":
+        return arr.sort((a, b) => b.health_score - a.health_score);
+      case "recent":
+        return arr.sort(
+          (a, b) => +new Date(b.last_post_at) - +new Date(a.last_post_at),
+        );
+      case "name":
+        return arr.sort((a, b) => a.username.localeCompare(b.username));
+    }
+  }, [accounts, sortKey]);
+
   const { connect, loading } = useOAuthPopup();
 
   async function handleConnect(provider: "instagram" | "facebook") {
