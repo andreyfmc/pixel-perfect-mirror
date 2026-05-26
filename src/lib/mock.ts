@@ -68,6 +68,7 @@ export type QueueItem = {
   caption: string;
   scheduled_at: string;
   media_type: "REEL" | "IMAGE" | "STORY";
+  media_key?: string | null;
   thumb: string;
   group_id?: string | null;
   group_scheduled_at?: string | null;
