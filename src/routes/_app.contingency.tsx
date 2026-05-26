@@ -913,6 +913,12 @@ function ContingencyPage() {
     });
     out.sort((a, b) => {
       switch (sortBy) {
+        case "order_asc": {
+          const ao = a.order ?? Number.POSITIVE_INFINITY;
+          const bo = b.order ?? Number.POSITIVE_INFINITY;
+          if (ao !== bo) return ao - bo;
+          return a.username.localeCompare(b.username);
+        }
         case "username_asc": return a.username.localeCompare(b.username);
         case "username_desc": return b.username.localeCompare(a.username);
         case "status": return statusOrder[a.status] - statusOrder[b.status];
