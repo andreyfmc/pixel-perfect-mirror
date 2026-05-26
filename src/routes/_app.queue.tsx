@@ -325,6 +325,59 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
+function VariantBadge({ item }: { item: QueueItem }) {
+  if (item.variant_processed) {
+    return (
+      <span
+        title={item.variant_method ? `método: ${item.variant_method}` : undefined}
+        className="inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300"
+      >
+        ✓ Variante
+      </span>
+    );
+  }
+  if (item.variant_error) {
+    return (
+      <span
+        title={item.variant_error}
+        className="inline-flex items-center rounded-full border border-danger/40 bg-danger/10 px-2 py-0.5 text-[10px] font-semibold text-danger"
+      >
+        ⚠ Variante falhou
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-full border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 animate-pulse">
+      ⟳ Gerando…
+    </span>
+  );
+}
+
+function VariantGroupBadge({ items }: { items: QueueItem[] }) {
+  const total = items.length;
+  const done = items.filter((i) => i.variant_processed).length;
+  const failed = items.filter((i) => !i.variant_processed && i.variant_error).length;
+  if (done === total) {
+    return (
+      <span className="inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+        {done}/{total} variantes ✓
+      </span>
+    );
+  }
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+        failed
+          ? "border-danger/40 bg-danger/10 text-danger"
+          : "border-amber-400/40 bg-amber-400/10 text-amber-300"
+      }`}
+    >
+      {done}/{total} variantes {failed ? "⚠" : "⟳"}
+    </span>
+  );
+}
+
+
 function Thumb({ src, type, size = "md" }: { src?: string; type: string; size?: "sm" | "md" }) {
   const cls = size === "sm" ? "h-12 w-12" : "h-16 w-16 sm:h-20 sm:w-20";
   return (
