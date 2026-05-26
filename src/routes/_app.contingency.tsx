@@ -992,6 +992,23 @@ function ContingencyPage() {
         account={activateAccount}
         onConfirm={onConfirmActivation}
       />
+      <DriveImportDialog
+        open={driveOpen}
+        onOpenChange={setDriveOpen}
+        listCsvs={listCsvs}
+        downloadCsv={downloadCsv}
+        onImport={(text) => {
+          try {
+            const imported = fromCSV(text);
+            if (imported.length === 0) { toast.error("Nenhuma conta válida"); return; }
+            update((prev) => { const next = [...imported, ...prev]; replaceAllOnServer(next); return next; });
+            toast.success(`${imported.length} conta(s) importada(s) do Drive`);
+            setDriveOpen(false);
+          } catch (e) {
+            toast.error("Falha ao importar: " + (e as Error).message);
+          }
+        }}
+      />
     </div>
   );
 }
