@@ -75,9 +75,7 @@ export function isInvalidAccessTokenError(err: unknown) {
 export function isMismatchedCredentialsError(err: unknown) {
   if (!(err instanceof InstagramGraphError)) return false;
   return err.failures.some((failure) => {
-    const graphErr = failure.json.error as
-      | { code?: number; error_subcode?: number }
-      | undefined;
+    const graphErr = failure.json.error as { code?: number; error_subcode?: number } | undefined;
     return graphErr?.code === 100 && graphErr?.error_subcode === 33;
   });
 }
@@ -289,7 +287,11 @@ export const instagram = {
       }));
   },
 
-  async validateCredentials(input: { igUserId: string; accessToken: string; expectedUsername?: string | null }) {
+  async validateCredentials(input: {
+    igUserId: string;
+    accessToken: string;
+    expectedUsername?: string | null;
+  }) {
     try {
       const me = await facebookGet("/me", {
         access_token: input.accessToken,
@@ -313,10 +315,9 @@ export const instagram = {
         if (pageIg?.id) {
           const expectedUsername = normalizeUsername(input.expectedUsername);
           const hasExpectedUsername = expectedUsername.length > 0;
-          const pageIgMatches =
-            hasExpectedUsername
-              ? normalizeUsername(pageIg.username) === expectedUsername
-              : isSameId(pageIg.id, input.igUserId);
+          const pageIgMatches = hasExpectedUsername
+            ? normalizeUsername(pageIg.username) === expectedUsername
+            : isSameId(pageIg.id, input.igUserId);
           if (!pageIgMatches) {
             throw new InstagramGraphError([
               {
@@ -453,25 +454,41 @@ export const instagram = {
     provider?: GraphHostId;
     containerId: string;
   }): Promise<string> {
-    const json = await gpost(`/${input.igUserId}/media_publish`, {
-      access_token: input.accessToken,
-      creation_id: input.containerId,
-    }, input.provider);
+    const json = await gpost(
+      `/${input.igUserId}/media_publish`,
+      {
+        access_token: input.accessToken,
+        creation_id: input.containerId,
+      },
+      input.provider,
+    );
     return String(json.id);
   },
 
   async fetchMediaInfo(mediaId: string, accessToken: string, provider?: GraphHostId) {
-    return gget(`/${mediaId}`, {
-      access_token: accessToken,
-      fields: "id,permalink,media_type,caption,timestamp",
-    }, provider);
+    return gget(
+      `/${mediaId}`,
+      {
+        access_token: accessToken,
+        fields: "id,permalink,media_type,caption,timestamp",
+      },
+      provider,
+    );
   },
 
-  async fetchContainerStatus(containerId: string, accessToken: string, provider?: GraphHostId): Promise<ContainerStatus> {
-    const json = await gget(`/${containerId}`, {
-      access_token: accessToken,
-      fields: "status_code,status",
-    }, provider);
+  async fetchContainerStatus(
+    containerId: string,
+    accessToken: string,
+    provider?: GraphHostId,
+  ): Promise<ContainerStatus> {
+    const json = await gget(
+      `/${containerId}`,
+      {
+        access_token: accessToken,
+        fields: "status_code,status",
+      },
+      provider,
+    );
     return {
       statusCode: String(json.status_code ?? "UNKNOWN"),
       status: typeof json.status === "string" ? json.status : undefined,
@@ -506,7 +523,11 @@ export const instagram = {
   /** Helper completo: cria container → aguarda → publica. */
   async publish(input: PublishInput): Promise<PublishResult> {
     const containerId = await this.createContainer(input);
-    await this.waitUntilReady({ containerId, accessToken: input.accessToken, provider: input.provider });
+    await this.waitUntilReady({
+      containerId,
+      accessToken: input.accessToken,
+      provider: input.provider,
+    });
     const mediaId = await this.publishContainer({
       igUserId: input.igUserId,
       accessToken: input.accessToken,

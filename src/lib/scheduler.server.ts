@@ -57,7 +57,9 @@ export async function runScheduler(
     try {
       const account = await db.resolveAccountForPublishing(item.account_id);
       if (!account?.ig_user_id || !account?.access_token) {
-        throw new Error("Conta sem ig_user_id ou access_token — reconecte esta conta e recrie/retome a fila");
+        throw new Error(
+          "Conta sem ig_user_id ou access_token — reconecte esta conta e recrie/retome a fila",
+        );
       }
       let igUserId = account.ig_user_id;
       let accessToken = account.access_token;
@@ -147,8 +149,13 @@ export async function runScheduler(
                 accessToken: healed.access_token,
                 expectedUsername: healed.username,
               });
-              igUserId = (typeof reValidated.ig?.id === "string" ? reValidated.ig.id : undefined) ?? healed.ig_user_id;
-              accessToken = (typeof reValidated.accessToken === "string" ? reValidated.accessToken : undefined) ?? healed.access_token;
+              igUserId =
+                (typeof reValidated.ig?.id === "string" ? reValidated.ig.id : undefined) ??
+                healed.ig_user_id;
+              accessToken =
+                (typeof reValidated.accessToken === "string"
+                  ? reValidated.accessToken
+                  : undefined) ?? healed.access_token;
               provider = reValidated.host ?? healed.provider;
               await db.updateAccountCredentials(item.account_id, {
                 ig_user_id: igUserId,
@@ -168,7 +175,8 @@ export async function runScheduler(
           } else {
             await db.markAccountNeedsReconnect(item.account_id);
             await db.setQueueStatus(item.id, "canceled", {
-              last_error: "Credenciais incompatíveis: o token salvo não acessa o ig_user_id desta conta. Reconecte a conta no Facebook para regenerar o Page token correto.",
+              last_error:
+                "Credenciais incompatíveis: o token salvo não acessa o ig_user_id desta conta. Reconecte a conta no Facebook para regenerar o Page token correto.",
             });
             errors++;
             continue;
@@ -207,7 +215,6 @@ export async function runScheduler(
         continue;
       }
 
-
       const mediaId = await instagram.publishContainer({
         igUserId,
         accessToken,
@@ -241,7 +248,6 @@ export async function runScheduler(
       });
 
       await db.updateLastPostAt(item.account_id, new Date().toISOString());
-
 
       processed++;
     } catch (err) {
