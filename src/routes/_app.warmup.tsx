@@ -548,8 +548,11 @@ function DistributeTab() {
       .finally(() => setLoading(false));
   }, [fetchEntries, folderId]);
 
-  const toggleAccount = (u: string) =>
-    setSelectedAccounts((s) => (s.includes(u) ? s.filter((x) => x !== u) : [...s, u]));
+  const toggleAccount = (id: string) =>
+    setSelectedAccounts((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const allAccountsSelected = accounts.length > 0 && selectedAccounts.length === accounts.length;
+  const toggleAllAccounts = () =>
+    setSelectedAccounts(allAccountsSelected ? [] : accounts.map((a) => a.id));
 
   const toggleVideo = (v: DriveVideo) =>
     setSelectedVideos((prev) => {
