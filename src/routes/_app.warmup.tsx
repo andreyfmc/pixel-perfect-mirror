@@ -666,7 +666,7 @@ function DistributeTab() {
       }
       setEnqueueOk(fail === 0 && ok > 0);
       setEnqueueMsg(
-        `✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ${selectedList.length} ciclo(s) de ${gap}min · jitter ±${jitter}min`,
+        `✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ${selectedList.length} ciclo(s) de ${gap}min · jitter +0–${jitter}min`,
       );
       if (ok > 0 && fail === 0) {
         setTimeout(() => navigate({ to: "/queue" }), 800);
