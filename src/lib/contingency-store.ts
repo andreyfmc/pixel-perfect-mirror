@@ -51,12 +51,16 @@ export function saveContingency(list: ContingencyAccount[]) {
 }
 
 // ---- sync com servidor (D1). Falha silenciosamente em ambientes sem binding. ----
-export async function fetchFromServer(): Promise<ContingencyAccount[] | null> {
+export async function fetchFromServer(): Promise<
+  { items: ContingencyAccount[] } | null
+> {
   try {
     const res = await fetch("/api/contingency");
     if (!res.ok) return null;
-    const data = (await res.json()) as { items?: ContingencyAccount[] };
-    return data.items ?? null;
+    const data = (await res.json()) as { items?: ContingencyAccount[]; error?: string };
+    // Se o servidor reportou erro (ex.: D1 indisponível), não confiamos no payload.
+    if (data.error) return null;
+    return { items: data.items ?? [] };
   } catch {
     return null;
   }
