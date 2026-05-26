@@ -865,7 +865,7 @@ function ContingencyPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ContingencyStatus>("all");
   const [typeFilter, setTypeFilter] = useState<"all" | ConnectionType>("all");
-  const [sortBy, setSortBy] = useState<"updated_desc" | "username_asc" | "username_desc" | "status" | "quality">("updated_desc");
+  const [sortBy, setSortBy] = useState<"order_asc" | "updated_desc" | "username_asc" | "username_desc" | "status" | "quality">("order_asc");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
