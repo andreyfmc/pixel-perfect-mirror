@@ -11,6 +11,8 @@ export type Account = {
   token_status: "valid" | "expired";
   provider: "facebook" | "instagram";
   can_publish?: boolean;
+  role?: "active" | "reserve";
+  paused?: boolean;
 };
 
 export const mockAccounts: Account[] = [
