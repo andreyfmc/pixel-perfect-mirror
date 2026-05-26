@@ -4,10 +4,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { listDriveEntries, type DriveVideo, type DriveFolder, type DriveCrumb } from "@/lib/drive.functions";
-import { Folder, ChevronRight, Home } from "lucide-react";
 import {
+  Folder,
+  ChevronRight,
+  Home,
   UploadCloud,
-  Settings2,
   Activity,
   Image as ImageIcon,
   HardDrive,
@@ -20,6 +21,17 @@ import {
   RefreshCw,
   Clock,
   Heart,
+  CalendarPlus,
+  Gauge,
+  CalendarDays,
+  Shuffle,
+  Trash2,
+  Search,
+  X,
+  Film,
+  AlertTriangle,
+  Users,
+  Settings2,
 } from "lucide-react";
 import { fmtDateTime } from "@/lib/format";
 
@@ -41,8 +53,8 @@ export const Route = createFileRoute("/_app/warmup")({
 
 const tabs = [
   { id: "upload", label: "Upload", icon: UploadCloud, emoji: "📤" },
-  { id: "post", label: "Postagem", icon: Wand2, emoji: "✨" },
-  { id: "config", label: "Rate Limit", icon: Settings2, emoji: "⚙️" },
+  { id: "post", label: "Postagem", icon: CalendarPlus, emoji: "✨" },
+  { id: "config", label: "Rate Limit", icon: Gauge, emoji: "⚙️" },
   { id: "monitor", label: "Monitor", icon: Activity, emoji: "📡" },
 ] as const;
 
@@ -109,6 +121,12 @@ function WarmupPage() {
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
   });
+  const { data: queue = [] } = useQuery({
+    queryKey: ["queue"],
+    queryFn: () => api.listQueue(),
+    refetchInterval: 15_000,
+  });
+  const pendingCount = queue.filter((q: { status: string }) => q.status === "scheduled").length;
 
 
   async function handleFiles(files: File[] | FileList | null) {
@@ -158,6 +176,7 @@ function WarmupPage() {
         <nav className="flex overflow-x-auto border-b border-border bg-bg2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map(({ id, label, icon: Icon }) => {
             const active = tab === id;
+            const badge = id === "post" && pendingCount > 0 ? pendingCount : null;
             return (
               <button
                 key={id}
@@ -169,16 +188,28 @@ function WarmupPage() {
               >
                 <Icon className="h-4 w-4" />
                 {label}
-                {active && (
+                {badge !== null && (
                   <span
-                    className="absolute inset-x-3 -bottom-px h-[2px] rounded-full"
+                    className="ml-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold text-white tabular-nums"
                     style={{ background: "var(--accent2)" }}
-                  />
+                  >
+                    {badge}
+                  </span>
                 )}
+                <span
+                  className="pointer-events-none absolute inset-x-3 -bottom-px h-[2px] rounded-full transition-all duration-300"
+                  style={{
+                    background: "var(--accent2)",
+                    transform: active ? "scaleX(1)" : "scaleX(0)",
+                    transformOrigin: "left",
+                    opacity: active ? 1 : 0,
+                  }}
+                />
               </button>
             );
           })}
         </nav>
+
 
         <div className="p-4 sm:p-6">
           {tab === "upload" && (
@@ -384,7 +415,53 @@ function WarmupPage() {
   );
 }
 
+const POST_STORAGE_KEY = "warmup.post.v1";
+const CAPTION_MAX = 2200;
+
+type PostPersist = {
+  selectedAccounts?: string[];
+  caption?: string;
+  gap?: number;
+  jitter?: number;
+  order?: "sequential" | "random";
+};
+
+function loadPost(): PostPersist {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(POST_STORAGE_KEY) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+function VideoThumb({ v }: { v: DriveVideo }) {
+  const [broken, setBroken] = useState(false);
+  if (v.thumbnailLink && !broken) {
+    return (
+      <img
+        src={v.thumbnailLink}
+        alt=""
+        className="h-full w-full object-cover"
+        onError={() => setBroken(true)}
+      />
+    );
+  }
+  return (
+    <div
+      className="flex h-full w-full items-center justify-center"
+      style={{
+        background:
+          "linear-gradient(135deg, color-mix(in oklch, var(--accent2) 35%, #1a1a1a), #111)",
+      }}
+    >
+      <Film className="h-4 w-4 text-white/80" />
+    </div>
+  );
+}
+
 function DistributeTab() {
+  const persisted = loadPost();
   const fetchEntries = useServerFn(listDriveEntries);
   const [loading, setLoading] = useState(true);
   const [folderId, setFolderId] = useState<string>("root");
@@ -392,23 +469,25 @@ function DistributeTab() {
   const [videos, setVideos] = useState<DriveVideo[]>([]);
   const [breadcrumbs, setBreadcrumbs] = useState<DriveCrumb[]>([]);
   const [error, setError] = useState<string | null>(null);
-  // Multi-seleção persistente: id -> vídeo (preserva entre navegações de pasta)
   const [selectedVideos, setSelectedVideos] = useState<Map<string, DriveVideo>>(new Map());
   const [loadingFolder, setLoadingFolder] = useState<string | null>(null);
-  const [selectedAccounts, setSelectedAccounts] = useState<string[]>([]);
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>(
+    persisted.selectedAccounts ?? [],
+  );
+  const [accountFilter, setAccountFilter] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
   });
-  // Por padrão, seleciona todas as contas assim que carregarem
+  // Hidrata padrão se não havia persistido
   useEffect(() => {
-    if (accounts.length && selectedAccounts.length === 0) {
+    if (accounts.length && selectedAccounts.length === 0 && !persisted.selectedAccounts) {
       setSelectedAccounts(accounts.map((a) => a.id));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accounts.length]);
-  const [caption, setCaption] = useState("");
-  // Default: agora (hora local do dispositivo)
+  const [caption, setCaption] = useState(persisted.caption ?? "");
   const localNow = () => {
     const d = new Date();
     d.setSeconds(0, 0);
@@ -416,15 +495,24 @@ function DistributeTab() {
     return new Date(d.getTime() - tz).toISOString().slice(0, 16);
   };
   const [start, setStart] = useState(localNow);
-  // Intervalo entre CICLOS (cada vídeo é um ciclo, postado por todas as contas).
-  const [gap, setGap] = useState(60);
-  // Jitter aplicado entre contas dentro do mesmo ciclo (±N minutos).
-  const [jitter, setJitter] = useState(20);
-  const [order, setOrder] = useState<"sequential" | "random">("sequential");
+  const [gap, setGap] = useState(persisted.gap ?? 60);
+  const [jitter, setJitter] = useState(persisted.jitter ?? 20);
+  const [order, setOrder] = useState<"sequential" | "random">(persisted.order ?? "sequential");
   const [copied, setCopied] = useState(false);
   const [enqueueing, setEnqueueing] = useState(false);
+  const [enqueueOk, setEnqueueOk] = useState(false);
   const [enqueueMsg, setEnqueueMsg] = useState<string | null>(null);
   const navigate = useNavigate();
+
+  // Persistência
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        POST_STORAGE_KEY,
+        JSON.stringify({ selectedAccounts, caption, gap, jitter, order }),
+      );
+    } catch {}
+  }, [selectedAccounts, caption, gap, jitter, order]);
 
   useEffect(() => {
     setLoading(true);
@@ -441,7 +529,8 @@ function DistributeTab() {
 
   const toggleAccount = (id: string) =>
     setSelectedAccounts((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
-  const allAccountsSelected = accounts.length > 0 && selectedAccounts.length === accounts.length;
+  const allAccountsSelected =
+    accounts.length > 0 && selectedAccounts.length === accounts.length;
   const toggleAllAccounts = () =>
     setSelectedAccounts(allAccountsSelected ? [] : accounts.map((a) => a.id));
 
@@ -464,7 +553,6 @@ function DistributeTab() {
       return n;
     });
 
-  // Recursivo: anda pela pasta + subpastas e adiciona todo vídeo encontrado
   async function selectEntireFolder(f: DriveFolder) {
     setLoadingFolder(f.id);
     try {
@@ -488,24 +576,44 @@ function DistributeTab() {
     }
   }
 
-  const clearSelection = () => setSelectedVideos(new Map());
+  const clearSelection = () => {
+    setSelectedVideos(new Map());
+    setConfirmClear(false);
+  };
 
   const selectedList = Array.from(selectedVideos.values());
+  const startMsNum = new Date(start).getTime();
+  const startInPast = Number.isFinite(startMsNum) && startMsNum < Date.now() - 60_000;
 
-  const command = selectedList.length && selectedAccounts.length
-    ? selectedList
-        .map((v) =>
-          [
-            "bun scripts/distribute-reel.ts \\",
-            `  --drive-id ${v.id} \\`,
-            `  --accounts ${selectedAccounts.join(",")} \\`,
-            `  --caption ${JSON.stringify(caption || "")} \\`,
-            `  --start "${new Date(start).toISOString()}" \\`,
-            `  --gap ${gap}`,
-          ].join("\n"),
-        )
-        .join("\n\n")
-    : "";
+  // Validação
+  const missing: string[] = [];
+  if (!selectedList.length) missing.push("selecione vídeos");
+  if (!selectedAccounts.length) missing.push("selecione contas");
+  if (startInPast) missing.push("data de início no passado");
+  const canEnqueue = missing.length === 0 && !enqueueing;
+  const disabledReason = missing.length ? `Faltando: ${missing.join(" · ")}` : "";
+
+  const filteredAccounts = accounts.filter((a) =>
+    accountFilter
+      ? (a.username + " " + (a.name ?? "")).toLowerCase().includes(accountFilter.toLowerCase())
+      : true,
+  );
+
+  const command =
+    selectedList.length && selectedAccounts.length
+      ? selectedList
+          .map((v) =>
+            [
+              "bun scripts/distribute-reel.ts \\",
+              `  --drive-id ${v.id} \\`,
+              `  --accounts ${selectedAccounts.join(",")} \\`,
+              `  --caption ${JSON.stringify(caption || "")} \\`,
+              `  --start "${new Date(start).toISOString()}" \\`,
+              `  --gap ${gap}`,
+            ].join("\n"),
+          )
+          .join("\n\n")
+      : "";
 
   const copy = async () => {
     await navigator.clipboard.writeText(command);
@@ -514,8 +622,9 @@ function DistributeTab() {
   };
 
   const enqueueAll = async () => {
-    if (!selectedList.length || !selectedAccounts.length) return;
+    if (!canEnqueue) return;
     setEnqueueing(true);
+    setEnqueueOk(false);
     setEnqueueMsg(null);
     try {
       const startMs = new Date(start).getTime();
@@ -529,9 +638,6 @@ function DistributeTab() {
         }
         return a;
       };
-      // Cada vídeo = um ciclo. Em cada ciclo, todas as contas selecionadas
-      // postam aquele vídeo, com jitter ±N minutos entre elas para evitar
-      // chamadas simultâneas à API. Próximo ciclo começa após `gap` minutos.
       const jitterMs = Math.max(0, jitter) * 60_000;
       for (let cycle = 0; cycle < selectedList.length; cycle++) {
         const cycleStartMs = startMs + cycle * gap * 60_000;
@@ -558,11 +664,12 @@ function DistributeTab() {
           else fail++;
         }
       }
+      setEnqueueOk(fail === 0 && ok > 0);
       setEnqueueMsg(
         `✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ${selectedList.length} ciclo(s) de ${gap}min · jitter ±${jitter}min`,
       );
       if (ok > 0 && fail === 0) {
-        setTimeout(() => navigate({ to: "/queue" }), 600);
+        setTimeout(() => navigate({ to: "/queue" }), 800);
       }
     } catch (e) {
       setEnqueueMsg(`Erro: ${e instanceof Error ? e.message : String(e)}`);
@@ -571,19 +678,47 @@ function DistributeTab() {
     }
   };
 
+  const previewAccounts = selectedAccounts.length;
+  const previewVideos = selectedList.length;
+  const fmtPreview = () => {
+    try {
+      const d = new Date(start);
+      return d.toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return start;
+    }
+  };
 
   return (
     <div className="grid gap-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      {/* ===================== ESQUERDA: Drive ===================== */}
       <div className="min-w-0">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h3 className="flex items-center gap-2 text-sm font-semibold">
+            <HardDrive className="h-4 w-4" /> Google Drive
+          </h3>
+          {selectedVideos.size > 0 && (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm"
+              style={{ background: "var(--accent2)" }}
+            >
+              <Film className="h-3 w-3" />
+              {selectedVideos.size} vídeo{selectedVideos.size > 1 ? "s" : ""} selecionado{selectedVideos.size > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
 
-        <h3 className="mb-3 text-sm font-semibold flex items-center gap-2">
-          <HardDrive className="h-4 w-4" /> Google Drive
-        </h3>
-
-        <div className="mb-3 flex flex-wrap items-center gap-1 rounded-lg border border-border bg-bg3/60 px-2 py-1.5 text-xs">
+        {/* Breadcrumb */}
+        <div className="mb-3 flex flex-wrap items-center gap-1 rounded-[10px] border border-border bg-bg3/60 px-2 py-1.5 text-xs">
           <button
             onClick={() => setFolderId("root")}
-            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-text2 hover:bg-bg4 hover:text-foreground"
+            className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-text2 transition hover:bg-bg4 hover:text-foreground"
           >
             <Home className="h-3.5 w-3.5" /> Meu Drive
           </button>
@@ -592,66 +727,94 @@ function DistributeTab() {
               <ChevronRight className="h-3 w-3 text-muted2" />
               <button
                 onClick={() => setFolderId(c.id)}
-                className="rounded px-1.5 py-1 text-text2 hover:bg-bg4 hover:text-foreground"
+                className="inline-flex items-center gap-1 rounded px-1.5 py-1 text-text2 transition hover:bg-bg4 hover:text-foreground"
               >
-                {c.name}
+                <Folder className="h-3 w-3" /> {c.name}
               </button>
             </span>
           ))}
         </div>
 
+        {/* Estado */}
         {loading && (
-          <div className="rounded-xl border border-border bg-bg3/40 p-10 text-center text-sm text-text2">
-            <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" /> carregando…
-          </div>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <li
+                key={i}
+                className="flex items-center gap-3 rounded-[10px] border border-border bg-bg3/40 p-2"
+              >
+                <div className="h-14 w-20 flex-shrink-0 animate-pulse rounded-md bg-bg4" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-3/4 animate-pulse rounded bg-bg4" />
+                  <div className="h-2.5 w-1/3 animate-pulse rounded bg-bg4" />
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
         {!loading && error && (
-          <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">
+          <div className="rounded-[10px] border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-300">
             <AlertCircle className="mr-1 inline h-4 w-4" /> {error}
           </div>
         )}
         {!loading && !error && folders.length === 0 && videos.length === 0 && (
-          <div className="rounded-xl border border-border bg-bg3/40 p-10 text-center text-sm text-text2">
+          <div className="rounded-[10px] border border-border bg-bg3/40 p-10 text-center text-sm text-text2">
             Pasta vazia.
           </div>
         )}
-        {!loading && (folders.length > 0 || videos.length > 0) && (
+        {!loading && !error && (folders.length > 0 || videos.length > 0) && (
           <>
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
-              <span className="text-muted2">
-                {selectedVideos.size > 0
-                  ? `${selectedVideos.size} vídeo${selectedVideos.size > 1 ? "s" : ""} selecionado${selectedVideos.size > 1 ? "s" : ""}`
-                  : "Nada selecionado"}
-              </span>
-              <div className="flex items-center gap-2">
-                {videos.length > 0 && (
+            <div className="mb-2 flex flex-wrap items-center justify-end gap-2 text-xs">
+              {videos.length > 0 && (
+                <button
+                  onClick={toggleSelectAllHere}
+                  className="rounded-[8px] border border-border2 bg-bg3 px-2.5 py-1.5 text-text2 transition hover:text-foreground"
+                >
+                  {allCurrentSelected ? "Desmarcar pasta atual" : "Selecionar todos aqui"}
+                </button>
+              )}
+              {selectedVideos.size > 0 &&
+                (confirmClear ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-[8px] border border-red-500/30 bg-red-500/10 px-2 py-1 text-red-300">
+                    Limpar tudo?
+                    <button
+                      onClick={clearSelection}
+                      className="rounded bg-red-500 px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                    >
+                      Sim
+                    </button>
+                    <button
+                      onClick={() => setConfirmClear(false)}
+                      className="rounded px-1.5 py-0.5 text-[10px] text-text2 hover:text-foreground"
+                    >
+                      Não
+                    </button>
+                  </span>
+                ) : (
                   <button
-                    onClick={toggleSelectAllHere}
-                    className="rounded-md border border-border2 bg-bg3 px-2 py-1 text-text2 hover:text-foreground"
+                    onClick={() => setConfirmClear(true)}
+                    className="inline-flex items-center gap-1 rounded-[8px] px-2 py-1 text-text2 transition hover:text-red-300"
                   >
-                    {allCurrentSelected ? "Desmarcar pasta atual" : "Selecionar todos aqui"}
+                    <Trash2 className="h-3.5 w-3.5" /> Limpar
                   </button>
-                )}
-                {selectedVideos.size > 0 && (
-                  <button
-                    onClick={clearSelection}
-                    className="rounded-md px-2 py-1 text-text2 hover:text-foreground"
-                  >
-                    Limpar
-                  </button>
-                )}
-              </div>
+                ))}
             </div>
             <ul className="grid max-h-[460px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
               {folders.map((f) => (
                 <li key={f.id}>
-                  <div className="group flex items-center gap-2 rounded-lg border border-border bg-bg3/60 p-2 transition hover:border-border2">
+                  <div className="group flex items-center gap-2 rounded-[10px] border border-border bg-bg3/60 p-2 transition hover:-translate-y-[1px] hover:border-[var(--accent2)] hover:shadow-md">
                     <button
                       onClick={() => setFolderId(f.id)}
                       className="flex min-w-0 flex-1 items-center gap-3 text-left"
                     >
-                      <div className="flex h-14 w-20 flex-shrink-0 items-center justify-center rounded-md bg-bg4">
-                        <Folder className="h-5 w-5 text-text2" />
+                      <div
+                        className="flex h-14 w-20 flex-shrink-0 items-center justify-center rounded-md"
+                        style={{
+                          background:
+                            "linear-gradient(135deg, color-mix(in oklch, var(--accent2) 20%, #1a1a1a), #111)",
+                        }}
+                      >
+                        <Folder className="h-5 w-5 text-white/80" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{f.name}</div>
@@ -662,7 +825,7 @@ function DistributeTab() {
                       onClick={() => selectEntireFolder(f)}
                       disabled={loadingFolder === f.id}
                       title="Selecionar todos os vídeos desta pasta (recursivo)"
-                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-border2 text-text2 hover:bg-bg4 hover:text-foreground disabled:opacity-50"
+                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-border2 text-text2 transition hover:bg-bg4 hover:text-foreground disabled:opacity-50"
                     >
                       {loadingFolder === f.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -680,32 +843,30 @@ function DistributeTab() {
                     <button
                       onClick={() => toggleVideo(v)}
                       className={[
-                        "group flex w-full items-center gap-3 rounded-lg border p-2 text-left transition",
+                        "group flex w-full items-center gap-3 rounded-[10px] border p-2 text-left transition hover:-translate-y-[1px]",
                         active
-                          ? "border-accent bg-bg3"
+                          ? "border-[var(--accent2)] bg-bg3 shadow-md"
                           : "border-border bg-bg3/60 hover:border-border2",
                       ].join(" ")}
                     >
                       <div className="h-14 w-20 flex-shrink-0 overflow-hidden rounded-md bg-bg4">
-                        {v.thumbnailLink ? (
-                          <img src={v.thumbnailLink} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-muted2">
-                            <ImageIcon className="h-4 w-4" />
-                          </div>
-                        )}
+                        <VideoThumb v={v} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{v.name}</div>
                         <div className="text-xs text-muted2">
                           {v.size ? `${(Number(v.size) / 1024 / 1024).toFixed(1)} MB` : ""}
-                          {v.durationMillis ? ` · ${Math.round(Number(v.durationMillis) / 1000)}s` : ""}
+                          {v.durationMillis
+                            ? ` · ${Math.round(Number(v.durationMillis) / 1000)}s`
+                            : ""}
                         </div>
                       </div>
                       <div
                         className={[
-                          "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border",
-                          active ? "border-accent bg-accent text-white" : "border-border2",
+                          "flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border transition-transform",
+                          active
+                            ? "scale-110 border-[var(--accent2)] bg-[var(--accent2)] text-white"
+                            : "border-border2",
                         ].join(" ")}
                       >
                         {active && <Check className="h-3.5 w-3.5" />}
@@ -719,79 +880,183 @@ function DistributeTab() {
         )}
       </div>
 
-      <div className="space-y-4 min-w-0 rounded-xl border border-border bg-bg3/30 p-4">
+      {/* ===================== DIREITA: Configurações ===================== */}
+      <div className="min-w-0 space-y-6 rounded-[10px] border border-border bg-bg3/30 p-5">
+        {/* --- Contas que recebem --- */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
+              <Users className="h-3.5 w-3.5" /> Contas que recebem
+            </h3>
+            <span
+              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
+              style={{ background: "var(--accent2)" }}
+            >
+              {selectedAccounts.length} de {accounts.length} selecionada{accounts.length === 1 ? "" : "s"}
+            </span>
+          </div>
 
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <h3 className="text-sm font-semibold">Contas que recebem</h3>
+          {/* Chips de selecionadas */}
+          {selectedAccounts.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {selectedAccounts.slice(0, 12).map((id) => {
+                const a = accounts.find((x) => x.id === id);
+                if (!a) return null;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => toggleAccount(id)}
+                    className="group inline-flex items-center gap-1.5 rounded-full border border-border2 bg-bg3 py-0.5 pl-0.5 pr-2 text-[11px] transition hover:border-[var(--accent2)]"
+                  >
+                    <img src={a.profile_picture} alt="" className="h-4 w-4 rounded-full" />
+                    <span>@{a.username}</span>
+                    <X className="h-3 w-3 text-muted2 group-hover:text-red-300" />
+                  </button>
+                );
+              })}
+              {selectedAccounts.length > 12 && (
+                <span className="inline-flex items-center rounded-full bg-bg4 px-2 py-0.5 text-[11px] text-muted2">
+                  +{selectedAccounts.length - 12}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Busca + toggle all */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted2" />
+              <input
+                value={accountFilter}
+                onChange={(e) => setAccountFilter(e.target.value)}
+                placeholder="Buscar conta…"
+                className="w-full rounded-[8px] border border-border2 bg-bg3 py-1.5 pl-7 pr-2 text-xs outline-none focus:border-[var(--accent2)]"
+              />
+            </div>
             <button
               onClick={toggleAllAccounts}
-              className="rounded-md border border-border2 bg-bg3 px-2 py-1 text-xs text-text2 hover:text-foreground"
+              className="rounded-[8px] border border-border2 bg-bg3 px-2 py-1.5 text-[11px] text-text2 transition hover:text-foreground"
             >
               {allAccountsSelected ? "Desmarcar todas" : "Selecionar todas"}
             </button>
           </div>
-          <div className="mb-2 text-xs text-muted2">
-            {selectedAccounts.length} de {accounts.length} selecionada(s)
-          </div>
-          <ul className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
-            {accounts.map((a) => (
-              <li key={a.id}>
-                <label className="flex items-center gap-2 rounded-md border border-border bg-bg3 p-2 text-sm cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedAccounts.includes(a.id)}
-                    onChange={() => toggleAccount(a.id)}
-                    className="accent-accent"
-                  />
-                  <img src={a.profile_picture} alt="" className="h-6 w-6 rounded-full" />
-                  <span className="flex-1">@{a.username}</span>
-                </label>
+
+          <ul className="max-h-[220px] space-y-1.5 overflow-y-auto pr-1">
+            {filteredAccounts.map((a) => {
+              const checked = selectedAccounts.includes(a.id);
+              const lowHealth = (a.health_score ?? 100) < 60;
+              return (
+                <li key={a.id}>
+                  <label
+                    className={[
+                      "flex items-center gap-2 rounded-[8px] border bg-bg3 p-2 text-sm transition cursor-pointer hover:-translate-y-[1px]",
+                      checked ? "border-[var(--accent2)]" : "border-border hover:border-border2",
+                    ].join(" ")}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleAccount(a.id)}
+                      className="h-3.5 w-3.5 accent-[var(--accent2)] transition-transform checked:scale-110"
+                    />
+                    <div className="relative">
+                      <img
+                        src={a.profile_picture}
+                        alt=""
+                        className={[
+                          "h-7 w-7 rounded-full ring-2",
+                          lowHealth ? "ring-red-500/70" : "ring-transparent",
+                        ].join(" ")}
+                      />
+                      {lowHealth && (
+                        <span
+                          title={`Saúde baixa: ${a.health_score}`}
+                          className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 ring-2 ring-bg3"
+                        >
+                          <AlertTriangle className="h-2 w-2 text-white" />
+                        </span>
+                      )}
+                    </div>
+                    <span className="flex-1 truncate">@{a.username}</span>
+                    <span className="text-[10px] tabular-nums text-muted2">{a.health_score}</span>
+                  </label>
+                </li>
+              );
+            })}
+            {filteredAccounts.length === 0 && (
+              <li className="rounded-[8px] border border-border bg-bg3 p-3 text-center text-xs text-muted2">
+                Nenhuma conta corresponde a "{accountFilter}"
               </li>
-            ))}
+            )}
           </ul>
-        </div>
+        </section>
 
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <label className="mb-1 block text-xs uppercase tracking-wider text-muted2">Início</label>
-            <input
-              type="datetime-local"
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-              className="w-full rounded-lg border border-border2 bg-bg3 px-2 py-1.5 text-sm outline-none focus:border-accent"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs uppercase tracking-wider text-muted2" title="Intervalo entre ciclos (cada vídeo)">
-              Ciclo (min)
-            </label>
-            <input
-              type="number"
-              min={1}
-              value={gap}
-              onChange={(e) => setGap(Number(e.target.value))}
-              className="w-full rounded-lg border border-border2 bg-bg3 px-2 py-1.5 text-sm outline-none focus:border-accent"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs uppercase tracking-wider text-muted2" title="Variação ± aplicada entre contas dentro do mesmo ciclo">
-              Jitter (±min)
-            </label>
-            <input
-              type="number"
-              min={0}
-              value={jitter}
-              onChange={(e) => setJitter(Number(e.target.value))}
-              className="w-full rounded-lg border border-border2 bg-bg3 px-2 py-1.5 text-sm outline-none focus:border-accent"
-            />
-        </div>
+        <div className="border-t border-border/60" />
 
-        <div>
-          <label className="mb-1.5 block text-xs uppercase tracking-wider text-muted2">
-            Ordem dos vídeos
-          </label>
-          <div className="grid grid-cols-2 gap-1 rounded-lg border border-border2 bg-bg3 p-1">
+        {/* --- Configuração de tempo --- */}
+        <section className="space-y-3">
+          <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
+            <Clock className="h-3.5 w-3.5" /> Configuração de tempo
+          </h3>
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <label className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted2">
+                <CalendarDays className="h-3 w-3" /> Início
+              </label>
+              <input
+                type="datetime-local"
+                value={start}
+                onChange={(e) => setStart(e.target.value)}
+                className={[
+                  "w-full rounded-[8px] border bg-bg3 px-2 py-1.5 text-xs outline-none focus:border-[var(--accent2)]",
+                  startInPast ? "border-red-500/60" : "border-border2",
+                ].join(" ")}
+              />
+              {startInPast && (
+                <p className="mt-1 text-[10px] text-red-400">data no passado</p>
+              )}
+            </div>
+            <div>
+              <label
+                className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted2"
+                title="Intervalo entre ciclos (cada vídeo)"
+              >
+                <Clock className="h-3 w-3" /> Ciclo (min)
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={gap}
+                onChange={(e) => setGap(Number(e.target.value))}
+                className="w-full rounded-[8px] border border-border2 bg-bg3 px-2 py-1.5 text-xs outline-none focus:border-[var(--accent2)]"
+              />
+            </div>
+            <div>
+              <label
+                className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted2"
+                title="Variação ± aplicada entre contas dentro do mesmo ciclo"
+              >
+                <Shuffle className="h-3 w-3" /> Jitter (±min)
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={jitter}
+                onChange={(e) => setJitter(Number(e.target.value))}
+                className="w-full rounded-[8px] border border-border2 bg-bg3 px-2 py-1.5 text-xs outline-none focus:border-[var(--accent2)]"
+              />
+            </div>
+          </div>
+        </section>
+
+        <div className="border-t border-border/60" />
+
+        {/* --- Ordem dos vídeos --- */}
+        <section className="space-y-2">
+          <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
+            <Shuffle className="h-3.5 w-3.5" /> Ordem dos vídeos
+          </h3>
+          <div className="grid grid-cols-2 gap-1 rounded-full border border-border2 bg-bg3 p-1">
             {([
               { id: "sequential", label: "Sequencial" },
               { id: "random", label: "Aleatória" },
@@ -802,93 +1067,190 @@ function DistributeTab() {
                   key={opt.id}
                   onClick={() => setOrder(opt.id)}
                   className={[
-                    "rounded-md px-3 py-1.5 text-xs font-medium transition",
-                    active
-                      ? "bg-accent text-white shadow"
-                      : "text-text2 hover:text-foreground",
+                    "rounded-full px-3 py-1.5 text-xs font-medium transition",
+                    active ? "text-white shadow" : "text-text2 hover:text-foreground",
                   ].join(" ")}
+                  style={active ? { background: "var(--accent2)" } : undefined}
                 >
                   {opt.label}
                 </button>
               );
             })}
           </div>
-          <p className="mt-1 text-[11px] text-muted2">
+          <p className="text-[11px] text-muted2">
             {order === "random"
               ? "Cada conta recebe os vídeos em ordem embaralhada."
               : "Todas as contas seguem a mesma ordem de seleção."}
           </p>
-        </div>
+        </section>
 
-        </div>
+        <div className="border-t border-border/60" />
 
-        <div>
-          <label className="mb-1 block text-xs uppercase tracking-wider text-muted2">Legenda base</label>
+        {/* --- Legenda base --- */}
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
+              <Wand2 className="h-3.5 w-3.5" /> Legenda base
+            </h3>
+            <span
+              className={[
+                "text-[10px] tabular-nums",
+                caption.length > CAPTION_MAX ? "text-red-400" : "text-muted2",
+              ].join(" ")}
+            >
+              {caption.length}/{CAPTION_MAX}
+            </span>
+          </div>
           <textarea
             rows={3}
             value={caption}
+            maxLength={CAPTION_MAX}
             onChange={(e) => setCaption(e.target.value)}
-            placeholder="novo drop ✦"
-            className="w-full resize-y rounded-lg border border-border2 bg-bg3 p-2 text-sm outline-none focus:border-accent"
+            placeholder="novo drop ✦ #reels"
+            className="w-full resize-y rounded-[8px] border border-border2 bg-bg3 p-2 text-sm outline-none focus:border-[var(--accent2)]"
           />
-        </div>
+          <div className="flex flex-wrap gap-1">
+            {["✨", "🔥", "💫", "🎯", "🚀", "❤️", "👀", "✦"].map((e) => (
+              <button
+                key={e}
+                type="button"
+                onClick={() => setCaption((c) => (c + " " + e).trim().slice(0, CAPTION_MAX))}
+                className="rounded-md border border-border2 bg-bg3 px-2 py-0.5 text-sm transition hover:-translate-y-[1px] hover:border-[var(--accent2)]"
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </section>
 
-        <div className="space-y-2">
+        <div className="border-t border-border/60" />
+
+        {/* --- Ação principal --- */}
+        <section className="space-y-2">
           <button
             onClick={enqueueAll}
-            disabled={enqueueing || !selectedList.length || !selectedAccounts.length}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!canEnqueue}
+            title={disabledReason || undefined}
+            className={[
+              "inline-flex w-full items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-semibold text-white shadow transition",
+              enqueueOk
+                ? "bg-emerald-500 hover:bg-emerald-500/90"
+                : "bg-[var(--accent2)] hover:opacity-90",
+              !canEnqueue ? "cursor-not-allowed opacity-50" : "",
+            ].join(" ")}
           >
             {enqueueing ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" /> Agendando…
               </>
+            ) : enqueueOk ? (
+              <>
+                <CheckCircle2 className="h-4 w-4" /> Agendado com sucesso!
+              </>
             ) : (
               <>
-                <Wand2 className="h-4 w-4" /> Agendar nas contas selecionadas
+                <CalendarPlus className="h-4 w-4" /> Agendar nas contas selecionadas
               </>
             )}
           </button>
+
+          {/* Preview inline */}
+          {previewVideos > 0 && previewAccounts > 0 && (
+            <div className="rounded-[8px] border border-dashed border-border bg-bg3/40 px-3 py-2 text-[11px] text-text2">
+              <span className="font-semibold text-foreground">
+                {previewAccounts} conta{previewAccounts === 1 ? "" : "s"} × {previewVideos} vídeo{previewVideos === 1 ? "" : "s"}
+              </span>{" "}
+              → próxima postagem em{" "}
+              <span className="font-medium text-foreground">{fmtPreview()}</span>, ciclo de{" "}
+              <span className="font-medium text-foreground">{gap}</span> ±{" "}
+              <span className="font-medium text-foreground">{jitter}</span> min
+            </div>
+          )}
+
           {enqueueMsg && (
-            <div className="rounded-md border border-border bg-bg3 px-3 py-2 text-xs text-text2">
+            <div
+              className={[
+                "rounded-[8px] border px-3 py-2 text-xs",
+                enqueueOk
+                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                  : "border-border bg-bg3 text-text2",
+              ].join(" ")}
+            >
               {enqueueMsg}
             </div>
           )}
+
+          {!canEnqueue && missing.length > 0 && (
+            <p className="text-[11px] text-amber-400/80">{disabledReason}</p>
+          )}
+
           <p className="text-[11px] text-muted2">
             Cada vídeo vira um ciclo: todas as contas selecionadas postam o mesmo vídeo dentro
-            de uma janela de ±{jitter}min, e o próximo ciclo começa {gap}min depois. Após o
-            agendamento, você é levado direto para a Fila.
+            de uma janela de ±{jitter}min, e o próximo ciclo começa {gap}min depois.
           </p>
-        </div>
+        </section>
 
-        <div>
+        <div className="border-t border-border/60" />
+
+        {/* --- Comando local --- */}
+        <section>
           <div className="mb-1 flex items-center justify-between">
-            <label className="text-xs uppercase tracking-wider text-muted2">
-              Comando local (avançado · gera variantes únicas com ffmpeg)
+            <label className="text-[10px] uppercase tracking-wider text-muted2">
+              Comando local (avançado · ffmpeg)
             </label>
             {command && (
               <button
                 onClick={copy}
-                className="inline-flex items-center gap-1 text-xs text-text2 hover:text-foreground"
+                className={[
+                  "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] transition",
+                  copied
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                    : "border-border2 bg-bg3 text-text2 hover:text-foreground",
+                ].join(" ")}
               >
-                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {copied ? "copiado" : "copiar"}
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied ? "Copiado!" : "Copiar"}
               </button>
             )}
           </div>
-          <pre className="overflow-x-auto rounded-lg border border-border bg-bg4 p-3 text-[11px] leading-relaxed text-text2">
-{command || "Selecione ao menos um vídeo do Drive e uma conta."}
+          <pre className="overflow-x-auto rounded-[10px] border border-border bg-[#0a0a0a] p-3 text-[11px] leading-relaxed">
+            <code className="text-text2">
+              {command ? (
+                command.split("\n").map((line, i) => {
+                  // pseudo syntax-highlight
+                  if (line.trim().startsWith("bun")) {
+                    return (
+                      <div key={i}>
+                        <span className="text-[var(--accent2)]">bun</span>{" "}
+                        <span className="text-sky-400">scripts/distribute-reel.ts</span>{" "}
+                        <span className="text-muted2">\</span>
+                      </div>
+                    );
+                  }
+                  const flagMatch = line.match(/^(\s*--[\w-]+)(.*)$/);
+                  if (flagMatch) {
+                    return (
+                      <div key={i}>
+                        <span className="text-amber-300">{flagMatch[1]}</span>
+                        <span>{flagMatch[2]}</span>
+                      </div>
+                    );
+                  }
+                  return <div key={i}>{line}</div>;
+                })
+              ) : (
+                <span className="text-muted2">
+                  Selecione ao menos um vídeo do Drive e uma conta.
+                </span>
+              )}
+            </code>
           </pre>
-          <p className="mt-2 text-xs text-muted2">
-            Rode esse comando no seu PC (precisa de <code className="rounded bg-bg4 px-1">ffmpeg</code> +{" "}
-            <code className="rounded bg-bg4 px-1">bun</code>). Gera 1 variante única por conta — metadados
-            zerados, re-encode + micro-ajustes visuais — sobe ao R2 e enfileira.
-          </p>
-        </div>
+        </section>
       </div>
     </div>
   );
 }
+
 
 // =====================================================================
 // Rate Limit — defaults documentados da Meta + sliders globais (localStorage)
