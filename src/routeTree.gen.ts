@@ -30,6 +30,7 @@ import { Route as ApiAuthInstagramRouteImport } from './routes/api/auth.instagra
 import { Route as ApiAuthCallbackIgRouteImport } from './routes/api/auth.callback-ig'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth.callback'
 import { Route as ApiAccountsIdRouteImport } from './routes/api/accounts.$id'
+import { Route as ApiPublicDriveIdRouteImport } from './routes/api/public/drive.$id'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -135,6 +136,11 @@ const ApiAccountsIdRoute = ApiAccountsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiAccountsRoute,
 } as any)
+const ApiPublicDriveIdRoute = ApiPublicDriveIdRouteImport.update({
+  id: '/api/public/drive/$id',
+  path: '/api/public/drive/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -157,6 +163,7 @@ export interface FileRoutesByFullPath {
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
+  '/api/public/drive/$id': typeof ApiPublicDriveIdRoute
 }
 export interface FileRoutesByTo {
   '/accounts': typeof AppAccountsRoute
@@ -179,6 +186,7 @@ export interface FileRoutesByTo {
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
+  '/api/public/drive/$id': typeof ApiPublicDriveIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -203,6 +211,7 @@ export interface FileRoutesById {
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
+  '/api/public/drive/$id': typeof ApiPublicDriveIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -227,6 +236,7 @@ export interface FileRouteTypes {
     | '/api/media/upload'
     | '/api/queue/$id'
     | '/api/queue/clear'
+    | '/api/public/drive/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/accounts'
@@ -249,6 +259,7 @@ export interface FileRouteTypes {
     | '/api/media/upload'
     | '/api/queue/$id'
     | '/api/queue/clear'
+    | '/api/public/drive/$id'
   id:
     | '__root__'
     | '/_app'
@@ -272,6 +283,7 @@ export interface FileRouteTypes {
     | '/api/media/upload'
     | '/api/queue/$id'
     | '/api/queue/clear'
+    | '/api/public/drive/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -285,6 +297,7 @@ export interface RootRouteChildren {
   ApiAuthInstagramRoute: typeof ApiAuthInstagramRoute
   ApiCronTickRoute: typeof ApiCronTickRoute
   ApiMediaUploadRoute: typeof ApiMediaUploadRoute
+  ApiPublicDriveIdRoute: typeof ApiPublicDriveIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -436,6 +449,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAccountsIdRouteImport
       parentRoute: typeof ApiAccountsRoute
     }
+    '/api/public/drive/$id': {
+      id: '/api/public/drive/$id'
+      path: '/api/public/drive/$id'
+      fullPath: '/api/public/drive/$id'
+      preLoaderRoute: typeof ApiPublicDriveIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -510,6 +530,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthInstagramRoute: ApiAuthInstagramRoute,
   ApiCronTickRoute: ApiCronTickRoute,
   ApiMediaUploadRoute: ApiMediaUploadRoute,
+  ApiPublicDriveIdRoute: ApiPublicDriveIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

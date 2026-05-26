@@ -3,17 +3,36 @@
 
 import { db } from "./db.server";
 import { instagram } from "./instagram.server";
-import { hasDb } from "./cf.server";
+import { hasDb, env } from "./cf.server";
 
 // URL pública dos arquivos no R2 (Public Access ativado no bucket insta-media).
-// Trocar por custom domain quando configurado.
 export const R2_PUBLIC_BASE = "https://pub-5fcd7291327547a084c1e911d5141d6f.r2.dev";
 
-export function publicMediaUrl(key: string): string {
+/**
+ * Resolve a URL pública que a Instagram Graph API vai baixar.
+ *
+ * - `drive:<fileId>`  → proxy público do worker: /api/public/drive/<fileId>
+ *   (precisa de `baseUrl` ou env `PUBLIC_BASE_URL`)
+ * - qualquer outra    → R2 público
+ */
+export function publicMediaUrl(key: string, baseUrl?: string): string {
+  if (key.startsWith("drive:")) {
+    const fileId = key.slice("drive:".length);
+    const origin = (baseUrl ?? env.PUBLIC_BASE_URL ?? "").replace(/\/$/, "");
+    if (!origin) {
+      throw new Error(
+        "PUBLIC_BASE_URL não configurado — defina a URL pública do worker para servir vídeos do Drive à Instagram",
+      );
+    }
+    return `${origin}/api/public/drive/${fileId}`;
+  }
   return `${R2_PUBLIC_BASE}/${key}`;
 }
 
-export async function runScheduler(now = new Date()): Promise<{ processed: number; errors: number }> {
+export async function runScheduler(
+  now: Date = new Date(),
+  opts: { baseUrl?: string } = {},
+): Promise<{ processed: number; errors: number }> {
   if (!hasDb()) return { processed: 0, errors: 0 };
 
   const due = await db.dueQueueItems(now.toISOString());
@@ -28,11 +47,13 @@ export async function runScheduler(now = new Date()): Promise<{ processed: numbe
         throw new Error("Conta sem ig_user_id ou access_token");
       }
 
+      const mediaUrl = publicMediaUrl(item.media_key, opts.baseUrl);
+
       const result = await instagram.publish({
         igUserId: account.ig_user_id,
         accessToken: account.access_token,
         mediaType: item.media_type,
-        mediaUrl: publicMediaUrl(item.media_key),
+        mediaUrl,
         caption: item.caption,
       });
 
@@ -49,7 +70,7 @@ export async function runScheduler(now = new Date()): Promise<{ processed: numbe
         caption: item.caption,
         media_type: item.media_type,
         permalink: result.permalink ?? null,
-        thumb_url: item.thumb_key ? publicMediaUrl(item.thumb_key) : null,
+        thumb_url: item.thumb_key ? publicMediaUrl(item.thumb_key, opts.baseUrl) : null,
         published_at: new Date().toISOString(),
       });
 
@@ -64,3 +85,4 @@ export async function runScheduler(now = new Date()): Promise<{ processed: numbe
 
   return { processed, errors };
 }
+
