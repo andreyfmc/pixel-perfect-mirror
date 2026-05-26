@@ -354,5 +354,18 @@ export async function runScheduler(
     console.warn("[scheduler] varredura de refresh falhou:", err);
   }
 
+  // Processa variantes pendentes (1 por tick — cada build pode consumir
+  // boa parte do orçamento de CPU do Worker).
+  try {
+    const pending = await db.listPendingVariantItems(1);
+    for (const item of pending) {
+      console.log(`[scheduler] gerando variante queue=${item.id}`);
+      const r = await buildVariantFor(item.id);
+      if (!r.ok) console.warn(`[scheduler] variante falhou queue=${item.id}: ${r.error}`);
+    }
+  } catch (err) {
+    console.warn("[scheduler] build de variantes falhou:", err);
+  }
+
   return { processed, errors };
 }
