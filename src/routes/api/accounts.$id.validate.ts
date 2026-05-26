@@ -100,6 +100,7 @@ export const Route = createFileRoute("/api/accounts/$id/validate")({
                 healed: true,
               });
             }
+            await db.markAccountNeedsReconnect(params.id);
           }
           if (err instanceof InstagramGraphError) {
             const needsReconnect = isInvalidAccessTokenError(err);
