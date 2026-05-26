@@ -965,8 +965,9 @@ function DistributeTab() {
             </div>
           )}
           <p className="text-[11px] text-muted2">
-            Cria 1 item na fila por conta × vídeo selecionado, espaçado pelo gap. As publicações
-            ocorrem no horário agendado pelo scheduler do servidor.
+            Cada vídeo vira um ciclo: todas as contas selecionadas postam o mesmo vídeo dentro
+            de uma janela de ±{jitter}min, e o próximo ciclo começa {gap}min depois. Após o
+            agendamento, você é levado direto para a Fila.
           </p>
         </div>
 
