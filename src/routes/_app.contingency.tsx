@@ -616,6 +616,212 @@ function ExpandedHistory({ id }: { id: string }) {
   );
 }
 
+// =====================  Mobile pieces  =====================
+
+function hapticTap() {
+  try { if (typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate(50); } catch { /* noop */ }
+}
+
+function CopyButton({
+  getValue, label, className, children,
+}: {
+  getValue: () => string;
+  label: string;
+  className?: string;
+  children?: React.ReactNode;
+}) {
+  const [done, setDone] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        const v = getValue();
+        if (!v) { toast.error(`${label} vazio`); return; }
+        navigator.clipboard.writeText(v);
+        hapticTap();
+        setDone(true);
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => setDone(false), 1500);
+      }}
+      className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium transition-colors active:scale-[0.97] ${
+        done
+          ? "border-success bg-success/15 text-success"
+          : "border-border bg-bg3 text-text hover:border-border2"
+      } ${className ?? ""}`}
+      aria-label={`Copiar ${label}`}
+    >
+      {done ? <>✓ Copiado!</> : (children ?? <><Copy className="h-4 w-4" /> Copiar</>)}
+    </button>
+  );
+}
+
+function MobileTotp({ secret, privateMode }: { secret: string; privateMode: boolean }) {
+  const [code, setCode] = useState("------");
+  const [left, setLeft] = useState(30);
+  useEffect(() => {
+    let mounted = true;
+    const tick = async () => {
+      if (!secret) { setCode("------"); setLeft(30); return; }
+      const c = await generateTOTP(secret);
+      if (mounted) { setCode(c); setLeft(totpSecondsRemaining(30)); }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => { mounted = false; clearInterval(id); };
+  }, [secret]);
+  const danger = left <= 5;
+  const display = privateMode ? "••• •••" : `${code.slice(0, 3)} ${code.slice(3)}`;
+  const pct = (left / 30) * 100;
+  return (
+    <div>
+      <div
+        className={`font-mono tabular-nums text-[32px] leading-none tracking-[0.15em] ${
+          danger ? "text-danger animate-pulse" : "text-text"
+        }`}
+      >
+        {display}
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-bg3">
+          <div
+            className="h-full transition-all"
+            style={{ width: `${pct}%`, background: danger ? "var(--danger)" : "var(--accent2)" }}
+          />
+        </div>
+        <span className={`shrink-0 text-[11px] tabular-nums ${danger ? "text-danger" : "text-muted2"}`}>{left}s</span>
+      </div>
+    </div>
+  );
+}
+
+function MobileCard({
+  a, privateMode, onPatch, onRemove, onActivate, onCopyAll,
+}: {
+  a: ContingencyAccount;
+  privateMode: boolean;
+  onPatch: (p: Partial<ContingencyAccount>) => void;
+  onRemove: () => void;
+  onActivate: () => void;
+  onCopyAll: () => void;
+}) {
+  const [reveal, setReveal] = useState(false);
+  const ctype = a.connection_type ?? "instagram";
+  const statusMeta = STATUS_META[a.status];
+  return (
+    <div className="rounded-xl border border-border bg-bg2 p-3 shadow-sm">
+      {/* header */}
+      <div className="mb-3 flex items-center gap-2">
+        <TypeToggle type={ctype} onChange={(t) => onPatch({ connection_type: t })} />
+        <span className="truncate font-mono text-[14px] font-medium">
+          @{a.username || <span className="text-muted2">sem nome</span>}
+        </span>
+        <span
+          className="ml-auto rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+          style={{ background: `color-mix(in oklab, ${statusMeta.color} 18%, transparent)`, color: statusMeta.color }}
+        >
+          {statusMeta.label}
+        </span>
+      </div>
+
+      {/* username */}
+      <div className="mb-3">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted2">Usuário</p>
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1 truncate rounded-lg border border-border bg-bg3 px-3 py-2 font-mono text-[14px]">
+            {a.username || <span className="text-muted2">—</span>}
+          </div>
+          <CopyButton getValue={() => a.username.replace(/^@/, "")} label="usuário" />
+        </div>
+      </div>
+
+      {/* password */}
+      <div className="mb-3">
+        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted2">Senha</p>
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1 truncate rounded-lg border border-border bg-bg3 px-3 py-2 font-mono text-[14px]">
+            {a.password
+              ? (privateMode || !reveal ? "••••••••••" : a.password)
+              : <span className="text-muted2">—</span>}
+          </div>
+          {!privateMode && a.password && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setReveal((v) => !v); }}
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-border bg-bg3 text-muted2 active:scale-[0.97]"
+              aria-label={reveal ? "Ocultar senha" : "Mostrar senha"}
+            >
+              {reveal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          )}
+          <CopyButton getValue={() => a.password} label="senha" />
+        </div>
+      </div>
+
+      {/* 2fa */}
+      {a.totp_secret && (
+        <div className="mb-3 rounded-lg border border-border bg-bg3 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted2">Código 2FA atual</p>
+            <button
+              type="button"
+              onClick={async (e) => {
+                e.stopPropagation();
+                const code = await generateTOTP(a.totp_secret);
+                navigator.clipboard.writeText(code);
+                hapticTap();
+                toast.success("Código 2FA copiado");
+              }}
+              className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border border-border bg-bg2 px-3 text-[13px] font-medium hover:border-border2 active:scale-[0.97]"
+            >
+              <Copy className="h-4 w-4" /> Copiar
+            </button>
+          </div>
+          <MobileTotp secret={a.totp_secret} privateMode={privateMode} />
+        </div>
+      )}
+
+      {/* actions */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onActivate}
+          className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-3 text-sm font-medium text-accent2 active:scale-[0.98]"
+        >
+          <Zap className="h-4 w-4" /> Ativar
+        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-lg border border-border bg-bg3 text-muted2 active:scale-[0.97]"
+              aria-label="Mais ações"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={onCopyAll}><Copy className="mr-2 h-3.5 w-3.5" /> Copiar tudo</DropdownMenuItem>
+            {(Object.keys(STATUS_META) as ContingencyStatus[]).map((s) => (
+              <DropdownMenuItem key={s} onClick={() => onPatch({ status: s })}>
+                <span className="mr-2" style={{ color: STATUS_META[s].color }}>●</span>
+                {STATUS_META[s].label}
+              </DropdownMenuItem>
+            ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => { if (confirm(`Excluir @${a.username}?`)) onRemove(); }}
+              className="text-danger focus:text-danger"
+            >
+              <Trash2 className="mr-2 h-3.5 w-3.5" /> Excluir
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+}
+
 // =====================  page  =====================
 
 function ContingencyPage() {
@@ -771,13 +977,13 @@ function ContingencyPage() {
         </div>
         <button
           onClick={() => setPrivateMode((v) => !v)}
-          className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors ${
+          className={`inline-flex min-h-[44px] w-full shrink-0 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition-colors sm:w-auto sm:min-h-0 sm:px-3 sm:py-2 sm:text-xs ${
             privateMode ? "border-accent bg-accent/15 text-accent2" : "border-border bg-bg3 hover:border-border2"
           }`}
-          title="Oculta senhas e tokens. Persistente."
+          title="Oculta senhas e tokens. Os botões 'Copiar' continuam funcionando."
         >
-          {privateMode ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
-          Modo privado {privateMode ? "ativo" : ""}
+          {privateMode ? <Lock className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> : <Unlock className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
+          Modo privado{privateMode ? " ativo" : ""}
         </button>
       </header>
 
@@ -912,12 +1118,20 @@ function ContingencyPage() {
       </div>
 
       {/* search + filters compact */}
-      <div className="mb-3 grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
-        <div className="flex h-9 items-center gap-2 rounded-lg border border-border bg-bg2 px-3">
+      <div className="sticky top-0 z-20 -mx-4 mb-3 grid gap-2 bg-bg/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:static md:mx-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none md:grid-cols-[1fr_auto_auto_auto]">
+        <div className="flex h-11 items-center gap-2 rounded-lg border border-border bg-bg2 px-3 md:h-9">
           <Search className="h-4 w-4 text-muted2" />
           <input value={query} onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por username..."
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted2" />
+            className="flex-1 bg-transparent text-base outline-none placeholder:text-muted2 md:text-sm" />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted2 hover:bg-bg3 hover:text-text"
+              aria-label="Limpar busca"
+            >✕</button>
+          )}
         </div>
         <select
           value={statusFilter}
@@ -960,32 +1174,50 @@ function ContingencyPage() {
           </p>
         </div>
       ) : (
-        <div className="im-card overflow-x-auto">
-          <div className="min-w-[1000px]">
-            {filtered.map((a, i) => (
-              <Row
+        <>
+          {/* Mobile: stacked cards */}
+          <div className="space-y-2 md:hidden">
+            {filtered.map((a) => (
+              <MobileCard
                 key={a.id}
                 a={a}
-                idx={i}
                 privateMode={privateMode}
-                expanded={expanded.has(a.id)}
-                onToggleExpand={() => toggleExpand(a.id)}
                 onPatch={(p) => patch(a.id, p)}
                 onRemove={() => removeOne(a.id)}
-                onCopyAll={() => copyFullCreds(a)}
                 onActivate={() => { setActivateAccount(a); setActivateOpen(true); }}
-                onReveal={() => { setRevealAccount(a); setRevealOpen(true); }}
-                selectMode={selectMode}
-                selected={selected.has(a.id)}
-                onSelectChange={(v) => {
-                  const next = new Set(selected);
-                  if (v) next.add(a.id); else next.delete(a.id);
-                  setSelected(next);
-                }}
+                onCopyAll={() => copyFullCreds(a)}
               />
             ))}
           </div>
-        </div>
+
+          {/* Desktop: table */}
+          <div className="im-card hidden overflow-x-auto md:block">
+            <div className="min-w-[1000px]">
+              {filtered.map((a, i) => (
+                <Row
+                  key={a.id}
+                  a={a}
+                  idx={i}
+                  privateMode={privateMode}
+                  expanded={expanded.has(a.id)}
+                  onToggleExpand={() => toggleExpand(a.id)}
+                  onPatch={(p) => patch(a.id, p)}
+                  onRemove={() => removeOne(a.id)}
+                  onCopyAll={() => copyFullCreds(a)}
+                  onActivate={() => { setActivateAccount(a); setActivateOpen(true); }}
+                  onReveal={() => { setRevealAccount(a); setRevealOpen(true); }}
+                  selectMode={selectMode}
+                  selected={selected.has(a.id)}
+                  onSelectChange={(v) => {
+                    const next = new Set(selected);
+                    if (v) next.add(a.id); else next.delete(a.id);
+                    setSelected(next);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </>
       )}
 
       <AddAccountModal open={addOpen} onOpenChange={setAddOpen} onSave={handleAdd} />
