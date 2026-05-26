@@ -78,6 +78,7 @@ export type QueueItem = {
   group_scheduled_at?: string | null;
   status: "scheduled" | "processing" | "failed" | "canceled" | "published";
   attempts?: number;
+  retry_count?: number;
   last_error?: string | null;
 };
 
