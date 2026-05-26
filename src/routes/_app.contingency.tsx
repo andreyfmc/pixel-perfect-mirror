@@ -481,6 +481,22 @@ function Row({
         </button>
         <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS_META[a.status].color }} />
 
+        {/* order # */}
+        <input
+          type="number"
+          inputMode="numeric"
+          value={a.order ?? ""}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => {
+            const v = e.target.value;
+            onPatch({ order: v === "" ? undefined : Number(v) });
+          }}
+          placeholder="#"
+          aria-label="Número"
+          className="h-7 w-12 shrink-0 rounded-md border border-border bg-bg3 px-1 text-center font-mono text-[12px] tabular-nums outline-none focus:border-accent"
+        />
+
+
         {/* username */}
         <div className="flex w-48 min-w-0 shrink-0 items-center gap-1.5">
           <TypeToggle type={ctype} onChange={(t) => onPatch({ connection_type: t })} />
