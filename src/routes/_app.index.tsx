@@ -289,7 +289,7 @@ function Dashboard() {
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Visão geral</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl">
-            {greet()}. {subtitle}
+            {greeting}. {subtitle}
           </h1>
         </div>
         <Link
