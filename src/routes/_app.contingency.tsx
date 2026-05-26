@@ -351,7 +351,7 @@ function ContingencyPage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1400px] px-5 py-8 md:px-10">
+    <div className="mx-auto max-w-[1400px] px-4 py-5 sm:px-6 sm:py-7 md:px-10 md:py-8">
       <header className="mb-5">
         <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Contingência</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight">Estoque de contas de backup</h1>
