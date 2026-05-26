@@ -813,7 +813,8 @@ function DistributeTab() {
         )}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 min-w-0 rounded-xl border border-border bg-bg3/30 p-4">
+
         <div>
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-sm font-semibold">Contas que recebem</h3>
