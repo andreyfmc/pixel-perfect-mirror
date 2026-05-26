@@ -190,6 +190,7 @@ export function fromCSV(text: string): ContingencyAccount[] {
   const iStatus = idx("status");
   const iQuality = idx("quality") >= 0 ? idx("quality") : idx("qualidade");
   const iNotes = idx("notes") >= 0 ? idx("notes") : idx("notas");
+  const iType = idx("tipo") >= 0 ? idx("tipo") : idx("connection_type") >= 0 ? idx("connection_type") : idx("type");
 
   const normStatus = (s: string): ContingencyStatus => {
     const v = s.trim().toLowerCase();
@@ -203,6 +204,11 @@ export function fromCSV(text: string): ContingencyAccount[] {
     if (v.startsWith("m")) return "media";
     if (v.startsWith("r")) return "ruim";
     return "boa";
+  };
+  const normType = (s: string): ConnectionType => {
+    const v = (s ?? "").trim().toLowerCase();
+    if (v.startsWith("f") || v.includes("face")) return "facebook";
+    return "instagram";
   };
 
   const out: ContingencyAccount[] = [];
@@ -218,6 +224,7 @@ export function fromCSV(text: string): ContingencyAccount[] {
         status: iStatus >= 0 ? normStatus(cells[iStatus] ?? "") : "em_edicao",
         quality: iQuality >= 0 ? normQuality(cells[iQuality] ?? "") : "boa",
         notes: iNotes >= 0 ? cells[iNotes] ?? "" : "",
+        connection_type: iType >= 0 ? normType(cells[iType] ?? "") : "instagram",
       }),
     );
   }
