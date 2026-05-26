@@ -146,6 +146,15 @@ export function getInstagramClientSecret() {
   return env.META_IG_APP_SECRET ?? env.IG_APP_SECRET;
 }
 
+export function inferGraphProviderFromToken(
+  accessToken?: string | null,
+  fallback: GraphHostId = "facebook",
+): GraphHostId {
+  if (/^IG/i.test(accessToken ?? "")) return "instagram";
+  if (/^EA/i.test(accessToken ?? "")) return "facebook";
+  return fallback;
+}
+
 export type PublishInput = {
   igUserId: string;
   accessToken: string;
