@@ -1056,8 +1056,13 @@ function QueuePage() {
                     <button
                       type="button"
                       onClick={() => toggleExpand(group.id)}
-                      className="flex w-full items-center gap-3 px-3 py-2 text-left"
+                      className="flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left"
                     >
+                      <ChevronRight
+                        className={`h-4 w-4 shrink-0 text-muted2 transition-transform duration-200 ${
+                          isOpen ? "rotate-90" : ""
+                        }`}
+                      />
                       <Thumb src={group.thumb} type={group.mediaType} size="sm" />
                       <TypeBadge type={group.mediaType} />
                       <span className="min-w-0 flex-1 truncate text-sm">
@@ -1072,20 +1077,32 @@ function QueuePage() {
                       <span className="hidden whitespace-nowrap text-xs text-muted2 sm:inline tabular-nums">
                         {timeHHmm(group.scheduledAt)}
                       </span>
-                      {isOpen ? (
-                        <ChevronDown className="h-4 w-4 shrink-0 text-muted2" />
-                      ) : (
-                        <ChevronRight className="h-4 w-4 shrink-0 text-muted2" />
-                      )}
                     </button>
                   ) : (
                     /* ============= EXPANDED MODE ============= */
-                    <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-start">
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => toggleExpand(group.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleExpand(group.id);
+                        }
+                      }}
+                      className="flex cursor-pointer flex-col gap-3 p-3 lg:flex-row lg:items-start"
+                    >
                       <div className="flex items-start gap-3 lg:min-w-0 lg:flex-1">
+                        <ChevronRight
+                          className={`mt-1 h-4 w-4 shrink-0 text-muted2 transition-transform duration-200 ${
+                            isOpen ? "rotate-90" : ""
+                          }`}
+                        />
                         <input
                           type="checkbox"
                           checked={isGroupSelected}
                           onChange={() => toggleIds(groupIds)}
+                          onClick={(e) => e.stopPropagation()}
                           className="mt-1 accent-accent"
                           aria-label="Selecionar grupo"
                         />
@@ -1126,17 +1143,7 @@ function QueuePage() {
                             </p>
                           )}
                           <div className="mt-2 flex items-center gap-2">
-                            <AvatarStack
-                              accounts={group.accounts}
-                              onClick={() => toggleExpand(group.id)}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => toggleExpand(group.id)}
-                              className="text-[11px] font-medium text-text2 hover:text-foreground"
-                            >
-                              {isOpen ? "ocultar contas" : "ver contas"}
-                            </button>
+                            <AvatarStack accounts={group.accounts} />
                           </div>
                         </div>
                       </div>
@@ -1148,64 +1155,72 @@ function QueuePage() {
                             {fmtDateTime(group.scheduledAt)}
                           </div>
                         </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              className="rounded-lg p-2 text-muted2 hover:bg-bg3 hover:text-foreground"
-                              aria-label="Ações"
-                            >
-                              <MoreHorizontal className="h-4 w-4" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-52">
-                            <DropdownMenuItem onSelect={() => toggleIds(groupIds)}>
-                              <CheckCircle2 className="mr-2 h-4 w-4" />{" "}
-                              {isGroupSelected ? "Desmarcar grupo" : "Selecionar grupo"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                runBulk(
-                                  "Pausando",
-                                  (id) => api.updateQueueStatus(id, "canceled"),
-                                  groupIds,
-                                )
-                              }
-                            >
-                              <Pause className="mr-2 h-4 w-4" /> Pausar grupo
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                runBulk(
-                                  "Retomando",
-                                  (id) => api.updateQueueStatus(id, "scheduled"),
-                                  groupIds,
-                                )
-                              }
-                            >
-                              <Play className="mr-2 h-4 w-4" /> Retomar grupo
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onSelect={() => publishSelectedNow(groupIds)}>
-                              <Zap className="mr-2 h-4 w-4" /> Tentar agora
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-danger focus:text-danger"
-                              onSelect={() => {
-                                if (!confirm("Remover este grupo da fila?")) return;
-                                runBulk("Removendo", (id) => api.deleteQueue(id), groupIds);
-                              }}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" /> Remover grupo
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                className="rounded-lg p-2 text-muted2 hover:bg-bg3 hover:text-foreground"
+                                aria-label="Ações"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                              <DropdownMenuItem onSelect={() => toggleIds(groupIds)}>
+                                <CheckCircle2 className="mr-2 h-4 w-4" />{" "}
+                                {isGroupSelected ? "Desmarcar grupo" : "Selecionar grupo"}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  runBulk(
+                                    "Pausando",
+                                    (id) => api.updateQueueStatus(id, "canceled"),
+                                    groupIds,
+                                  )
+                                }
+                              >
+                                <Pause className="mr-2 h-4 w-4" /> Pausar grupo
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onSelect={() =>
+                                  runBulk(
+                                    "Retomando",
+                                    (id) => api.updateQueueStatus(id, "scheduled"),
+                                    groupIds,
+                                  )
+                                }
+                              >
+                                <Play className="mr-2 h-4 w-4" /> Retomar grupo
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => publishSelectedNow(groupIds)}>
+                                <Zap className="mr-2 h-4 w-4" /> Tentar agora
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-danger focus:text-danger"
+                                onSelect={() => {
+                                  if (!confirm("Remover este grupo da fila?")) return;
+                                  runBulk("Removendo", (id) => api.deleteQueue(id), groupIds);
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" /> Remover grupo
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                       </div>
                     </div>
                   )}
 
-                  {/* Sub-list of accounts */}
-                  {isOpen && (
-                    <div className="space-y-0 border-t border-border bg-bg3/20 p-2 transition-all">
+                  {/* Sub-list of accounts — animated expand/collapse */}
+                  <div
+                    className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+                      isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+                    }`}
+                  >
+                    <div className="overflow-hidden">
+                    <div className="space-y-0 border-t border-border bg-bg3/20 p-2">
+
                       {group.items.map((item, idx) => {
                         const account = accountById.get(item.account) ?? {
                           id: item.account,
