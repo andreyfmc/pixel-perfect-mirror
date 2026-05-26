@@ -126,7 +126,7 @@ const rawDb = {
   async listAccounts(): Promise<(AccountRow & { posts: number })[]> {
     const sql = `
       SELECT a.*,
-        (SELECT COUNT(*) FROM publications p WHERE p.account_id = a.id) AS posts
+        (SELECT COUNT(*) FROM history h WHERE h.account_id = a.id) AS posts
       FROM accounts a
       ORDER BY a.created_at DESC`;
     const { results } = await requireDb().prepare(sql).all<AccountRow & { posts: number }>();
