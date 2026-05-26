@@ -15,13 +15,13 @@ import { api } from "@/lib/api-client";
 
 
 const nav = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/accounts", label: "Contas", icon: Users },
-  { to: "/queue", label: "Fila", icon: CalendarClock },
-  { to: "/history", label: "Histórico", icon: History },
-  { to: "/warmup", label: "Warmup", icon: Flame },
-  { to: "/contingency", label: "Contingência", icon: ShieldAlert },
-  { to: "/settings", label: "Configurações", icon: Settings },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, emoji: "📊" },
+  { to: "/accounts", label: "Contas", icon: Users, emoji: "👥" },
+  { to: "/queue", label: "Fila", icon: CalendarClock, emoji: "🗓️" },
+  { to: "/history", label: "Histórico", icon: History, emoji: "📚" },
+  { to: "/warmup", label: "Warmup", icon: Flame, emoji: "🔥" },
+  { to: "/contingency", label: "Contingência", icon: ShieldAlert, emoji: "🛡️" },
+  { to: "/settings", label: "Configurações", icon: Settings, emoji: "⚙️" },
 ] as const;
 
 function healthColor(score: number) {
@@ -52,7 +52,7 @@ export function AppSidebar() {
 
       <nav className="px-3">
         <ul className="space-y-0.5">
-          {nav.map(({ to, label, icon: Icon }) => {
+          {nav.map(({ to, label, emoji }) => {
             const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
             return (
               <li key={to}>
@@ -65,7 +65,7 @@ export function AppSidebar() {
                       : "text-text2 hover:bg-bg3 hover:text-foreground",
                   ].join(" ")}
                 >
-                  <Icon className="h-4 w-4" style={{ color: active ? "var(--accent2)" : undefined }} />
+                  <span className="text-base leading-none w-5 text-center">{emoji}</span>
                   <span>{label}</span>
                   {active && (
                     <span className="ml-auto h-1.5 w-1.5 rounded-full" style={{ background: "var(--accent2)" }} />

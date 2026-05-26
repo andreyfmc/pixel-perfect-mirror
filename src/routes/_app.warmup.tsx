@@ -7,12 +7,9 @@ import { listDriveEntries, type DriveVideo, type DriveFolder, type DriveCrumb } 
 import { Folder, ChevronRight, Home } from "lucide-react";
 import {
   UploadCloud,
-  Type,
   Settings2,
-  ListChecks,
   Activity,
   Image as ImageIcon,
-  Link2,
   HardDrive,
   CheckCircle2,
   Loader2,
@@ -20,7 +17,22 @@ import {
   Wand2,
   Copy,
   Check,
+  RefreshCw,
+  Clock,
+  Heart,
 } from "lucide-react";
+import { fmtDateTime } from "@/lib/format";
+
+function GoogleBadge({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
+      <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/>
+      <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 16 18.9 13 24 13c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+      <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.5-4.6 2.4-7.2 2.4-5.3 0-9.7-3.4-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+      <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.5l6.2 5.2C41.5 35.6 44 30.2 44 24c0-1.3-.1-2.4-.4-3.5z"/>
+    </svg>
+  );
+}
 
 export const Route = createFileRoute("/_app/warmup")({
   component: WarmupPage,
@@ -28,12 +40,10 @@ export const Route = createFileRoute("/_app/warmup")({
 });
 
 const tabs = [
-  { id: "upload", label: "Upload", icon: UploadCloud },
-  { id: "distribute", label: "Distribuir", icon: Wand2 },
-  { id: "captions", label: "Legendas", icon: Type },
-  { id: "config", label: "Configurações", icon: Settings2 },
-  { id: "preview", label: "Preview da Fila", icon: ListChecks },
-  { id: "monitor", label: "Monitor", icon: Activity },
+  { id: "upload", label: "Upload", icon: UploadCloud, emoji: "📤" },
+  { id: "post", label: "Postagem", icon: Wand2, emoji: "✨" },
+  { id: "config", label: "Rate Limit", icon: Settings2, emoji: "⚙️" },
+  { id: "monitor", label: "Monitor", icon: Activity, emoji: "📡" },
 ] as const;
 
 type TabId = (typeof tabs)[number]["id"];
@@ -90,7 +100,7 @@ async function filesFromDataTransfer(dt: DataTransfer): Promise<File[]> {
 
 function WarmupPage() {
   const [tab, setTab] = useState<TabId>("upload");
-  const [coverTab, setCoverTab] = useState<"url" | "drive" | "local">("url");
+  
   const [uploads, setUploads] = useState<Upload[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -246,7 +256,18 @@ function WarmupPage() {
                     <Folder className="h-4 w-4" />
                     Selecionar pasta
                   </button>
+                  <button
+                    onClick={() => setTab("post")}
+                    className="inline-flex items-center gap-2 rounded-lg border border-border2 bg-white px-4 py-2 text-sm font-medium text-neutral-800 shadow-sm hover:bg-neutral-50"
+                    title="Importar do Google Drive (vai para Postagem)"
+                  >
+                    <GoogleBadge className="h-4 w-4" />
+                    Importar do Google Drive
+                  </button>
                 </div>
+                <p className="mt-3 text-[11px] text-muted2">
+                  Arquivos locais são apenas armazenados no R2. Os metadados são limpos automaticamente no momento de publicar (re-encode + jitter visual por conta).
+                </p>
               </div>
 
               {uploads.length > 0 && (
@@ -299,10 +320,24 @@ function WarmupPage() {
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-medium">{u.name}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-medium">{u.name}</span>
+                            {u.status === "uploading" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300">
+                                <Loader2 className="h-2.5 w-2.5 animate-spin" /> enviando
+                              </span>
+                            )}
+                            {u.status === "done" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300">
+                                a processar metadados
+                              </span>
+                            )}
+                            {u.status === "error" && (
+                              <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-300">erro</span>
+                            )}
+                          </div>
                           <div className="truncate text-xs text-muted2">
                             {(u.size / 1024 / 1024).toFixed(2)} MB ·{" "}
-                            {u.status === "uploading" && "enviando para R2…"}
                             {u.status === "done" && (
                               <>
                                 <span className="text-emerald-400">no R2</span> ·{" "}
@@ -324,174 +359,25 @@ function WarmupPage() {
                       </li>
                     ))}
                   </ul>
+                  {uploads.length > 0 &&
+                    uploads.every((u) => u.status === "done") && (
+                      <button
+                        onClick={() => setTab("post")}
+                        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg im-grad-accent px-4 py-2.5 text-sm font-semibold text-white"
+                      >
+                        <Wand2 className="h-4 w-4" /> Continuar para Postagem →
+                      </button>
+                    )}
                 </>
               )}
             </div>
           )}
 
-          {tab === "distribute" && <DistributeTab />}
+          {tab === "post" && <DistributeTab />}
 
-          {tab === "captions" && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {["aleatório", "fixo", "por arquivo"].map((m, i) => (
-                  <button
-                    key={m}
-                    className={[
-                      "rounded-lg border px-3 py-1.5 text-sm",
-                      i === 0
-                        ? "border-accent text-foreground bg-bg3"
-                        : "border-border2 text-text2 hover:text-foreground",
-                    ].join(" ")}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-              <textarea
-                rows={10}
-                placeholder="Uma legenda por linha. Use #hashtags livremente."
-                className="w-full resize-y rounded-lg border border-border2 bg-bg3 p-3 text-sm outline-none focus:border-accent"
-              />
-              <p className="text-xs text-muted2">12 legendas detectadas · sorteio uniforme</p>
-            </div>
-          )}
+          {tab === "config" && <RateLimitTab accounts={accounts} />}
 
-          {tab === "config" && (
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div>
-                <h3 className="mb-3 text-sm font-semibold">Contas no aquecimento</h3>
-                <ul className="space-y-2">
-                  {accounts.map((a, i) => (
-                    <li
-                      key={a.id}
-                      className="flex items-center gap-3 rounded-lg border border-border bg-bg3 p-3"
-                    >
-                      <input type="checkbox" defaultChecked={i < 2} className="accent-accent" />
-                      <img src={a.profile_picture} alt="" className="h-8 w-8 rounded-full" />
-                      <span className="flex-1 text-sm">@{a.username}</span>
-                      <span className="text-xs text-muted2">saúde {a.health_score}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="mb-1.5 block text-xs uppercase tracking-wider text-muted2">
-                    Data de início
-                  </label>
-                  <input
-                    type="datetime-local"
-                    className="w-full rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm outline-none focus:border-accent"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="mb-1.5 block text-xs uppercase tracking-wider text-muted2">
-                      Intervalo (h)
-                    </label>
-                    <input
-                      type="number"
-                      defaultValue={6}
-                      className="w-full rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm outline-none focus:border-accent"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs uppercase tracking-wider text-muted2">
-                      Distribuição
-                    </label>
-                    <select className="w-full rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm outline-none focus:border-accent">
-                      <option>Uniforme</option>
-                      <option>Horário comercial</option>
-                      <option>Aleatório suave</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-1.5 block text-xs uppercase tracking-wider text-muted2">
-                    <ImageIcon className="mr-1 inline h-3.5 w-3.5" /> Capa dos Reels
-                  </label>
-                  <div className="rounded-lg border border-border2 bg-bg3 p-1">
-                    <div className="flex gap-1">
-                      {(
-                        [
-                          { id: "url", label: "URL", icon: Link2 },
-                          { id: "drive", label: "Google Drive", icon: HardDrive },
-                          { id: "local", label: "Arquivo local", icon: UploadCloud },
-                        ] as const
-                      ).map(({ id, label, icon: Icon }) => (
-                        <button
-                          key={id}
-                          onClick={() => setCoverTab(id)}
-                          className={[
-                            "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs",
-                            coverTab === id
-                              ? "bg-bg4 text-foreground"
-                              : "text-text2 hover:text-foreground",
-                          ].join(" ")}
-                        >
-                          <Icon className="h-3.5 w-3.5" />
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="mt-3">
-                    {coverTab === "url" && (
-                      <input
-                        type="url"
-                        placeholder="https://..."
-                        className="w-full rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm outline-none focus:border-accent"
-                      />
-                    )}
-                    {coverTab === "drive" && (
-                      <button className="w-full rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:text-foreground">
-                        Abrir Drive Picker (imagens)
-                      </button>
-                    )}
-                    {coverTab === "local" && (
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="w-full rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 file:mr-3 file:rounded-md file:border-0 file:bg-bg4 file:px-2 file:py-1 file:text-foreground"
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {tab === "preview" && (
-            <div className="rounded-xl border border-border bg-bg3/40 p-10 text-center text-sm text-text2">
-              Pré-visualização da fila será gerada após configurar a aba <b>Configurações</b>.
-            </div>
-          )}
-
-          {tab === "monitor" && (
-            <ul className="space-y-3">
-              {accounts.slice(0, 3).map((a, i) => {
-                const pct = [62, 28, 8][i];
-                return (
-                  <li key={a.id} className="rounded-lg border border-border bg-bg3 p-4">
-                    <div className="flex items-center gap-3">
-                      <img src={a.profile_picture} alt="" className="h-9 w-9 rounded-full" />
-                      <div className="flex-1">
-                        <div className="text-sm font-medium">@{a.username}</div>
-                        <div className="text-xs text-muted2">{pct}% concluído</div>
-                      </div>
-                      <span className="text-xs text-text2 tabular-nums">{Math.round(pct / 10)}/10 posts</span>
-                    </div>
-                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-bg4">
-                      <div className="h-full im-grad-accent" style={{ width: `${pct}%` }} />
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          {tab === "monitor" && <MonitorTab accounts={accounts} />}
         </div>
       </div>
     </div>
@@ -1000,6 +886,287 @@ function DistributeTab() {
           </p>
         </div>
       </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// Rate Limit — defaults documentados da Meta + sliders globais (localStorage)
+// =====================================================================
+
+type AccountLite = {
+  id: string;
+  username: string;
+  profile_picture: string;
+  health_score: number;
+  token_status: "valid" | "expired";
+  last_post_at?: string;
+};
+
+const RL_STORAGE_KEY = "warmup.rate-limits.v1";
+
+type RateLimitConfig = {
+  gapMinutes: number;
+  jitterMinutes: number;
+  maxPerDay: number;
+};
+
+const RL_DEFAULTS: RateLimitConfig = { gapMinutes: 60, jitterMinutes: 20, maxPerDay: 25 };
+
+function loadRL(): RateLimitConfig {
+  if (typeof window === "undefined") return RL_DEFAULTS;
+  try {
+    const v = JSON.parse(window.localStorage.getItem(RL_STORAGE_KEY) ?? "");
+    return { ...RL_DEFAULTS, ...v };
+  } catch {
+    return RL_DEFAULTS;
+  }
+}
+
+function RateLimitTab({ accounts }: { accounts: AccountLite[] }) {
+  const [cfg, setCfg] = useState<RateLimitConfig>(loadRL);
+  const [checking, setChecking] = useState<string | null>(null);
+  const [results, setResults] = useState<Record<string, { ok: boolean; msg: string }>>({});
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(RL_STORAGE_KEY, JSON.stringify(cfg));
+    } catch {}
+  }, [cfg]);
+
+  async function checkUsage(id: string) {
+    setChecking(id);
+    try {
+      const r = await api.validateAccount(id);
+      setResults((prev) => ({
+        ...prev,
+        [id]: {
+          ok: !!r?.ok,
+          msg: r?.ok
+            ? `OK · ${r.ig?.username ?? r.me?.name ?? "credencial válida"}`
+            : r?.needs_reconnect
+              ? "Precisa reconectar"
+              : "Falha — verificar"
+        },
+      }));
+    } finally {
+      setChecking(null);
+    }
+  }
+
+  async function checkAll() {
+    for (const a of accounts) await checkUsage(a.id);
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 md:grid-cols-3">
+        {[
+          { label: "Posts / 24h por conta IG", value: "25", hint: "Limite oficial Graph API (Instagram Content Publishing)" },
+          { label: "Chamadas / hora por app", value: "200", hint: "Por usuário · X-App-Usage" },
+          { label: "Reels por dia", value: "~50", hint: "Soft cap antishadowban observado" },
+        ].map((c) => (
+          <div key={c.label} className="rounded-xl border border-border bg-bg3 p-4">
+            <div className="text-[10px] uppercase tracking-wider text-muted2">{c.label}</div>
+            <div className="mt-1 text-2xl font-semibold tabular-nums">{c.value}</div>
+            <div className="mt-1 text-[11px] text-muted2 leading-snug">{c.hint}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-border bg-bg3/40 p-5 space-y-5">
+        <div>
+          <h3 className="text-sm font-semibold">Defaults globais</h3>
+          <p className="text-xs text-muted2 mt-0.5">
+            Aplicado como sugestão inicial na aba <b>Postagem</b>. Ajuste para respeitar os limites da Meta acima.
+          </p>
+        </div>
+        {[
+          { key: "gapMinutes", label: "Intervalo entre ciclos (min)", min: 5, max: 240, step: 5 },
+          { key: "jitterMinutes", label: "Jitter ± entre contas (min)", min: 0, max: 60, step: 1 },
+          { key: "maxPerDay", label: "Máx posts/dia por conta", min: 1, max: 50, step: 1 },
+        ].map((s) => {
+          const v = cfg[s.key as keyof RateLimitConfig];
+          return (
+            <div key={s.key}>
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-text2">{s.label}</span>
+                <span className="font-medium tabular-nums">{v}</span>
+              </div>
+              <input
+                type="range"
+                min={s.min}
+                max={s.max}
+                step={s.step}
+                value={v}
+                onChange={(e) => setCfg((c) => ({ ...c, [s.key]: Number(e.target.value) }))}
+                className="w-full accent-accent"
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="rounded-xl border border-border bg-bg3/40 p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold">Uso atual (live)</h3>
+            <p className="text-xs text-muted2 mt-0.5">Faz uma chamada à Graph API e mostra o estado da credencial.</p>
+          </div>
+          <button
+            onClick={checkAll}
+            disabled={!!checking}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-1.5 text-xs hover:text-foreground disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${checking ? "animate-spin" : ""}`} />
+            Verificar todas
+          </button>
+        </div>
+        <ul className="space-y-1.5">
+          {accounts.map((a) => {
+            const r = results[a.id];
+            return (
+              <li key={a.id} className="flex items-center gap-3 rounded-lg border border-border bg-bg3 p-2.5">
+                <img src={a.profile_picture} alt="" className="h-7 w-7 rounded-full" />
+                <span className="flex-1 truncate text-sm">@{a.username}</span>
+                {r && (
+                  <span className={`text-xs ${r.ok ? "text-emerald-400" : "text-red-400"}`}>
+                    {r.msg}
+                  </span>
+                )}
+                <button
+                  onClick={() => checkUsage(a.id)}
+                  disabled={checking === a.id}
+                  className="rounded-md border border-border2 bg-bg3 px-2 py-1 text-[11px] text-text2 hover:text-foreground disabled:opacity-50"
+                >
+                  {checking === a.id ? <Loader2 className="h-3 w-3 animate-spin" /> : "verificar"}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// Monitor — cards de TODAS as contas: saúde, último post, próximo agendado, erros
+// =====================================================================
+
+function MonitorTab({ accounts }: { accounts: AccountLite[] }) {
+  const { data: queue = [], refetch, isFetching } = useQuery({
+    queryKey: ["queue"],
+    queryFn: () => api.listQueue(),
+  });
+
+  const byAccount = new Map<string, { next?: string; scheduled: number; published: number; failed: number; lastError?: string }>();
+  for (const a of accounts) byAccount.set(a.id, { scheduled: 0, published: 0, failed: 0 });
+  for (const q of queue) {
+    const slot = byAccount.get(q.account);
+    if (!slot) continue;
+    if (q.status === "scheduled") {
+      slot.scheduled++;
+      if (!slot.next || q.scheduled_at < slot.next) slot.next = q.scheduled_at;
+    } else if (q.status === "published") slot.published++;
+    else if (q.status === "failed") {
+      slot.failed++;
+      if (q.last_error) slot.lastError = q.last_error;
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted2">{accounts.length} conta{accounts.length === 1 ? "" : "s"} monitorada{accounts.length === 1 ? "" : "s"}</p>
+        <button
+          onClick={() => refetch()}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-1.5 text-xs hover:text-foreground"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} /> Atualizar
+        </button>
+      </div>
+      <ul className="grid gap-3 sm:grid-cols-2">
+        {accounts.map((a) => {
+          const stats = byAccount.get(a.id) ?? { scheduled: 0, published: 0, failed: 0 };
+          const total = stats.scheduled + stats.published;
+          const pct = total ? Math.round((stats.published / total) * 100) : 0;
+          const healthColor =
+            a.health_score >= 80 ? "var(--success)" : a.health_score >= 60 ? "var(--warning)" : "var(--danger)";
+          return (
+            <li key={a.id} className="rounded-xl border border-border bg-bg3 p-4">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <img src={a.profile_picture} alt="" className="h-10 w-10 rounded-full" />
+                  <span
+                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-bg3"
+                    style={{ background: healthColor }}
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-semibold">@{a.username}</span>
+                    {a.token_status === "expired" && (
+                      <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-300">token expirado</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-muted2">
+                    <span className="inline-flex items-center gap-1"><Heart className="h-3 w-3" /> {a.health_score}</span>
+                    {stats.failed > 0 && (
+                      <span className="text-red-400">· {stats.failed} erro(s)</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-md bg-bg4 py-1.5">
+                  <div className="text-[10px] uppercase tracking-wider text-muted2">Agendados</div>
+                  <div className="text-sm font-semibold tabular-nums">{stats.scheduled}</div>
+                </div>
+                <div className="rounded-md bg-bg4 py-1.5">
+                  <div className="text-[10px] uppercase tracking-wider text-muted2">Publicados</div>
+                  <div className="text-sm font-semibold tabular-nums text-emerald-400">{stats.published}</div>
+                </div>
+                <div className="rounded-md bg-bg4 py-1.5">
+                  <div className="text-[10px] uppercase tracking-wider text-muted2">Falhas</div>
+                  <div className="text-sm font-semibold tabular-nums text-red-400">{stats.failed}</div>
+                </div>
+              </div>
+
+              {total > 0 && (
+                <div className="mt-3">
+                  <div className="mb-1 flex items-center justify-between text-[10px] text-muted2">
+                    <span>{pct}% concluído</span>
+                    <span className="tabular-nums">{stats.published}/{total}</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-bg4">
+                    <div className="h-full im-grad-accent" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-3 space-y-1 text-[11px] text-muted2">
+                {stats.next && (
+                  <div className="flex items-center gap-1.5">
+                    <Clock className="h-3 w-3" />
+                    Próximo: <span className="text-text2">{fmtDateTime(stats.next)}</span>
+                  </div>
+                )}
+                {a.last_post_at && (
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Último post: <span className="text-text2">{fmtDateTime(a.last_post_at)}</span>
+                  </div>
+                )}
+                {stats.lastError && (
+                  <div className="truncate text-red-400" title={stats.lastError}>⚠ {stats.lastError}</div>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
