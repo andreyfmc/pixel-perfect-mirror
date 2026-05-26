@@ -327,33 +327,7 @@ function WarmupPage() {
             </div>
           )}
 
-          {tab === "distribute" && <DistributeTab />}
-
-          {tab === "captions" && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {["aleatório", "fixo", "por arquivo"].map((m, i) => (
-                  <button
-                    key={m}
-                    className={[
-                      "rounded-lg border px-3 py-1.5 text-sm",
-                      i === 0
-                        ? "border-accent text-foreground bg-bg3"
-                        : "border-border2 text-text2 hover:text-foreground",
-                    ].join(" ")}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-              <textarea
-                rows={10}
-                placeholder="Uma legenda por linha. Use #hashtags livremente."
-                className="w-full resize-y rounded-lg border border-border2 bg-bg3 p-3 text-sm outline-none focus:border-accent"
-              />
-              <p className="text-xs text-muted2">12 legendas detectadas · sorteio uniforme</p>
-            </div>
-          )}
+          {tab === "post" && <DistributeTab />}
 
           {tab === "config" && (
             <div className="grid gap-6 lg:grid-cols-2">
