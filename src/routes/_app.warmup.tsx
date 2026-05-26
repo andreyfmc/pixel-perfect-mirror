@@ -647,21 +647,26 @@ function DistributeTab() {
           order === "random" ? shuffle(selectedAccounts) : selectedAccounts;
         for (const accId of accountsForCycle) {
           const v = selectedList[cycle];
-          // Jitter apenas para cima: cada item recebe um offset individual
-          // entre 0 e jitterMs, garantindo intervalo mínimo = gap.
           const jitterOffset = jitterMs ? Math.floor(Math.random() * (jitterMs + 1)) : 0;
           const scheduledAt = new Date(cycleStartMs + jitterOffset).toISOString();
+          const uniqueCaption = variateCaption(caption, `${accId}|${v.id}`);
           const res = await api.enqueue({
             account_id: accId,
-            caption,
+            caption: uniqueCaption,
             media_type: "REEL",
             media_key: `drive:${v.id}`,
             scheduled_at: scheduledAt,
             group_id: groupId,
             group_scheduled_at: groupScheduledAt,
           });
-          if (res) ok++;
-          else fail++;
+          if (res) {
+            ok++;
+            // Dispara build de variante em background (não bloqueia o agendamento
+            // dos próximos itens — o scheduler também faz fallback a cada tick).
+            void api.buildVariant(res.id);
+          } else {
+            fail++;
+          }
         }
       }
       setEnqueueOk(fail === 0 && ok > 0);
