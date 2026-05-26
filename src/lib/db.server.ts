@@ -450,6 +450,7 @@ const rawDb = {
       QueueRow,
       | "status"
       | "attempts"
+      | "retry_count"
       | "last_error"
       | "ig_container_id"
       | "ig_media_id"
