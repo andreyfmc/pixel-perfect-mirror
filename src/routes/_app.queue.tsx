@@ -225,13 +225,16 @@ function StatusBadge({
   scheduledAt,
   lastError,
   now,
+  retryCount,
 }: {
   status: StatusKey;
   scheduledAt?: string;
   lastError?: string | null;
   now: number;
+  retryCount?: number;
 }) {
   const meta = STATUS_META[status];
+  const isRetry = status === "scheduled" && (retryCount ?? 0) > 0;
   const Icon = ({ className = "" }: { className?: string }) => {
     if (status === "processing")
       return <Loader2 className={`h-3 w-3 animate-spin ${className}`} />;
@@ -247,18 +250,22 @@ function StatusBadge({
         ? `há ${Math.max(0, Math.round((now - new Date(scheduledAt).getTime()) / 60000))}min`
         : null;
 
+  const label = isRetry ? `Retry (${retryCount}/3)` : meta.short;
+  const bg = isRetry ? "color-mix(in oklab, var(--warning) 22%, transparent)" : meta.bg;
+  const fg = isRetry ? "var(--warning)" : meta.fg;
+
   const pill = (
     <span
       className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold"
-      style={{ background: meta.bg, color: meta.fg }}
+      style={{ background: bg, color: fg }}
     >
       <Icon />
-      {meta.short}
+      {label}
       {extra && <span className="opacity-80">· {extra}</span>}
     </span>
   );
 
-  if (status === "failed" && lastError) {
+  if ((status === "failed" || isRetry) && lastError) {
     return (
       <TooltipProvider delayDuration={150}>
         <Tooltip>
@@ -1269,6 +1276,7 @@ function QueuePage() {
                               scheduledAt={item.scheduled_at}
                               lastError={item.last_error}
                               now={now}
+                              retryCount={item.retry_count}
                             />
                             {item.status === "published" && (
                               <ExternalLink className="h-3 w-3 shrink-0 text-muted2" />

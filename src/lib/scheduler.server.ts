@@ -9,6 +9,7 @@ import {
   instagram,
   isInvalidAccessTokenError,
   isMismatchedCredentialsError,
+  isTransientGraphError,
   refreshLongLivedInstagramToken,
 } from "./instagram.server";
 import { hasDb, env } from "./cf.server";
@@ -290,9 +291,42 @@ export async function runScheduler(
         continue;
       }
 
+      // Retry para erros transitórios (Meta `is_transient: true`).
+      // Roda em paralelo aos próximos itens — só reagenda este item, sem
+      // tocar nos demais. Backoff: 5min → 15min → 30min, máx 3 tentativas.
+      const RETRY_DELAYS_MIN = [5, 15, 30];
+      const currentRetry = item.retry_count ?? 0;
+      if (isTransientGraphError(err) && currentRetry < RETRY_DELAYS_MIN.length) {
+        const nextRetry = currentRetry + 1;
+        // Cancela retry quando há outro post da mesma conta muito próximo
+        // (publicado nos últimos 30min OU agendado para os próximos 30min).
+        const conflict = await db.hasNearbyAccountPost(item.account_id, item.id, 30);
+        if (conflict) {
+          errors++;
+          console.warn(`[scheduler] queue=${item.id} retry cancelado por conflito de horário`);
+          await db.setQueueStatus(item.id, "failed", {
+            last_error: `Retry cancelado — muito próximo de outro post desta conta. (erro original: ${msg})`,
+          });
+          continue;
+        }
+        const delayMs = RETRY_DELAYS_MIN[currentRetry] * 60_000;
+        const nextAt = new Date(Date.now() + delayMs).toISOString();
+        await db.scheduleRetry(item.id, {
+          scheduledAt: nextAt,
+          retryCount: nextRetry,
+          lastError: `Retry ${nextRetry}/3 em ${RETRY_DELAYS_MIN[currentRetry]}min — erro transitório: ${msg}`,
+        });
+        console.warn(`[scheduler] queue=${item.id} retry ${nextRetry}/3 agendado para ${nextAt}`);
+        continue;
+      }
+
       errors++;
       console.error(`[scheduler] queue=${item.id} err=${msg}`);
-      await db.setQueueStatus(item.id, "failed", { last_error: msg });
+      const finalError =
+        currentRetry >= RETRY_DELAYS_MIN.length
+          ? `Falha permanente após ${RETRY_DELAYS_MIN.length} tentativas: ${msg}`
+          : msg;
+      await db.setQueueStatus(item.id, "failed", { last_error: finalError });
     }
   }
 

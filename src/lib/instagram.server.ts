@@ -70,6 +70,24 @@ export function isInvalidAccessTokenError(err: unknown) {
   return failures.length > 0 && failures.every((failure) => failure.code === 190);
 }
 
+/** True quando o Graph marca o erro como transitório (is_transient=true).
+ *  Também aceita códigos clássicos: 1 (unknown), 2 (service), 4/17/32/613 (rate),
+ *  341 (application limit). Não retry quando o token é inválido (code 190). */
+export function isTransientGraphError(err: unknown) {
+  if (!(err instanceof InstagramGraphError)) return false;
+  if (isInvalidAccessTokenError(err)) return false;
+  return err.failures.some((failure) => {
+    const e = failure.json.error as
+      | { is_transient?: boolean; code?: number; error_subcode?: number }
+      | undefined;
+    if (!e) return false;
+    if (e.is_transient === true) return true;
+    const transientCodes = new Set([1, 2, 4, 17, 32, 341, 613]);
+    if (typeof e.code === "number" && transientCodes.has(e.code)) return true;
+    return false;
+  });
+}
+
 /** True quando o Graph retorna code=100 subcode=33 — credenciais incompatíveis
  *  (token salvo não acessa o ig_user_id da linha). */
 export function isMismatchedCredentialsError(err: unknown) {

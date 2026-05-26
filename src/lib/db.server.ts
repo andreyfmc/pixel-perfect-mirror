@@ -59,6 +59,9 @@ async function ensureSchema(): Promise<void> {
       if (!queueCols.has("group_scheduled_at")) {
         await db.prepare("ALTER TABLE queue ADD COLUMN group_scheduled_at TEXT").run();
       }
+      if (!queueCols.has("retry_count")) {
+        await db.prepare("ALTER TABLE queue ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0").run();
+      }
       // oauth_states — links únicos de conexão (Instagram OAuth Tester).
       await db
         .prepare(
@@ -113,6 +116,7 @@ export type QueueRow = {
   group_scheduled_at: string | null;
   status: "scheduled" | "processing" | "published" | "failed" | "canceled";
   attempts: number;
+  retry_count: number;
   last_error: string | null;
   ig_container_id: string | null;
   ig_media_id: string | null;
@@ -446,6 +450,7 @@ const rawDb = {
       QueueRow,
       | "status"
       | "attempts"
+      | "retry_count"
       | "last_error"
       | "ig_container_id"
       | "ig_media_id"
@@ -518,6 +523,62 @@ const rawDb = {
       .bind(id)
       .run();
   },
+
+  /** Reagenda um item para uma nova data (retry). Não bloqueia outros itens —
+   *  o item fica como 'scheduled' e será reprocessado quando vencer. */
+  async scheduleRetry(
+    id: string,
+    input: { scheduledAt: string; retryCount: number; lastError?: string | null },
+  ) {
+    await requireDb()
+      .prepare(
+        `UPDATE queue
+         SET status = 'scheduled',
+             scheduled_at = ?,
+             retry_count = ?,
+             last_error = ?,
+             ig_container_id = NULL,
+             ig_media_id = NULL
+         WHERE id = ?`,
+      )
+      .bind(input.scheduledAt, input.retryCount, input.lastError ?? null, id)
+      .run();
+  },
+
+  /** True quando a conta tem outro post publicado nos últimos `windowMin`
+   *  OU agendado para os próximos `windowMin` (excluindo o próprio item). */
+  async hasNearbyAccountPost(
+    accountId: string,
+    excludeQueueId: string,
+    windowMin = 30,
+  ): Promise<boolean> {
+    const db = requireDb();
+    const since = new Date(Date.now() - windowMin * 60_000).toISOString();
+    const until = new Date(Date.now() + windowMin * 60_000).toISOString();
+    const recent = await db
+      .prepare(
+        `SELECT 1 FROM history
+         WHERE account_id = ? AND published_at >= ?
+         LIMIT 1`,
+      )
+      .bind(accountId, since)
+      .first<{ 1: number }>();
+    if (recent) return true;
+    const near = await db
+      .prepare(
+        `SELECT 1 FROM queue
+         WHERE account_id = ?
+           AND id != ?
+           AND status IN ('scheduled','processing','published')
+           AND scheduled_at >= ?
+           AND scheduled_at <= ?
+         LIMIT 1`,
+      )
+      .bind(accountId, excludeQueueId, since, until)
+      .first<{ 1: number }>();
+    return !!near;
+  },
+
   async updateLastPostAt(id: string, isoDate: string) {
     await requireDb()
       .prepare(
