@@ -26,12 +26,19 @@ export const Route = createFileRoute("/_app/contingency")({
 function useContingency() {
   const [list, setList] = useState<ContingencyAccount[]>([]);
   useEffect(() => {
-    setList(loadContingency());
-    // tenta hidratar do servidor; se ok, substitui cache local
-    fetchFromServer().then((items) => {
-      if (items) {
-        setList(items);
-        saveContingency(items);
+    const local = loadContingency();
+    setList(local);
+    // tenta hidratar do servidor (sem apagar o cache local se vier vazio/indisponível)
+    fetchFromServer().then((res) => {
+      if (!res) return; // servidor indisponível → mantém cache local
+      if (res.items.length === 0 && local.length > 0) {
+        // servidor vazio mas temos cache local → empurra local pro servidor
+        replaceAllOnServer(local);
+        return;
+      }
+      if (res.items.length > 0) {
+        setList(res.items);
+        saveContingency(res.items);
       }
     });
     const onChange = () => setList(loadContingency());
