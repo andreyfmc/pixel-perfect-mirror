@@ -147,7 +147,7 @@ function csvEscape(s: string) {
 }
 
 export function toCSV(list: ContingencyAccount[]): string {
-  const header = ["username", "password", "totp_secret", "status", "quality", "notes", "tipo", "updated_at"];
+  const header = ["username", "password", "token2fa", "status", "quality", "notes", "tipo", "updated_at"];
   const lines = [header.join(",")];
   for (const a of list) {
     lines.push(
@@ -158,6 +158,7 @@ export function toCSV(list: ContingencyAccount[]): string {
   }
   return lines.join("\n");
 }
+
 
 function parseCSVLine(line: string): string[] {
   const out: string[] = [];
