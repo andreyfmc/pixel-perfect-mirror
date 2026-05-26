@@ -67,9 +67,38 @@ export const db = {
   async createAccount(
     a: Pick<AccountRow, "id" | "username" | "name"> & Partial<AccountRow>,
   ) {
-    // UPSERT por username: se a conta já existir, atualizamos os campos
-    // de credencial/perfil. Evita "UNIQUE constraint failed: accounts.username"
-    // ao reconectar a mesma conta via Facebook/Instagram.
+    // Atualiza qualquer registro já conhecido pelo username OU pelo ig_user_id.
+    // Isso mantém itens antigos da fila apontando para uma linha com token novo.
+    const updated = await requireDb()
+      .prepare(
+        `UPDATE accounts
+         SET username = ?,
+             name = ?,
+             profile_picture = COALESCE(?, profile_picture),
+             ig_user_id = COALESCE(?, ig_user_id),
+             access_token = COALESCE(?, access_token),
+             token_expires_at = COALESCE(?, token_expires_at),
+             followers = ?,
+             health_score = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE username = ? OR (? IS NOT NULL AND ig_user_id = ?)`,
+      )
+      .bind(
+        a.username,
+        a.name,
+        a.profile_picture ?? null,
+        a.ig_user_id ?? null,
+        a.access_token ?? null,
+        a.token_expires_at ?? null,
+        a.followers ?? 0,
+        a.health_score ?? 100,
+        a.username,
+        a.ig_user_id ?? null,
+        a.ig_user_id ?? null,
+      )
+      .run();
+    if (((updated.meta as { changes?: number } | undefined)?.changes ?? 0) > 0) return;
+
     await requireDb()
       .prepare(
         `INSERT INTO accounts (id, username, name, profile_picture, ig_user_id, access_token, token_expires_at, followers, health_score)
@@ -93,6 +122,37 @@ export const db = {
         a.token_expires_at ?? null,
         a.followers ?? 0,
         a.health_score ?? 100,
+      )
+      .run();
+  },
+  async updateAccountCredentials(
+    id: string,
+    input: {
+      ig_user_id?: string | null;
+      access_token?: string | null;
+      profile_picture?: string | null;
+      followers?: number | null;
+      health_score?: number | null;
+    },
+  ) {
+    await requireDb()
+      .prepare(
+        `UPDATE accounts
+         SET ig_user_id = COALESCE(?, ig_user_id),
+             access_token = COALESCE(?, access_token),
+             profile_picture = COALESCE(?, profile_picture),
+             followers = COALESCE(?, followers),
+             health_score = COALESCE(?, health_score),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+      )
+      .bind(
+        input.ig_user_id ?? null,
+        input.access_token ?? null,
+        input.profile_picture ?? null,
+        input.followers ?? null,
+        input.health_score ?? null,
+        id,
       )
       .run();
   },
