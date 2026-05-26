@@ -80,6 +80,9 @@ export type QueueItem = {
   attempts?: number;
   retry_count?: number;
   last_error?: string | null;
+  variant_processed?: boolean;
+  variant_method?: string | null;
+  variant_error?: string | null;
 };
 
 export const mockQueue: QueueItem[] = [

@@ -46,6 +46,9 @@ function queueFromRow(r: QueueRow): QueueItem {
     attempts: r.attempts,
     retry_count: r.retry_count ?? 0,
     last_error: r.last_error,
+    variant_processed: !!r.variant_processed,
+    variant_method: r.variant_method,
+    variant_error: r.variant_error,
   };
 }
 
