@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api-client";
 import { fmtDateTime } from "@/lib/format";
 import type { QueueItem } from "@/lib/mock";
+import { useOAuthPopup } from "@/hooks/use-oauth-popup";
 import {
   AlertTriangle,
   BarChart3,
@@ -42,9 +43,12 @@ type DateFilterKey = "all" | "today" | "tomorrow" | "after-tomorrow" | string;
 type SortKey = "asc" | "desc";
 
 type AccountMeta = {
+  id: string;
   username: string;
   name: string;
   profile_picture: string;
+  token_status?: "valid" | "expired";
+  token_expires_at?: string | null;
 };
 
 type QueueGroup = {
@@ -144,8 +148,21 @@ function groupStatus(items: QueueItem[]): StatusKey {
   return STATUS_PRIORITY.find((status) => items.some((q) => q.status === status)) ?? "scheduled";
 }
 
+function tokenDaysLeft(expiresAt?: string | null) {
+  if (!expiresAt) return null;
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return null;
+  return Math.ceil(ms / 86_400_000);
+}
+
+function isTokenExpired(account?: AccountMeta) {
+  const days = tokenDaysLeft(account?.token_expires_at);
+  return account?.token_status === "expired" || (days !== null && days <= 0);
+}
+
 function QueuePage() {
   const qc = useQueryClient();
+  const { connect, loading } = useOAuthPopup();
   const { data: queue = [] } = useQuery({
     queryKey: ["queue"],
     queryFn: () => api.listQueue(),
@@ -158,7 +175,14 @@ function QueuePage() {
   const accountById = useMemo(() => {
     const m = new Map<string, AccountMeta>();
     for (const a of accounts) {
-      m.set(a.id, { username: a.username, name: a.name, profile_picture: a.profile_picture });
+      m.set(a.id, {
+        id: a.id,
+        username: a.username,
+        name: a.name,
+        profile_picture: a.profile_picture,
+        token_status: a.token_status,
+        token_expires_at: a.token_expires_at,
+      });
     }
     return m;
   }, [accounts]);
@@ -256,6 +280,7 @@ function QueuePage() {
             username: item.account.startsWith("@") ? item.account.slice(1) : item.account.slice(0, 16),
             name: item.account,
             profile_picture: "",
+            id: item.account,
           },
         ),
       };
@@ -339,9 +364,30 @@ function QueuePage() {
     if (!ids.length) return;
     const t = toast.loading(`Preparando ${ids.length} item(ns) para publicar…`);
     try {
+      const expiredIds = ids.filter((id) => {
+        const item = queue.find((q) => q.id === id);
+        return isTokenExpired(item ? accountById.get(item.account) : undefined);
+      });
+      if (expiredIds.length) {
+        await Promise.all(
+          expiredIds.map((id) =>
+            api.updateQueueStatus(id, "canceled", {
+              reset_container: true,
+            }),
+          ),
+        );
+        toast.warning(`${expiredIds.length} item(ns) pausado(s): token expirado. Reconecte a conta.`);
+      }
+      const runnableIds = ids.filter((id) => !expiredIds.includes(id));
+      if (!runnableIds.length) {
+        setSelected(new Set());
+        qc.invalidateQueries({ queryKey: ["queue"] });
+        qc.invalidateQueries({ queryKey: ["accounts"] });
+        return;
+      }
       const nowIso = new Date().toISOString();
       await Promise.all(
-        ids.map((id) =>
+        runnableIds.map((id) =>
           api.updateQueueStatus(id, "scheduled", {
             scheduled_at: nowIso,
             reset_container: true,
@@ -352,10 +398,24 @@ function QueuePage() {
       toast.success("Scheduler disparado");
       setSelected(new Set());
       qc.invalidateQueries({ queryKey: ["queue"] });
+      qc.invalidateQueries({ queryKey: ["accounts"] });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Falha ao disparar scheduler");
     } finally {
       toast.dismiss(t);
+    }
+  }
+
+  async function handleReconnect(username: string) {
+    const t = toast.loading(`Reconectando @${username}…`);
+    const res = await connect("instagram");
+    toast.dismiss(t);
+    if (res.ok) {
+      toast.success(`Reconectado: ${(res.saved ?? []).map((u) => `@${u}`).join(", ") || `@${username}`}`);
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+      qc.invalidateQueries({ queryKey: ["queue"] });
+    } else {
+      toast.error(res.error ?? "Falha na reconexão");
     }
   }
 
