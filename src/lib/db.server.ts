@@ -67,10 +67,21 @@ export const db = {
   async createAccount(
     a: Pick<AccountRow, "id" | "username" | "name"> & Partial<AccountRow>,
   ) {
+    // UPSERT por username: se a conta já existir, atualizamos os campos
+    // de credencial/perfil. Evita "UNIQUE constraint failed: accounts.username"
+    // ao reconectar a mesma conta via Facebook/Instagram.
     await requireDb()
       .prepare(
         `INSERT INTO accounts (id, username, name, profile_picture, ig_user_id, access_token, token_expires_at, followers, health_score)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(username) DO UPDATE SET
+           name = excluded.name,
+           profile_picture = COALESCE(excluded.profile_picture, accounts.profile_picture),
+           ig_user_id = COALESCE(excluded.ig_user_id, accounts.ig_user_id),
+           access_token = COALESCE(excluded.access_token, accounts.access_token),
+           token_expires_at = COALESCE(excluded.token_expires_at, accounts.token_expires_at),
+           followers = excluded.followers,
+           updated_at = CURRENT_TIMESTAMP`,
       )
       .bind(
         a.id,
