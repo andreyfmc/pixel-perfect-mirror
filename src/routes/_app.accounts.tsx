@@ -134,7 +134,7 @@ function AccountsPage() {
             type="button"
             onClick={async () => {
               if (!accounts.length) return;
-              const t = toast.loading(`Validando ${accounts.length} contas…`);
+              const t = toast.loading(`Atualizando ${accounts.length} contas…`);
               let ok = 0;
               const fails: string[] = [];
               for (const a of accounts) {
@@ -147,7 +147,8 @@ function AccountsPage() {
                 }
               }
               toast.dismiss(t);
-              if (!fails.length) toast.success(`Todas válidas (${ok}/${accounts.length})`);
+              qc.invalidateQueries({ queryKey: ["accounts"] });
+              if (!fails.length) toast.success(`Atualizadas (${ok}/${accounts.length})`);
               else
                 toast.error(`${ok}/${accounts.length} ok · falhas: ${fails.join(", ")}`, {
                   duration: 12000,
@@ -155,7 +156,7 @@ function AccountsPage() {
             }}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground"
           >
-            <BadgeCheck className="h-3.5 w-3.5" /> Validar todas
+            <RefreshCw className="h-3.5 w-3.5" /> Atualizar todas
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
