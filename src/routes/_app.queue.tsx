@@ -889,7 +889,7 @@ function QueuePage() {
                               disabled={loading !== null}
                               onClick={(e) => {
                                 e.preventDefault();
-                                void handleReconnect(account.username);
+                                void handleReconnect(account);
                               }}
                               className="shrink-0 rounded-md border border-border2 bg-bg2 px-2 py-1 text-[11px] font-semibold text-text2 hover:border-accent hover:text-foreground disabled:opacity-60"
                             >
