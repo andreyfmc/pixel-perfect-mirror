@@ -977,13 +977,13 @@ function ContingencyPage() {
         </div>
         <button
           onClick={() => setPrivateMode((v) => !v)}
-          className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-2 text-xs transition-colors ${
+          className={`inline-flex min-h-[44px] w-full shrink-0 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition-colors sm:w-auto sm:min-h-0 sm:px-3 sm:py-2 sm:text-xs ${
             privateMode ? "border-accent bg-accent/15 text-accent2" : "border-border bg-bg3 hover:border-border2"
           }`}
-          title="Oculta senhas e tokens. Persistente."
+          title="Oculta senhas e tokens. Os botões 'Copiar' continuam funcionando."
         >
-          {privateMode ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
-          Modo privado {privateMode ? "ativo" : ""}
+          {privateMode ? <Lock className="h-4 w-4 sm:h-3.5 sm:w-3.5" /> : <Unlock className="h-4 w-4 sm:h-3.5 sm:w-3.5" />}
+          Modo privado{privateMode ? " ativo" : ""}
         </button>
       </header>
 
