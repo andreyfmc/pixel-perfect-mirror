@@ -5,6 +5,7 @@ export type Account = {
   profile_picture: string;
   health_score: number;
   followers: number;
+  posts?: number;
   last_post_at: string;
   token_expires_at: string | null;
   token_status: "valid" | "expired";
