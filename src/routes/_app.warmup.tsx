@@ -1132,7 +1132,7 @@ function DistributeTab() {
         <div className="border-t border-border/60" />
 
         {/* --- Ação principal --- */}
-        <section className="space-y-2">
+        <section className="im-sticky-bottom space-y-2 -mx-4 px-4 py-3 sm:mx-0 sm:px-0 sm:py-0 md:static md:!border-t-0 md:!bg-transparent md:!backdrop-blur-none">
           <button
             onClick={enqueueAll}
             disabled={!canEnqueue}
