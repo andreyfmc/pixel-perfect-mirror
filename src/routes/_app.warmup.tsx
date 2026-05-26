@@ -633,10 +633,8 @@ function DistributeTab() {
     setEnqueueMsg(null);
     try {
       const startMs = new Date(start).getTime();
-      let i = 0;
       let ok = 0;
       let fail = 0;
-      // Para cada conta, define a ordem dos vídeos (sequencial ou embaralhada por conta)
       const shuffle = <T,>(arr: T[]): T[] => {
         const a = [...arr];
         for (let j = a.length - 1; j > 0; j--) {
@@ -645,10 +643,20 @@ function DistributeTab() {
         }
         return a;
       };
-      for (const accId of selectedAccounts) {
-        const videosForAcc = order === "random" ? shuffle(selectedList) : selectedList;
-        for (const v of videosForAcc) {
-          const scheduledAt = new Date(startMs + i * gap * 60_000).toISOString();
+      // Cada vídeo = um ciclo. Em cada ciclo, todas as contas selecionadas
+      // postam aquele vídeo, com jitter ±N minutos entre elas para evitar
+      // chamadas simultâneas à API. Próximo ciclo começa após `gap` minutos.
+      const jitterMs = Math.max(0, jitter) * 60_000;
+      for (let cycle = 0; cycle < selectedList.length; cycle++) {
+        const cycleStartMs = startMs + cycle * gap * 60_000;
+        const accountsForCycle =
+          order === "random" ? shuffle(selectedAccounts) : selectedAccounts;
+        for (const accId of accountsForCycle) {
+          const v = selectedList[cycle];
+          const jitterOffset = jitterMs
+            ? Math.round((Math.random() * 2 - 1) * jitterMs)
+            : 0;
+          const scheduledAt = new Date(cycleStartMs + jitterOffset).toISOString();
           const res = await api.enqueue({
             account_id: accId,
             caption,
@@ -658,10 +666,14 @@ function DistributeTab() {
           });
           if (res) ok++;
           else fail++;
-          i++;
         }
       }
-      setEnqueueMsg(`✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ordem: ${order === "random" ? "aleatória" : "sequencial"}`);
+      setEnqueueMsg(
+        `✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ${selectedList.length} ciclo(s) de ${gap}min · jitter ±${jitter}min`,
+      );
+      if (ok > 0 && fail === 0) {
+        setTimeout(() => navigate({ to: "/queue" }), 600);
+      }
     } catch (e) {
       setEnqueueMsg(`Erro: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
