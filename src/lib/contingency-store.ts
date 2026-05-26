@@ -236,6 +236,8 @@ export function fromCSV(text: string): ContingencyAccount[] {
         quality: iQuality >= 0 ? normQuality(cells[iQuality] ?? "") : "boa",
         notes: iNotes >= 0 ? cells[iNotes] ?? "" : "",
         connection_type: iType >= 0 ? normType(cells[iType] ?? "") : "instagram",
+        order: iOrder >= 0 && (cells[iOrder] ?? "").trim() !== "" && Number.isFinite(Number(cells[iOrder]))
+          ? Number(cells[iOrder]) : undefined,
       }),
     );
   }
