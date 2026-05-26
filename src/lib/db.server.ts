@@ -45,10 +45,14 @@ async function ensureSchema(): Promise<void> {
           )
           .run();
       }
-      if (!cols.has("group_id")) {
+      const { results: queueResults } = await db
+        .prepare("PRAGMA table_info(queue)")
+        .all<{ name: string }>();
+      const queueCols = new Set((queueResults ?? []).map((r) => r.name));
+      if (!queueCols.has("group_id")) {
         await db.prepare("ALTER TABLE queue ADD COLUMN group_id TEXT").run();
       }
-      if (!cols.has("group_scheduled_at")) {
+      if (!queueCols.has("group_scheduled_at")) {
         await db.prepare("ALTER TABLE queue ADD COLUMN group_scheduled_at TEXT").run();
       }
       await db
