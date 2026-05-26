@@ -247,6 +247,7 @@ export async function handleInstagramCallback(req: Request, code: string) {
     ig_user_id: profile.igUserId || short.userId,
     access_token: long.token,
     token_expires_at: expiresAt,
+    provider: "instagram",
     followers: profile.followers,
     health_score: 90,
   });
