@@ -122,7 +122,10 @@ function TotpInline({ secret, privateMode }: { secret: string; privateMode: bool
   }, [secret]);
   const pct = (left / 30) * 100;
   const danger = left <= 5;
-  if (privateMode || !secret) {
+  if (!secret) {
+    return <span className="text-[11px] italic text-muted2">— sem 2FA</span>;
+  }
+  if (privateMode) {
     return (
       <div className="flex items-center gap-1.5">
         <span className="font-mono text-[11px] tracking-widest text-muted2">••••••••</span>
@@ -760,11 +763,11 @@ function MobileCard({
         </div>
       </div>
 
-      {/* 2fa */}
-      {a.totp_secret && (
-        <div className="mb-3 rounded-lg border border-border bg-bg3 p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted2">Código 2FA atual</p>
+      {/* 2fa — sempre visível (mostra "— sem 2FA" quando vazio). Ordem mobile obrigatória: usuário → senha → 2FA */}
+      <div className="mb-3 rounded-lg border border-border bg-bg3 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted2">Código 2FA atual</p>
+          {a.totp_secret ? (
             <button
               type="button"
               onClick={async (e) => {
@@ -778,10 +781,15 @@ function MobileCard({
             >
               <Copy className="h-4 w-4" /> Copiar
             </button>
-          </div>
-          <MobileTotp secret={a.totp_secret} privateMode={privateMode} />
+          ) : null}
         </div>
-      )}
+        {a.totp_secret ? (
+          <MobileTotp secret={a.totp_secret} privateMode={privateMode} />
+        ) : (
+          <p className="text-[13px] italic text-muted2">— sem 2FA</p>
+        )}
+      </div>
+
 
       {/* actions */}
       <div className="flex items-center gap-2">
