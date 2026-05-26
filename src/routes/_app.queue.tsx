@@ -1180,6 +1180,7 @@ function QueuePage() {
                                 tentativa(s)
                               </span>
                             )}
+                            <VariantGroupBadge items={group.items} />
                             <div className="ml-auto">
                               <CountPill
                                 done={group.counts.published}
@@ -1346,6 +1347,7 @@ function QueuePage() {
                               now={now}
                               retryCount={item.retry_count}
                             />
+                            <VariantBadge item={item} />
                             {item.status === "published" && (
                               <ExternalLink className="h-3 w-3 shrink-0 text-muted2" />
                             )}
