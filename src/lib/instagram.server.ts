@@ -21,16 +21,28 @@ type GraphFailure = {
   json: GraphJson;
 };
 
+type VisibleFacebookIgAccount = {
+  page: string;
+  pageId: string;
+  pageAccessToken: string;
+  ig_id: string;
+  ig_username?: string;
+  ig_name?: string;
+  profile_picture?: string;
+  followers?: number;
+};
+
 export class InstagramGraphError extends Error {
   failures: GraphFailure[];
 
   constructor(failures: GraphFailure[]) {
-    const first = failures[0];
-    const err = first?.json.error as { code?: number; error_subcode?: number; message?: string } | undefined;
+    const primary = failures.at(-1) ?? failures[0];
+    const err = primary?.json.error as { code?: number; error_subcode?: number; message?: string } | undefined;
     const hint = err?.code === 100 && err?.error_subcode === 33
       ? " — credenciais incompatíveis: o token salvo não acessa este ig_user_id. Revalide/reconecte a conta."
       : "";
-    super(`Graph ${first?.status ?? 400}: ${JSON.stringify(first?.json ?? {})}${hint}`);
+    const attempts = failures.map((f) => `${f.host} ${f.status}: ${JSON.stringify(f.json)}`).join(" | ");
+    super(`Graph ${primary?.status ?? 400}: ${JSON.stringify(primary?.json ?? {})}${hint}${attempts ? ` · tentativas: ${attempts}` : ""}`);
     this.name = "InstagramGraphError";
     this.failures = failures;
   }
