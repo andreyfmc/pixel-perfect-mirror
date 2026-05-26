@@ -90,10 +90,27 @@ function AccountsPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
-      <header className="mb-8">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Contas</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Suas conexões</h1>
+      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Contas</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Suas conexões</h1>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground">
+              <ArrowDownUp className="h-3.5 w-3.5" /> {SORT_LABELS[sortKey]}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+              <DropdownMenuItem key={k} onSelect={() => setSortKey(k)}>
+                {SORT_LABELS[k]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
+
 
       <section className="mb-8 grid gap-4 md:grid-cols-2">
         <button
