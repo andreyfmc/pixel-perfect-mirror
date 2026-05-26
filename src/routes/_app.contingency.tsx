@@ -122,7 +122,10 @@ function TotpInline({ secret, privateMode }: { secret: string; privateMode: bool
   }, [secret]);
   const pct = (left / 30) * 100;
   const danger = left <= 5;
-  if (privateMode || !secret) {
+  if (!secret) {
+    return <span className="text-[11px] italic text-muted2">— sem 2FA</span>;
+  }
+  if (privateMode) {
     return (
       <div className="flex items-center gap-1.5">
         <span className="font-mono text-[11px] tracking-widest text-muted2">••••••••</span>
