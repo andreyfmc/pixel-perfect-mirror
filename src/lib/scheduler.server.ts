@@ -63,8 +63,8 @@ export async function runScheduler(
       await instagram.waitUntilReady({
         containerId,
         accessToken: account.access_token,
-        attempts: 8,
-        delayMs: 5000,
+        attempts: 1,
+        delayMs: 0,
       });
 
       const mediaId = await instagram.publishContainer({
