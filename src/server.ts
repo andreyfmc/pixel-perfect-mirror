@@ -71,6 +71,13 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     setWorkerEnv(env);
     try {
+      // Memoriza o origin para que o Cron Trigger (sem request) consiga
+      // construir URLs absolutas do proxy /api/public/drive.
+      try {
+        const u = new URL(request.url);
+        const { rememberOrigin } = await import("./lib/scheduler.server");
+        rememberOrigin(`${u.protocol}//${u.host}`);
+      } catch {}
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
