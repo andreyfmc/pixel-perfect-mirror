@@ -153,7 +153,7 @@ function AccountsPage() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {accounts.map((a) => (
+          {sorted.map((a) => (
             <article key={a.id} className="im-card im-card-hover p-5">
               <div className="flex items-start gap-4">
                 <div
