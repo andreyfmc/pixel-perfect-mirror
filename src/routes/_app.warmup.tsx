@@ -647,9 +647,9 @@ function DistributeTab() {
           order === "random" ? shuffle(selectedAccounts) : selectedAccounts;
         for (const accId of accountsForCycle) {
           const v = selectedList[cycle];
-          const jitterOffset = jitterMs
-            ? Math.round((Math.random() * 2 - 1) * jitterMs)
-            : 0;
+          // Jitter apenas para cima: cada item recebe um offset individual
+          // entre 0 e jitterMs, garantindo intervalo mínimo = gap.
+          const jitterOffset = jitterMs ? Math.floor(Math.random() * (jitterMs + 1)) : 0;
           const scheduledAt = new Date(cycleStartMs + jitterOffset).toISOString();
           const res = await api.enqueue({
             account_id: accId,
@@ -666,7 +666,7 @@ function DistributeTab() {
       }
       setEnqueueOk(fail === 0 && ok > 0);
       setEnqueueMsg(
-        `✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ${selectedList.length} ciclo(s) de ${gap}min · jitter ±${jitter}min`,
+        `✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ${selectedList.length} ciclo(s) de ${gap}min · jitter +0–${jitter}min`,
       );
       if (ok > 0 && fail === 0) {
         setTimeout(() => navigate({ to: "/queue" }), 800);
@@ -1034,9 +1034,9 @@ function DistributeTab() {
             <div>
               <label
                 className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted2"
-                title="Variação ± aplicada entre contas dentro do mesmo ciclo"
+                title="Atraso aleatório (0 a N min) somado ao intervalo de cada conta"
               >
-                <Shuffle className="h-3 w-3" /> Jitter (±min)
+                <Shuffle className="h-3 w-3" /> Jitter (+min)
               </label>
               <input
                 type="number"
@@ -1162,8 +1162,8 @@ function DistributeTab() {
               </span>{" "}
               → próxima postagem em{" "}
               <span className="font-medium text-foreground">{fmtPreview()}</span>, ciclo de{" "}
-              <span className="font-medium text-foreground">{gap}</span> ±{" "}
-              <span className="font-medium text-foreground">{jitter}</span> min
+              <span className="font-medium text-foreground">{gap}</span> +{" "}
+              <span className="font-medium text-foreground">0–{jitter}</span> min
             </div>
           )}
 
@@ -1185,8 +1185,8 @@ function DistributeTab() {
           )}
 
           <p className="text-[11px] text-muted2">
-            Cada vídeo vira um ciclo: todas as contas selecionadas postam o mesmo vídeo dentro
-            de uma janela de ±{jitter}min, e o próximo ciclo começa {gap}min depois.
+            Cada vídeo vira um ciclo: todas as contas selecionadas postam o mesmo vídeo com
+            um atraso aleatório de 0 a {jitter}min, e o próximo ciclo começa {gap}min depois.
           </p>
         </section>
 
