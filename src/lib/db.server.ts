@@ -59,15 +59,6 @@ async function ensureSchema(): Promise<void> {
       if (!queueCols.has("group_scheduled_at")) {
         await db.prepare("ALTER TABLE queue ADD COLUMN group_scheduled_at TEXT").run();
       }
-      await db
-        .prepare(
-          `UPDATE accounts
-           SET token_status = 'valid'
-           WHERE access_token IS NOT NULL
-             AND (token_expires_at IS NULL OR datetime(token_expires_at) > datetime('now'))
-             AND token_status = 'expired'`,
-        )
-        .run();
     } catch (err) {
       // Não bloqueia o app se o PRAGMA falhar — reseta a promise para tentar de novo
       // na próxima request.
@@ -273,14 +264,21 @@ const rawDb = {
   async resolveAccountForPublishing(id: string): Promise<AccountRow | null> {
     const account = await rawDb.getAccount(id);
     if (!account) return null;
-    if (account.ig_user_id && account.access_token) return account;
+    if (account.ig_user_id && account.access_token && account.token_status !== "expired") return account;
 
     const { results } = await requireDb()
       .prepare("SELECT * FROM accounts ORDER BY updated_at DESC, created_at DESC")
       .all<AccountRow>();
     const normalized = normalizeUsername(account.username);
     const sibling = (results ?? []).find((candidate) => {
-      if (candidate.id === account.id || !candidate.ig_user_id || !candidate.access_token) return false;
+      if (
+        candidate.id === account.id ||
+        !candidate.ig_user_id ||
+        !candidate.access_token ||
+        candidate.token_status === "expired"
+      ) {
+        return false;
+      }
       if (account.ig_user_id && candidate.ig_user_id === account.ig_user_id) return true;
       return normalized.length > 0 && normalizeUsername(candidate.username) === normalized;
     });
