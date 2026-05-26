@@ -1013,6 +1013,74 @@ function ContingencyPage() {
   );
 }
 
+function DriveImportDialog({
+  open, onOpenChange, listCsvs, downloadCsv, onImport,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  listCsvs: () => Promise<{ files: DriveCsvFile[]; error: string | null }>;
+  downloadCsv: (args: { data: { fileId: string } }) => Promise<{ content: string | null; error: string | null }>;
+  onImport: (text: string) => void;
+}) {
+  const [files, setFiles] = useState<DriveCsvFile[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true); setErr(null);
+    listCsvs()
+      .then((res) => { setFiles(res.files); setErr(res.error); })
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  }, [open, listCsvs]);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-bg2 border-border max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <HardDrive className="h-4 w-4" /> Importar CSV do Drive
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-[11px] text-muted2">
+          Usa a mesma conexão Google Drive do app.
+        </p>
+        {loading && <p className="py-4 text-center text-sm text-muted2">Carregando...</p>}
+        {err && <p className="rounded-md border border-danger/40 bg-danger/10 p-2 text-xs text-danger">{err}</p>}
+        {!loading && !err && files.length === 0 && (
+          <p className="py-4 text-center text-sm text-muted2">Nenhum CSV encontrado no Drive.</p>
+        )}
+        <ul className="max-h-80 space-y-1 overflow-y-auto">
+          {files.map((f) => (
+            <li key={f.id}>
+              <button
+                onClick={async () => {
+                  toast.loading("Baixando...", { id: "drive-dl" });
+                  const res = await downloadCsv({ data: { fileId: f.id } });
+                  if (res.error || !res.content) {
+                    toast.error(`Falha: ${res.error ?? "vazio"}`, { id: "drive-dl" });
+                    return;
+                  }
+                  toast.dismiss("drive-dl");
+                  onImport(res.content);
+                }}
+                className="flex w-full items-center justify-between rounded-md border border-border bg-bg3 px-3 py-2 text-left text-sm hover:border-border2"
+              >
+                <span className="truncate">{f.name}</span>
+                {f.modifiedTime && (
+                  <span className="text-[10px] text-muted2">
+                    {new Date(f.modifiedTime).toLocaleDateString("pt-BR")}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
 function StatCard({
   label, value, color, active, onClick, icon, warn, warnText, title,
 }: {
