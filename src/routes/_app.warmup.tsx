@@ -514,14 +514,26 @@ function DistributeTab() {
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
   });
+  // Por padrão, seleciona todas as contas assim que carregarem
+  useEffect(() => {
+    if (accounts.length && selectedAccounts.length === 0) {
+      setSelectedAccounts(accounts.map((a) => a.id));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts.length]);
   const [caption, setCaption] = useState("");
-  const [start, setStart] = useState(() => {
-    const d = new Date(Date.now() + 60 * 60_000);
+  // Default: agora (hora local do dispositivo)
+  const localNow = () => {
+    const d = new Date();
     d.setSeconds(0, 0);
-    return d.toISOString().slice(0, 16);
-  });
+    const tz = d.getTimezoneOffset() * 60_000;
+    return new Date(d.getTime() - tz).toISOString().slice(0, 16);
+  };
+  const [start, setStart] = useState(localNow);
   const [gap, setGap] = useState(15);
   const [copied, setCopied] = useState(false);
+  const [enqueueing, setEnqueueing] = useState(false);
+  const [enqueueMsg, setEnqueueMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -536,8 +548,11 @@ function DistributeTab() {
       .finally(() => setLoading(false));
   }, [fetchEntries, folderId]);
 
-  const toggleAccount = (u: string) =>
-    setSelectedAccounts((s) => (s.includes(u) ? s.filter((x) => x !== u) : [...s, u]));
+  const toggleAccount = (id: string) =>
+    setSelectedAccounts((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  const allAccountsSelected = accounts.length > 0 && selectedAccounts.length === accounts.length;
+  const toggleAllAccounts = () =>
+    setSelectedAccounts(allAccountsSelected ? [] : accounts.map((a) => a.id));
 
   const toggleVideo = (v: DriveVideo) =>
     setSelectedVideos((prev) => {
@@ -605,6 +620,38 @@ function DistributeTab() {
     await navigator.clipboard.writeText(command);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  };
+
+  const enqueueAll = async () => {
+    if (!selectedList.length || !selectedAccounts.length) return;
+    setEnqueueing(true);
+    setEnqueueMsg(null);
+    try {
+      const startMs = new Date(start).getTime();
+      let i = 0;
+      let ok = 0;
+      let fail = 0;
+      for (const v of selectedList) {
+        for (const accId of selectedAccounts) {
+          const scheduledAt = new Date(startMs + i * gap * 60_000).toISOString();
+          const res = await api.enqueue({
+            account_id: accId,
+            caption,
+            media_type: "REEL",
+            media_key: `drive:${v.id}`,
+            scheduled_at: scheduledAt,
+          });
+          if (res) ok++;
+          else fail++;
+          i++;
+        }
+      }
+      setEnqueueMsg(`✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""}`);
+    } catch (e) {
+      setEnqueueMsg(`Erro: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setEnqueueing(false);
+    }
   };
 
 
@@ -756,15 +803,26 @@ function DistributeTab() {
 
       <div className="space-y-4">
         <div>
-          <h3 className="mb-2 text-sm font-semibold">Contas que recebem</h3>
-          <ul className="space-y-1.5">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Contas que recebem</h3>
+            <button
+              onClick={toggleAllAccounts}
+              className="rounded-md border border-border2 bg-bg3 px-2 py-1 text-xs text-text2 hover:text-foreground"
+            >
+              {allAccountsSelected ? "Desmarcar todas" : "Selecionar todas"}
+            </button>
+          </div>
+          <div className="mb-2 text-xs text-muted2">
+            {selectedAccounts.length} de {accounts.length} selecionada(s)
+          </div>
+          <ul className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
             {accounts.map((a) => (
               <li key={a.id}>
-                <label className="flex items-center gap-2 rounded-md border border-border bg-bg3 p-2 text-sm">
+                <label className="flex items-center gap-2 rounded-md border border-border bg-bg3 p-2 text-sm cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={selectedAccounts.includes(a.username)}
-                    onChange={() => toggleAccount(a.username)}
+                    checked={selectedAccounts.includes(a.id)}
+                    onChange={() => toggleAccount(a.id)}
                     className="accent-accent"
                   />
                   <img src={a.profile_picture} alt="" className="h-6 w-6 rounded-full" />
@@ -807,9 +865,38 @@ function DistributeTab() {
           />
         </div>
 
+        <div className="space-y-2">
+          <button
+            onClick={enqueueAll}
+            disabled={enqueueing || !selectedList.length || !selectedAccounts.length}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white shadow hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {enqueueing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" /> Agendando…
+              </>
+            ) : (
+              <>
+                <Wand2 className="h-4 w-4" /> Agendar nas contas selecionadas
+              </>
+            )}
+          </button>
+          {enqueueMsg && (
+            <div className="rounded-md border border-border bg-bg3 px-3 py-2 text-xs text-text2">
+              {enqueueMsg}
+            </div>
+          )}
+          <p className="text-[11px] text-muted2">
+            Cria 1 item na fila por conta × vídeo selecionado, espaçado pelo gap. As publicações
+            ocorrem no horário agendado pelo scheduler do servidor.
+          </p>
+        </div>
+
         <div>
           <div className="mb-1 flex items-center justify-between">
-            <label className="text-xs uppercase tracking-wider text-muted2">Comando local</label>
+            <label className="text-xs uppercase tracking-wider text-muted2">
+              Comando local (avançado · gera variantes únicas com ffmpeg)
+            </label>
             {command && (
               <button
                 onClick={copy}
