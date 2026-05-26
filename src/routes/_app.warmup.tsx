@@ -1138,7 +1138,7 @@ function DistributeTab() {
             disabled={!canEnqueue}
             title={disabledReason || undefined}
             className={[
-              "inline-flex w-full items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-semibold text-white shadow transition",
+              "inline-flex w-full min-h-[44px] items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-semibold text-white shadow transition",
               enqueueOk
                 ? "bg-emerald-500 hover:bg-emerald-500/90"
                 : "bg-[var(--accent2)] hover:opacity-90",
