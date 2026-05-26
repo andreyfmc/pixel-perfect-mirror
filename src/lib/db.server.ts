@@ -190,7 +190,10 @@ const rawDb = {
         a.ig_user_id ?? null,
       )
       .run();
-    if (((updated.meta as { changes?: number } | undefined)?.changes ?? 0) > 0) return;
+    if (((updated.meta as { changes?: number } | undefined)?.changes ?? 0) > 0) {
+      await rawDb.resetCredentialFailedQueue(a.username);
+      return;
+    }
 
     await requireDb()
       .prepare(
@@ -219,6 +222,19 @@ const rawDb = {
         a.followers ?? 0,
         a.health_score ?? 100,
       )
+      .run();
+    await rawDb.resetCredentialFailedQueue(a.username);
+  },
+  async resetCredentialFailedQueue(username: string) {
+    await requireDb()
+      .prepare(
+        `UPDATE queue
+         SET status = 'scheduled', last_error = NULL, ig_container_id = NULL, ig_media_id = NULL
+         WHERE status = 'failed'
+           AND last_error LIKE '%error_subcode":33%'
+           AND account_id IN (SELECT id FROM accounts WHERE username = ?)`,
+      )
+      .bind(username)
       .run();
   },
   async updateAccountCredentials(
@@ -469,6 +485,16 @@ const rawDb = {
          WHERE id = ?`,
       )
       .bind(igContainerId, id)
+      .run();
+  },
+  async clearQueueContainer(id: string) {
+    await requireDb()
+      .prepare(
+        `UPDATE queue
+         SET ig_container_id = NULL, ig_media_id = NULL, last_error = NULL
+         WHERE id = ?`,
+      )
+      .bind(id)
       .run();
   },
   async updateLastPostAt(id: string, isoDate: string) {

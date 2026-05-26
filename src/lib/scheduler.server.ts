@@ -3,6 +3,7 @@
 
 import { db } from "./db.server";
 import {
+  type ContainerStatus,
   ensureFreshAccessToken,
   inferGraphProviderFromToken,
   instagram,
@@ -202,7 +203,27 @@ export async function runScheduler(
         await db.markQueueProcessing(item.id, containerId);
       }
 
-      const status = await instagram.fetchContainerStatus(containerId, accessToken, provider);
+      let status: ContainerStatus;
+      try {
+        status = await instagram.fetchContainerStatus(containerId, accessToken, provider);
+      } catch (err) {
+        if (!item.ig_container_id || !isMismatchedCredentialsError(err)) throw err;
+
+        // Containers antigos podem ter sido criados com Page token. Eles não são
+        // legíveis/publicáveis com o User token correto; recria o container.
+        await db.clearQueueContainer(item.id);
+        const mediaUrl = publicMediaUrl(item.media_key, opts.baseUrl);
+        containerId = await instagram.createContainer({
+          igUserId,
+          accessToken,
+          provider,
+          mediaType: item.media_type,
+          mediaUrl,
+          caption: item.caption,
+        });
+        await db.markQueueProcessing(item.id, containerId);
+        status = await instagram.fetchContainerStatus(containerId, accessToken, provider);
+      }
       if (status.statusCode === "ERROR" || status.statusCode === "EXPIRED") {
         throw new Error(
           `Container Instagram ${status.statusCode}: ${status.status ?? "sem detalhe"}`,
