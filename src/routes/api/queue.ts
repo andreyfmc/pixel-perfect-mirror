@@ -15,6 +15,8 @@ const EnqueueSchema = z.object({
   media_key: z.string().min(1),
   thumb_key: z.string().optional(),
   scheduled_at: z.string(), // ISO8601
+  group_id: z.string().optional(),
+  group_scheduled_at: z.string().optional(),
 });
 
 export const Route = createFileRoute("/api/queue")({
