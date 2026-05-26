@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api-client";
 import { fmtDateShort, fmtDateFull } from "@/lib/format";
-import { Plus, MoreHorizontal, ShieldCheck, Loader2, Instagram, Facebook, Trash2 } from "lucide-react";
+import { Plus, MoreHorizontal, ShieldCheck, Loader2, Instagram, Facebook, Trash2, ArrowDownUp } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +12,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useOAuthPopup } from "@/hooks/use-oauth-popup";
+
+type SortKey = "followers" | "health" | "recent" | "name";
+const SORT_LABELS: Record<SortKey, string> = {
+  followers: "Mais seguidores",
+  health: "Maior saúde",
+  recent: "Postou recentemente",
+  name: "Nome (A–Z)",
+};
+
+export const Route = createFileRoute("/_app/accounts")({
+  component: AccountsPage,
+  head: () => ({ meta: [{ title: "Contas · Insta Manager" }] }),
+});
+
 
 export const Route = createFileRoute("/_app/accounts")({
   component: AccountsPage,
