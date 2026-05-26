@@ -717,6 +717,18 @@ function MobileCard({
     <div className="rounded-xl border border-border bg-bg2 p-3 shadow-sm">
       {/* header */}
       <div className="mb-3 flex items-center gap-2">
+        <input
+          type="number"
+          inputMode="numeric"
+          value={a.order ?? ""}
+          onChange={(e) => {
+            const v = e.target.value;
+            onPatch({ order: v === "" ? undefined : Number(v) });
+          }}
+          placeholder="#"
+          aria-label="Número da conta"
+          className="h-9 w-14 shrink-0 rounded-md border border-border bg-bg3 px-2 text-center font-mono text-[14px] tabular-nums outline-none focus:border-accent"
+        />
         <TypeToggle type={ctype} onChange={(t) => onPatch({ connection_type: t })} />
         <span className="truncate font-mono text-[14px] font-medium">
           @{a.username || <span className="text-muted2">sem nome</span>}
