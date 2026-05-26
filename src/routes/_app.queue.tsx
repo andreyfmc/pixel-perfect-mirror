@@ -262,10 +262,12 @@ function QueuePage() {
       // Itens da mesma rodada podem ter scheduled_at minutos diferentes
       // (intervalo entre contas para evitar rate limit), mas devem aparecer
       // juntos como uma única publicação coletiva.
-      const hourBucket = new Date(item.scheduled_at);
-      hourBucket.setMinutes(0, 0, 0);
+      // Arredonda para a hora mais próxima — com jitter ±20min, todas as
+      // postagens de um mesmo ciclo caem no mesmo bucket horário.
+      const ms = new Date(item.scheduled_at).getTime();
+      const hourBucketMs = Math.round(ms / 3_600_000) * 3_600_000;
       const key = [
-        hourBucket.toISOString(),
+        new Date(hourBucketMs).toISOString(),
         item.caption,
         item.media_type,
         item.thumb,

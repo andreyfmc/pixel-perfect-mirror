@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
@@ -530,11 +530,15 @@ function DistributeTab() {
     return new Date(d.getTime() - tz).toISOString().slice(0, 16);
   };
   const [start, setStart] = useState(localNow);
-  const [gap, setGap] = useState(15);
+  // Intervalo entre CICLOS (cada vídeo é um ciclo, postado por todas as contas).
+  const [gap, setGap] = useState(60);
+  // Jitter aplicado entre contas dentro do mesmo ciclo (±N minutos).
+  const [jitter, setJitter] = useState(20);
   const [order, setOrder] = useState<"sequential" | "random">("sequential");
   const [copied, setCopied] = useState(false);
   const [enqueueing, setEnqueueing] = useState(false);
   const [enqueueMsg, setEnqueueMsg] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setLoading(true);
@@ -629,10 +633,8 @@ function DistributeTab() {
     setEnqueueMsg(null);
     try {
       const startMs = new Date(start).getTime();
-      let i = 0;
       let ok = 0;
       let fail = 0;
-      // Para cada conta, define a ordem dos vídeos (sequencial ou embaralhada por conta)
       const shuffle = <T,>(arr: T[]): T[] => {
         const a = [...arr];
         for (let j = a.length - 1; j > 0; j--) {
@@ -641,10 +643,20 @@ function DistributeTab() {
         }
         return a;
       };
-      for (const accId of selectedAccounts) {
-        const videosForAcc = order === "random" ? shuffle(selectedList) : selectedList;
-        for (const v of videosForAcc) {
-          const scheduledAt = new Date(startMs + i * gap * 60_000).toISOString();
+      // Cada vídeo = um ciclo. Em cada ciclo, todas as contas selecionadas
+      // postam aquele vídeo, com jitter ±N minutos entre elas para evitar
+      // chamadas simultâneas à API. Próximo ciclo começa após `gap` minutos.
+      const jitterMs = Math.max(0, jitter) * 60_000;
+      for (let cycle = 0; cycle < selectedList.length; cycle++) {
+        const cycleStartMs = startMs + cycle * gap * 60_000;
+        const accountsForCycle =
+          order === "random" ? shuffle(selectedAccounts) : selectedAccounts;
+        for (const accId of accountsForCycle) {
+          const v = selectedList[cycle];
+          const jitterOffset = jitterMs
+            ? Math.round((Math.random() * 2 - 1) * jitterMs)
+            : 0;
+          const scheduledAt = new Date(cycleStartMs + jitterOffset).toISOString();
           const res = await api.enqueue({
             account_id: accId,
             caption,
@@ -654,10 +666,14 @@ function DistributeTab() {
           });
           if (res) ok++;
           else fail++;
-          i++;
         }
       }
-      setEnqueueMsg(`✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ordem: ${order === "random" ? "aleatória" : "sequencial"}`);
+      setEnqueueMsg(
+        `✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ${selectedList.length} ciclo(s) de ${gap}min · jitter ±${jitter}min`,
+      );
+      if (ok > 0 && fail === 0) {
+        setTimeout(() => navigate({ to: "/queue" }), 600);
+      }
     } catch (e) {
       setEnqueueMsg(`Erro: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -846,7 +862,7 @@ function DistributeTab() {
           </ul>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <div>
             <label className="mb-1 block text-xs uppercase tracking-wider text-muted2">Início</label>
             <input
@@ -857,11 +873,26 @@ function DistributeTab() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs uppercase tracking-wider text-muted2">Gap (min)</label>
+            <label className="mb-1 block text-xs uppercase tracking-wider text-muted2" title="Intervalo entre ciclos (cada vídeo)">
+              Ciclo (min)
+            </label>
             <input
               type="number"
+              min={1}
               value={gap}
               onChange={(e) => setGap(Number(e.target.value))}
+              className="w-full rounded-lg border border-border2 bg-bg3 px-2 py-1.5 text-sm outline-none focus:border-accent"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-wider text-muted2" title="Variação ± aplicada entre contas dentro do mesmo ciclo">
+              Jitter (±min)
+            </label>
+            <input
+              type="number"
+              min={0}
+              value={jitter}
+              onChange={(e) => setJitter(Number(e.target.value))}
               className="w-full rounded-lg border border-border2 bg-bg3 px-2 py-1.5 text-sm outline-none focus:border-accent"
             />
         </div>
@@ -934,8 +965,9 @@ function DistributeTab() {
             </div>
           )}
           <p className="text-[11px] text-muted2">
-            Cria 1 item na fila por conta × vídeo selecionado, espaçado pelo gap. As publicações
-            ocorrem no horário agendado pelo scheduler do servidor.
+            Cada vídeo vira um ciclo: todas as contas selecionadas postam o mesmo vídeo dentro
+            de uma janela de ±{jitter}min, e o próximo ciclo começa {gap}min depois. Após o
+            agendamento, você é levado direto para a Fila.
           </p>
         </div>
 
