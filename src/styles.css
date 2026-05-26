@@ -154,3 +154,42 @@
     color: transparent;
   }
 }
+
+/* ===== Mobile UX guarantees (< 768px) ===== */
+@media (max-width: 767px) {
+  /* iOS: nenhum input deve disparar zoom automático */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+  /* Nada pode estourar a largura da viewport */
+  html, body { overflow-x: hidden; }
+  /* Faixa de filtros/chips com scroll horizontal — usar a classe .im-scroll-x */
+  .im-scroll-x {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .im-scroll-x::-webkit-scrollbar { display: none; }
+  .im-scroll-x > * { flex: 0 0 auto; }
+}
+
+/* Touch devices: hover não existe — converter para active */
+@media (hover: none) {
+  *:hover { transition: none !important; }
+}
+
+/* Botão de ação principal — altura mínima de toque */
+.im-touch-btn { min-height: 44px; }
+
+/* Barra de ação fixa no fundo (mobile) — para usar com `sticky-action-bar` */
+.im-sticky-bottom {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: color-mix(in oklab, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--border);
+}
