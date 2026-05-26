@@ -154,6 +154,19 @@ export const db = {
       )
       .run();
   },
+  async markAccountNeedsReconnect(id: string) {
+    await requireDb()
+      .prepare(
+        `UPDATE accounts
+         SET access_token = NULL,
+             token_expires_at = NULL,
+             health_score = 0,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+      )
+      .bind(id)
+      .run();
+  },
   async deleteAccount(id: string) {
     await requireDb().prepare("DELETE FROM accounts WHERE id = ?").bind(id).run();
   },
