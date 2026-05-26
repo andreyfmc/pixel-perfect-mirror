@@ -10,7 +10,10 @@ function AppLayout() {
   return (
     <div className="flex min-h-screen bg-bg text-foreground">
       <AppSidebar />
-      <main className="flex-1 min-w-0 pb-20 md:pb-0">
+      <main
+        className="flex-1 min-w-0 md:pb-0"
+        style={{ paddingBottom: "calc(72px + env(safe-area-inset-bottom))" }}
+      >
         <Outlet />
       </main>
       <MobileBottomNav />
