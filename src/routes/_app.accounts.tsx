@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api-client";
-import { fmtDateTime, fmtDateFull } from "@/lib/format";
+import { fmtDateTime } from "@/lib/format";
 import type { Account } from "@/lib/mock";
 import {
   Plus,
