@@ -284,8 +284,16 @@ const rawDb = {
   async enqueue(
     q: Omit<
       QueueRow,
-      "status" | "attempts" | "last_error" | "ig_container_id" | "ig_media_id" | "created_at"
-    >,
+      | "status"
+      | "attempts"
+      | "last_error"
+      | "ig_container_id"
+      | "ig_media_id"
+      | "created_at"
+      | "group_id"
+      | "group_scheduled_at"
+    > &
+      Partial<Pick<QueueRow, "group_id" | "group_scheduled_at">>,
   ) {
     await requireDb()
       .prepare(
