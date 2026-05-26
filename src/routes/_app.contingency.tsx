@@ -1130,7 +1130,7 @@ function ContingencyPage() {
 
       {/* stat cards */}
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
-        <StatCard label="Total" value={counts.total} color="var(--accent2)" active={statusFilter === "all"} onClick={() => setStatusFilter("all")} />
+        <StatCard label="Total" value={counts.total} color="#ffffff" active={statusFilter === "all"} onClick={() => setStatusFilter("all")} />
         <StatCard
           label="Em Edição"
           value={counts.em_edicao}
