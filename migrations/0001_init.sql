@@ -9,8 +9,6 @@ CREATE TABLE IF NOT EXISTS accounts (
   ig_user_id TEXT,                       -- ID na Graph API
   access_token TEXT,                     -- token de longa duração (criptografar idealmente)
   token_expires_at TEXT,                 -- ISO8601
-  token_status TEXT NOT NULL DEFAULT 'valid'
-    CHECK (token_status IN ('valid','expired')),
   followers INTEGER DEFAULT 0,
   health_score INTEGER DEFAULT 100,      -- 0..100
   last_post_at TEXT,
@@ -57,11 +55,11 @@ CREATE INDEX IF NOT EXISTS idx_history_account ON history(account_id, published_
 -- ============================================================
 -- SEED — mocks de desenvolvimento
 -- ============================================================
-INSERT OR IGNORE INTO accounts (id, username, name, profile_picture, health_score, followers, last_post_at, token_expires_at, token_status) VALUES
-  ('1','atelier.noir','Atelier Noir','https://api.dicebear.com/9.x/glass/svg?seed=atelier',92,18420,'2026-05-24T18:30:00Z','2026-07-12T00:00:00Z','valid'),
-  ('2','neon.diary','Neon Diary','https://api.dicebear.com/9.x/glass/svg?seed=neon',74,6320,'2026-05-23T09:12:00Z','2026-06-02T00:00:00Z','valid'),
-  ('3','kombu.studio','Kombu Studio','https://api.dicebear.com/9.x/glass/svg?seed=kombu',58,2104,'2026-05-20T22:00:00Z','2026-05-30T00:00:00Z','valid'),
-  ('4','lume.cafe','Lume Café','https://api.dicebear.com/9.x/glass/svg?seed=lume',88,9870,'2026-05-25T07:45:00Z','2026-08-01T00:00:00Z','valid');
+INSERT OR IGNORE INTO accounts (id, username, name, profile_picture, health_score, followers, last_post_at, token_expires_at) VALUES
+  ('1','atelier.noir','Atelier Noir','https://api.dicebear.com/9.x/glass/svg?seed=atelier',92,18420,'2026-05-24T18:30:00Z','2026-07-12T00:00:00Z'),
+  ('2','neon.diary','Neon Diary','https://api.dicebear.com/9.x/glass/svg?seed=neon',74,6320,'2026-05-23T09:12:00Z','2026-06-02T00:00:00Z'),
+  ('3','kombu.studio','Kombu Studio','https://api.dicebear.com/9.x/glass/svg?seed=kombu',58,2104,'2026-05-20T22:00:00Z','2026-05-30T00:00:00Z'),
+  ('4','lume.cafe','Lume Café','https://api.dicebear.com/9.x/glass/svg?seed=lume',88,9870,'2026-05-25T07:45:00Z','2026-08-01T00:00:00Z');
 
 INSERT OR IGNORE INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at, status) VALUES
   ('q1','1','Drop 03 — bastidores do shoot ✦','REEL','seed/q1.mp4','seed/q1.jpg','2026-05-25T19:00:00Z','scheduled'),
