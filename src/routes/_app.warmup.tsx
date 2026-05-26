@@ -514,14 +514,26 @@ function DistributeTab() {
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
   });
+  // Por padrão, seleciona todas as contas assim que carregarem
+  useEffect(() => {
+    if (accounts.length && selectedAccounts.length === 0) {
+      setSelectedAccounts(accounts.map((a) => a.id));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts.length]);
   const [caption, setCaption] = useState("");
-  const [start, setStart] = useState(() => {
-    const d = new Date(Date.now() + 60 * 60_000);
+  // Default: agora (hora local do dispositivo)
+  const localNow = () => {
+    const d = new Date();
     d.setSeconds(0, 0);
-    return d.toISOString().slice(0, 16);
-  });
+    const tz = d.getTimezoneOffset() * 60_000;
+    return new Date(d.getTime() - tz).toISOString().slice(0, 16);
+  };
+  const [start, setStart] = useState(localNow);
   const [gap, setGap] = useState(15);
   const [copied, setCopied] = useState(false);
+  const [enqueueing, setEnqueueing] = useState(false);
+  const [enqueueMsg, setEnqueueMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
