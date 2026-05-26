@@ -14,6 +14,7 @@ import {
   Trash2,
   ArrowDownUp,
   BadgeCheck,
+  AlertTriangle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -40,6 +41,27 @@ function ringForHealth(score: number) {
   if (score >= 80) return "var(--success)";
   if (score >= 60) return "var(--warning)";
   return "var(--danger)";
+}
+
+function tokenDaysLeft(expiresAt?: string | null) {
+  if (!expiresAt) return null;
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return null;
+  return Math.ceil(ms / 86_400_000);
+}
+
+function tokenInfo(a: { token_status?: string; token_expires_at?: string | null }) {
+  const days = tokenDaysLeft(a.token_expires_at);
+  const expired = a.token_status === "expired" || (days !== null && days <= 0);
+  const warning = !expired && days !== null && days <= 7;
+  const label = expired
+    ? "Token expirado"
+    : days === null
+      ? "Expiração desconhecida"
+      : days === 1
+        ? "Expira em 1 dia"
+        : `Expira em ${days} dias`;
+  return { days, expired, warning, label };
 }
 
 function AccountsPage() {
@@ -206,7 +228,9 @@ function AccountsPage() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {sorted.map((a) => (
+          {sorted.map((a) => {
+            const token = tokenInfo(a);
+            return (
             <article key={a.id} className="im-card im-card-hover p-5">
               <div className="flex items-start gap-4">
                 <div
@@ -224,6 +248,11 @@ function AccountsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <h3 className="truncate text-base font-semibold">@{a.username}</h3>
+                    {token.expired && (
+                      <span className="shrink-0 rounded-full border border-danger/40 bg-danger/10 px-2 py-0.5 text-[10px] font-semibold text-danger">
+                        Token expirado
+                      </span>
+                    )}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
@@ -333,15 +362,26 @@ function AccountsPage() {
                 </div>
               </dl>
 
-              <div className="mt-4 flex items-center justify-between text-xs text-muted2">
-                <span className="inline-flex items-center gap-1">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  Token expira {fmtDateFull(a.token_expires_at)}
+              <div className="mt-4 flex items-center justify-between gap-3 text-xs text-muted2">
+                <span
+                  className="inline-flex min-w-0 items-center gap-1"
+                  style={{ color: token.expired ? "var(--danger)" : token.warning ? "var(--warning)" : undefined }}
+                >
+                  {token.expired || token.warning ? <AlertTriangle className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                  <span className="truncate">{token.label} · {fmtDateFull(a.token_expires_at)}</span>
                 </span>
-                <button className="font-medium text-text2 hover:text-foreground">renovar</button>
+                <button
+                  type="button"
+                  onClick={() => handleConnect("instagram")}
+                  disabled={loading !== null}
+                  className="shrink-0 font-medium text-text2 hover:text-foreground disabled:opacity-60"
+                >
+                  Reconectar
+                </button>
               </div>
             </article>
-          ))}
+            );
+          })}
 
           <button
             type="button"
