@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { mockAccounts } from "@/lib/mock";
+import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api-client";
 import { fmtDateFull } from "@/lib/format";
 import { ShieldAlert, ShieldCheck, Pause, Activity } from "lucide-react";
 
@@ -9,7 +10,13 @@ export const Route = createFileRoute("/_app/contingency")({
 });
 
 function ContingencyPage() {
-  const atRisk = mockAccounts.filter((a) => a.health_score < 80);
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api.listAccounts(),
+  });
+  const atRisk = accounts.filter((a) => a.health_score < 80);
+
+
 
   return (
     <div className="mx-auto max-w-5xl px-5 py-8 md:px-10">

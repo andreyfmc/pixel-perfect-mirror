@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { mockAccounts, mockQueue, mockHistory } from "@/lib/mock";
+import { useQuery } from "@tanstack/react-query";
+import { mockQueue, mockHistory } from "@/lib/mock";
+import { api } from "@/lib/api-client";
 import { fmtDateTime } from "@/lib/format";
 import {
   Activity,
@@ -54,10 +56,16 @@ function Stat({
 }
 
 function Dashboard() {
-  const avgHealth = Math.round(
-    mockAccounts.reduce((s, a) => s + a.health_score, 0) / mockAccounts.length,
-  );
-  const totalFollowers = mockAccounts.reduce((s, a) => s + a.followers, 0);
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api.listAccounts(),
+  });
+  const avgHealth = accounts.length
+    ? Math.round(accounts.reduce((s, a) => s + a.health_score, 0) / accounts.length)
+    : 0;
+  const totalFollowers = accounts.reduce((s, a) => s + a.followers, 0);
+
+
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
@@ -77,7 +85,7 @@ function Dashboard() {
       </header>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Contas ativas" value={String(mockAccounts.length)} icon={Activity} />
+        <Stat label="Contas ativas" value={String(accounts.length)} icon={Activity} />
         <Stat label="Saúde média" value={`${avgHealth}`} delta="+4 esta semana" icon={TrendingUp} />
         <Stat label="Na fila" value={String(mockQueue.length)} icon={CalendarClock} />
         <Stat label="Seguidores totais" value={totalFollowers.toLocaleString("pt-BR")} icon={Eye} />
@@ -116,7 +124,7 @@ function Dashboard() {
             <h2 className="text-sm font-semibold tracking-tight">Atenção</h2>
           </div>
           <ul className="space-y-3">
-            {mockAccounts
+            {accounts
               .filter((a) => a.health_score < 80)
               .map((a) => (
                 <li key={a.id} className="flex items-center gap-3 rounded-lg bg-bg3 p-3">
