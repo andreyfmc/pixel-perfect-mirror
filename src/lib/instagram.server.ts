@@ -7,7 +7,33 @@
 //
 // Requer access_token de longa duração da conta + ig_user_id (Business).
 
-const GRAPH = "https://graph.facebook.com/v21.0";
+const GRAPH_HOSTS = [
+  { id: "facebook", base: "https://graph.facebook.com/v21.0" },
+  { id: "instagram", base: "https://graph.instagram.com/v21.0" },
+] as const;
+
+type GraphHostId = (typeof GRAPH_HOSTS)[number]["id"];
+type GraphJson = Record<string, unknown>;
+type GraphFailure = {
+  host: GraphHostId;
+  status: number;
+  json: GraphJson;
+};
+
+export class InstagramGraphError extends Error {
+  failures: GraphFailure[];
+
+  constructor(failures: GraphFailure[]) {
+    const first = failures[0];
+    const err = first?.json.error as { code?: number; error_subcode?: number; message?: string } | undefined;
+    const hint = err?.code === 100 && err?.error_subcode === 33
+      ? " — credenciais incompatíveis: o token salvo não acessa este ig_user_id. Revalide/reconecte a conta."
+      : "";
+    super(`Graph ${first?.status ?? 400}: ${JSON.stringify(first?.json ?? {})}${hint}`);
+    this.name = "InstagramGraphError";
+    this.failures = failures;
+  }
+}
 
 export type PublishInput = {
   igUserId: string;
@@ -28,22 +54,57 @@ export type ContainerStatus = {
   status?: string;
 };
 
+function shouldTryNextHost(failure: GraphFailure) {
+  const err = failure.json.error as { code?: number; error_subcode?: number; type?: string; message?: string } | undefined;
+  return failure.status === 400 && err?.code === 100;
+}
+
+async function graphRequest(
+  method: "GET" | "POST",
+  path: string,
+  input: Record<string, string>,
+  hosts = GRAPH_HOSTS,
+): Promise<GraphJson> {
+  const failures: GraphFailure[] = [];
+  for (const host of hosts) {
+    const url = new URL(host.base + path);
+    const init: RequestInit = { method };
+    if (method === "GET") {
+      for (const [k, v] of Object.entries(input)) url.searchParams.set(k, v);
+    } else {
+      init.headers = { "content-type": "application/x-www-form-urlencoded" };
+      init.body = new URLSearchParams(input).toString();
+    }
+
+    const res = await fetch(url, init);
+    const json = (await res.json()) as GraphJson;
+    if (res.ok) return json;
+    const failure = { host: host.id, status: res.status, json };
+    failures.push(failure);
+    if (!shouldTryNextHost(failure)) break;
+  }
+  throw new InstagramGraphError(failures);
+}
+
 async function gpost(path: string, body: Record<string, string>) {
-  const url = new URL(GRAPH + path);
+  return graphRequest("POST", path, body);
+}
+
+async function gget(path: string, params: Record<string, string>) {
+  return graphRequest("GET", path, params);
+}
+
+async function facebookGet(path: string, params: Record<string, string>) {
+  return graphRequest("GET", path, params, [GRAPH_HOSTS[0]]);
+}
+
+async function oldGpost(path: string, body: Record<string, string>) {
+  const url = new URL(GRAPH_HOSTS[0].base + path);
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams(body).toString(),
   });
-  const json = (await res.json()) as Record<string, unknown>;
-  if (!res.ok) throw new Error(`Graph ${res.status}: ${JSON.stringify(json)}`);
-  return json;
-}
-
-async function gget(path: string, params: Record<string, string>) {
-  const url = new URL(GRAPH + path);
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await fetch(url);
   const json = (await res.json()) as Record<string, unknown>;
   if (!res.ok) throw new Error(`Graph ${res.status}: ${JSON.stringify(json)}`);
   return json;
