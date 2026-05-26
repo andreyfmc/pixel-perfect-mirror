@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api-client";
 import { fmtDateShort, fmtDateFull } from "@/lib/format";
-import { Plus, MoreHorizontal, ShieldCheck, Loader2, Instagram, Facebook, Trash2 } from "lucide-react";
+import { Plus, MoreHorizontal, ShieldCheck, Loader2, Instagram, Facebook, Trash2, ArrowDownUp } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,6 +12,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useOAuthPopup } from "@/hooks/use-oauth-popup";
+
+type SortKey = "followers" | "health" | "recent" | "name";
+const SORT_LABELS: Record<SortKey, string> = {
+  followers: "Mais seguidores",
+  health: "Maior saúde",
+  recent: "Postou recentemente",
+  name: "Nome (A–Z)",
+};
 
 export const Route = createFileRoute("/_app/accounts")({
   component: AccountsPage,
@@ -26,10 +34,27 @@ function ringForHealth(score: number) {
 
 function AccountsPage() {
   const qc = useQueryClient();
+  const [sortKey, setSortKey] = useState<SortKey>("followers");
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
   });
+  const sorted = useMemo(() => {
+    const arr = [...accounts];
+    switch (sortKey) {
+      case "followers":
+        return arr.sort((a, b) => b.followers - a.followers);
+      case "health":
+        return arr.sort((a, b) => b.health_score - a.health_score);
+      case "recent":
+        return arr.sort(
+          (a, b) => +new Date(b.last_post_at) - +new Date(a.last_post_at),
+        );
+      case "name":
+        return arr.sort((a, b) => a.username.localeCompare(b.username));
+    }
+  }, [accounts, sortKey]);
+
   const { connect, loading } = useOAuthPopup();
 
   async function handleConnect(provider: "instagram" | "facebook") {
@@ -65,10 +90,27 @@ function AccountsPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-8 md:px-10">
-      <header className="mb-8">
-        <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Contas</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Suas conexões</h1>
+      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Contas</p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Suas conexões</h1>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground">
+              <ArrowDownUp className="h-3.5 w-3.5" /> {SORT_LABELS[sortKey]}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+              <DropdownMenuItem key={k} onSelect={() => setSortKey(k)}>
+                {SORT_LABELS[k]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </header>
+
 
       <section className="mb-8 grid gap-4 md:grid-cols-2">
         <button
@@ -111,7 +153,7 @@ function AccountsPage() {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {accounts.map((a) => (
+          {sorted.map((a) => (
             <article key={a.id} className="im-card im-card-hover p-5">
               <div className="flex items-start gap-4">
                 <div

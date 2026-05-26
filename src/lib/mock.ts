@@ -59,7 +59,7 @@ export type QueueItem = {
   scheduled_at: string;
   media_type: "REEL" | "IMAGE" | "STORY";
   thumb: string;
-  status: "scheduled" | "processing" | "failed";
+  status: "scheduled" | "processing" | "failed" | "canceled" | "published";
 };
 
 export const mockQueue: QueueItem[] = [
@@ -67,7 +67,9 @@ export const mockQueue: QueueItem[] = [
   { id: "q2", account: "neon.diary", caption: "Sexta-feira, cidade acordando 🌃", scheduled_at: "2026-05-25T21:30:00Z", media_type: "IMAGE", thumb: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=400", status: "scheduled" },
   { id: "q3", account: "lume.cafe", caption: "Novo grão da semana — Etiópia Yirgacheffe", scheduled_at: "2026-05-26T07:00:00Z", media_type: "STORY", thumb: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400", status: "processing" },
   { id: "q4", account: "kombu.studio", caption: "Workshop de cerâmica — últimas vagas", scheduled_at: "2026-05-26T12:00:00Z", media_type: "REEL", thumb: "https://images.unsplash.com/photo-1565193566173-7a0ee3dbe261?w=400", status: "failed" },
+  { id: "q5", account: "neon.diary", caption: "Sequência pausada para revisão", scheduled_at: "2026-05-27T09:00:00Z", media_type: "IMAGE", thumb: "https://images.unsplash.com/photo-1520975954732-35dd22299614?w=400", status: "canceled" },
 ];
+
 
 export const mockHistory = [
   { id: "h1", account: "atelier.noir", caption: "Editorial primavera", published_at: "2026-05-24T18:30:00Z", reach: 12400, likes: 980, comments: 42, thumb: "https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=400" },
