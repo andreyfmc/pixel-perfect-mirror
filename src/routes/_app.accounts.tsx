@@ -95,20 +95,50 @@ function AccountsPage() {
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Contas</p>
           <h1 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight">Suas conexões</h1>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground">
-              <ArrowDownUp className="h-3.5 w-3.5" /> {SORT_LABELS[sortKey]}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-52">
-            {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
-              <DropdownMenuItem key={k} onSelect={() => setSortKey(k)}>
-                {SORT_LABELS[k]}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={async () => {
+              if (!accounts.length) return;
+              const t = toast.loading(`Validando ${accounts.length} contas…`);
+              let ok = 0;
+              const fails: string[] = [];
+              for (const a of accounts) {
+                try {
+                  const r = await api.validateAccount(a.id);
+                  if (r?.ok) ok++;
+                  else fails.push(`@${a.username}`);
+                } catch {
+                  fails.push(`@${a.username}`);
+                }
+              }
+              toast.dismiss(t);
+              if (!fails.length) toast.success(`Todas válidas (${ok}/${accounts.length})`);
+              else
+                toast.error(
+                  `${ok}/${accounts.length} ok · falhas: ${fails.join(", ")}`,
+                  { duration: 12000 },
+                );
+            }}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground"
+          >
+            <BadgeCheck className="h-3.5 w-3.5" /> Validar todas
+          </button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground">
+                <ArrowDownUp className="h-3.5 w-3.5" /> {SORT_LABELS[sortKey]}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+                <DropdownMenuItem key={k} onSelect={() => setSortKey(k)}>
+                  {SORT_LABELS[k]}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </header>
 
 
