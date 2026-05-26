@@ -1276,6 +1276,7 @@ function QueuePage() {
                               scheduledAt={item.scheduled_at}
                               lastError={item.last_error}
                               now={now}
+                              retryCount={item.retry_count}
                             />
                             {item.status === "published" && (
                               <ExternalLink className="h-3 w-3 shrink-0 text-muted2" />
