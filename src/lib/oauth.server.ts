@@ -3,6 +3,7 @@
 
 import { env } from "./cf.server";
 import { db } from "./db.server";
+import { getInstagramClientId, getInstagramClientSecret } from "./instagram.server";
 
 export type Provider = "facebook" | "instagram";
 
@@ -191,7 +192,11 @@ async function igExchangeCode(req: Request, code: string) {
 async function igLongLived(shortToken: string) {
   const u = new URL(`${IG_GRAPH}/access_token`);
   u.searchParams.set("grant_type", "ig_exchange_token");
-  u.searchParams.set("client_secret", env.META_IG_APP_SECRET!);
+  const clientId = getInstagramClientId();
+  const clientSecret = getInstagramClientSecret();
+  if (!clientId || !clientSecret) throw new Error("Credenciais Instagram não configuradas");
+  u.searchParams.set("client_id", clientId);
+  u.searchParams.set("client_secret", clientSecret);
   u.searchParams.set("access_token", shortToken);
   const r = await fetch(u);
   const j = (await r.json()) as { access_token?: string; expires_in?: number };
