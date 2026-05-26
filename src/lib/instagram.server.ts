@@ -390,34 +390,35 @@ export const instagram = {
     } else {
       body.image_url = input.mediaUrl;
     }
-    const json = await gpost(`/${input.igUserId}/media`, body);
+    const json = await gpost(`/${input.igUserId}/media`, body, input.provider);
     return String(json.id);
   },
 
   async publishContainer(input: {
     igUserId: string;
     accessToken: string;
+    provider?: GraphHostId;
     containerId: string;
   }): Promise<string> {
     const json = await gpost(`/${input.igUserId}/media_publish`, {
       access_token: input.accessToken,
       creation_id: input.containerId,
-    });
+    }, input.provider);
     return String(json.id);
   },
 
-  async fetchMediaInfo(mediaId: string, accessToken: string) {
+  async fetchMediaInfo(mediaId: string, accessToken: string, provider?: GraphHostId) {
     return gget(`/${mediaId}`, {
       access_token: accessToken,
       fields: "id,permalink,media_type,caption,timestamp",
-    });
+    }, provider);
   },
 
-  async fetchContainerStatus(containerId: string, accessToken: string): Promise<ContainerStatus> {
+  async fetchContainerStatus(containerId: string, accessToken: string, provider?: GraphHostId): Promise<ContainerStatus> {
     const json = await gget(`/${containerId}`, {
       access_token: accessToken,
       fields: "status_code,status",
-    });
+    }, provider);
     return {
       statusCode: String(json.status_code ?? "UNKNOWN"),
       status: typeof json.status === "string" ? json.status : undefined,
