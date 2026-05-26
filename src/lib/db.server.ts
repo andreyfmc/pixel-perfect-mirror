@@ -312,9 +312,7 @@ const rawDb = {
     await requireDb()
       .prepare(
         `UPDATE accounts
-         SET access_token = NULL,
-             token_expires_at = NULL,
-             token_status = 'expired',
+         SET token_status = 'expired',
              health_score = 0,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
