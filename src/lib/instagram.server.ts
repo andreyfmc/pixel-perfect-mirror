@@ -428,6 +428,7 @@ export const instagram = {
   async waitUntilReady(input: {
     containerId: string;
     accessToken: string;
+    provider?: GraphHostId;
     attempts?: number;
     delayMs?: number;
   }) {
@@ -436,7 +437,7 @@ export const instagram = {
     let last: ContainerStatus | null = null;
 
     for (let i = 0; i < attempts; i++) {
-      last = await this.fetchContainerStatus(input.containerId, input.accessToken);
+      last = await this.fetchContainerStatus(input.containerId, input.accessToken, input.provider);
       if (last.statusCode === "FINISHED" || last.statusCode === "PUBLISHED") return last;
       if (last.statusCode === "ERROR" || last.statusCode === "EXPIRED") {
         throw new Error(`Container Instagram ${last.statusCode}: ${last.status ?? "sem detalhe"}`);
@@ -452,15 +453,16 @@ export const instagram = {
   /** Helper completo: cria container → aguarda → publica. */
   async publish(input: PublishInput): Promise<PublishResult> {
     const containerId = await this.createContainer(input);
-    await this.waitUntilReady({ containerId, accessToken: input.accessToken });
+    await this.waitUntilReady({ containerId, accessToken: input.accessToken, provider: input.provider });
     const mediaId = await this.publishContainer({
       igUserId: input.igUserId,
       accessToken: input.accessToken,
+      provider: input.provider,
       containerId,
     });
     let permalink: string | undefined;
     try {
-      const info = await this.fetchMediaInfo(mediaId, input.accessToken);
+      const info = await this.fetchMediaInfo(mediaId, input.accessToken, input.provider);
       permalink = info.permalink as string | undefined;
     } catch {
       // ignore — campo opcional
