@@ -73,6 +73,29 @@ export const api = {
     await fetch(`/api/accounts/${id}`, { method: "DELETE" });
   },
 
+  async validateAccount(id: string): Promise<{
+    ok: boolean;
+    error?: unknown;
+    scope?: string;
+    me?: { id?: string; name?: string };
+    ig?: { id?: string; username?: string; name?: string };
+    suggestions?: Array<{ page: string; ig_id?: string; ig_username?: string }>;
+  } | null> {
+    try {
+      const res = await fetch(`/api/accounts/${id}/validate`, { method: "POST" });
+      return (await res.json()) as {
+        ok: boolean;
+        error?: unknown;
+        scope?: string;
+        me?: { id?: string; name?: string };
+        ig?: { id?: string; username?: string; name?: string };
+        suggestions?: Array<{ page: string; ig_id?: string; ig_username?: string }>;
+      };
+    } catch {
+      return null;
+    }
+  },
+
   async deleteQueue(id: string) {
     await fetch(`/api/queue/${id}`, { method: "DELETE" });
   },
