@@ -69,10 +69,10 @@ function Dashboard() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-7 md:px-10 md:py-8">
-      <header className="mb-8 flex items-end justify-between gap-6">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4 sm:mb-8 sm:gap-6">
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Visão geral</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl">
             Bom dia. <span className="im-grad-text">Tudo no ar.</span>
           </h1>
         </div>
