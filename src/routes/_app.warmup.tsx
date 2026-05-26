@@ -530,11 +530,15 @@ function DistributeTab() {
     return new Date(d.getTime() - tz).toISOString().slice(0, 16);
   };
   const [start, setStart] = useState(localNow);
-  const [gap, setGap] = useState(15);
+  // Intervalo entre CICLOS (cada vídeo é um ciclo, postado por todas as contas).
+  const [gap, setGap] = useState(60);
+  // Jitter aplicado entre contas dentro do mesmo ciclo (±N minutos).
+  const [jitter, setJitter] = useState(20);
   const [order, setOrder] = useState<"sequential" | "random">("sequential");
   const [copied, setCopied] = useState(false);
   const [enqueueing, setEnqueueing] = useState(false);
   const [enqueueMsg, setEnqueueMsg] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setLoading(true);
