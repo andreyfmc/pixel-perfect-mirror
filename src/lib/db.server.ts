@@ -64,12 +64,39 @@ export const db = {
         .first<AccountRow>()) ?? null
     );
   },
-  async createAccount(
-    a: Pick<AccountRow, "id" | "username" | "name"> & Partial<AccountRow>,
-  ) {
-    // UPSERT por username: se a conta já existir, atualizamos os campos
-    // de credencial/perfil. Evita "UNIQUE constraint failed: accounts.username"
-    // ao reconectar a mesma conta via Facebook/Instagram.
+  async createAccount(a: Pick<AccountRow, "id" | "username" | "name"> & Partial<AccountRow>) {
+    // Atualiza qualquer registro já conhecido pelo username OU pelo ig_user_id.
+    // Isso mantém itens antigos da fila apontando para uma linha com token novo.
+    const updated = await requireDb()
+      .prepare(
+        `UPDATE accounts
+         SET username = ?,
+             name = ?,
+             profile_picture = COALESCE(?, profile_picture),
+             ig_user_id = COALESCE(?, ig_user_id),
+             access_token = COALESCE(?, access_token),
+             token_expires_at = COALESCE(?, token_expires_at),
+             followers = ?,
+             health_score = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE username = ? OR (? IS NOT NULL AND ig_user_id = ?)`,
+      )
+      .bind(
+        a.username,
+        a.name,
+        a.profile_picture ?? null,
+        a.ig_user_id ?? null,
+        a.access_token ?? null,
+        a.token_expires_at ?? null,
+        a.followers ?? 0,
+        a.health_score ?? 100,
+        a.username,
+        a.ig_user_id ?? null,
+        a.ig_user_id ?? null,
+      )
+      .run();
+    if (((updated.meta as { changes?: number } | undefined)?.changes ?? 0) > 0) return;
+
     await requireDb()
       .prepare(
         `INSERT INTO accounts (id, username, name, profile_picture, ig_user_id, access_token, token_expires_at, followers, health_score)
@@ -93,6 +120,37 @@ export const db = {
         a.token_expires_at ?? null,
         a.followers ?? 0,
         a.health_score ?? 100,
+      )
+      .run();
+  },
+  async updateAccountCredentials(
+    id: string,
+    input: {
+      ig_user_id?: string | null;
+      access_token?: string | null;
+      profile_picture?: string | null;
+      followers?: number | null;
+      health_score?: number | null;
+    },
+  ) {
+    await requireDb()
+      .prepare(
+        `UPDATE accounts
+         SET ig_user_id = COALESCE(?, ig_user_id),
+             access_token = COALESCE(?, access_token),
+             profile_picture = COALESCE(?, profile_picture),
+             followers = COALESCE(?, followers),
+             health_score = COALESCE(?, health_score),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+      )
+      .bind(
+        input.ig_user_id ?? null,
+        input.access_token ?? null,
+        input.profile_picture ?? null,
+        input.followers ?? null,
+        input.health_score ?? null,
+        id,
       )
       .run();
   },
@@ -120,16 +178,33 @@ export const db = {
       .all<QueueRow>();
     return results ?? [];
   },
-  async enqueue(q: Omit<QueueRow, "status" | "attempts" | "last_error" | "ig_container_id" | "ig_media_id" | "created_at">) {
+  async enqueue(
+    q: Omit<
+      QueueRow,
+      "status" | "attempts" | "last_error" | "ig_container_id" | "ig_media_id" | "created_at"
+    >,
+  ) {
     await requireDb()
       .prepare(
         `INSERT INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-      .bind(q.id, q.account_id, q.caption, q.media_type, q.media_key, q.thumb_key ?? null, q.scheduled_at)
+      .bind(
+        q.id,
+        q.account_id,
+        q.caption,
+        q.media_type,
+        q.media_key,
+        q.thumb_key ?? null,
+        q.scheduled_at,
+      )
       .run();
   },
-  async setQueueStatus(id: string, status: QueueRow["status"], extra?: { last_error?: string; ig_container_id?: string; ig_media_id?: string }) {
+  async setQueueStatus(
+    id: string,
+    status: QueueRow["status"],
+    extra?: { last_error?: string; ig_container_id?: string; ig_media_id?: string },
+  ) {
     await requireDb()
       .prepare(
         `UPDATE queue SET status = ?, attempts = attempts + 1,
@@ -138,7 +213,13 @@ export const db = {
            ig_media_id = COALESCE(?, ig_media_id)
          WHERE id = ?`,
       )
-      .bind(status, extra?.last_error ?? null, extra?.ig_container_id ?? null, extra?.ig_media_id ?? null, id)
+      .bind(
+        status,
+        extra?.last_error ?? null,
+        extra?.ig_container_id ?? null,
+        extra?.ig_media_id ?? null,
+        id,
+      )
       .run();
   },
   async markQueueProcessing(id: string, igContainerId: string) {
@@ -152,10 +233,7 @@ export const db = {
       .run();
   },
   async manualSetQueueStatus(id: string, status: QueueRow["status"]) {
-    await requireDb()
-      .prepare(`UPDATE queue SET status = ? WHERE id = ?`)
-      .bind(status, id)
-      .run();
+    await requireDb().prepare(`UPDATE queue SET status = ? WHERE id = ?`).bind(status, id).run();
   },
   async manualUpdateQueue(
     id: string,
@@ -171,7 +249,13 @@ export const db = {
              ig_media_id = CASE WHEN ? THEN NULL ELSE ig_media_id END
          WHERE id = ?`,
       )
-      .bind(input.status, input.scheduled_at ?? null, input.reset_container ? 1 : 0, input.reset_container ? 1 : 0, id)
+      .bind(
+        input.status,
+        input.scheduled_at ?? null,
+        input.reset_container ? 1 : 0,
+        input.reset_container ? 1 : 0,
+        id,
+      )
       .run();
   },
   async deleteQueue(id: string) {
@@ -187,7 +271,6 @@ export const db = {
     return (result.meta as { changes?: number } | undefined)?.changes ?? 0;
   },
 
-
   // ============ history ============
   async listHistory(): Promise<HistoryRow[]> {
     const { results } = await requireDb()
@@ -195,7 +278,9 @@ export const db = {
       .all<HistoryRow>();
     return results ?? [];
   },
-  async recordPublication(h: Omit<HistoryRow, "fetched_at" | "reach" | "likes" | "comments"> & Partial<HistoryRow>) {
+  async recordPublication(
+    h: Omit<HistoryRow, "fetched_at" | "reach" | "likes" | "comments"> & Partial<HistoryRow>,
+  ) {
     await requireDb()
       .prepare(
         `INSERT INTO history (id, account_id, queue_id, ig_media_id, caption, media_type, permalink, thumb_url, published_at, reach, likes, comments)

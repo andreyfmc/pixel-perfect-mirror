@@ -21,16 +21,35 @@ type GraphFailure = {
   json: GraphJson;
 };
 
+type VisibleFacebookIgAccount = {
+  page: string;
+  pageId: string;
+  pageAccessToken: string;
+  ig_id: string;
+  ig_username?: string;
+  ig_name?: string;
+  profile_picture?: string;
+  followers?: number;
+};
+
 export class InstagramGraphError extends Error {
   failures: GraphFailure[];
 
   constructor(failures: GraphFailure[]) {
-    const first = failures[0];
-    const err = first?.json.error as { code?: number; error_subcode?: number; message?: string } | undefined;
-    const hint = err?.code === 100 && err?.error_subcode === 33
-      ? " — credenciais incompatíveis: o token salvo não acessa este ig_user_id. Revalide/reconecte a conta."
-      : "";
-    super(`Graph ${first?.status ?? 400}: ${JSON.stringify(first?.json ?? {})}${hint}`);
+    const primary = failures.at(-1) ?? failures[0];
+    const err = primary?.json.error as
+      | { code?: number; error_subcode?: number; message?: string }
+      | undefined;
+    const hint =
+      err?.code === 100 && err?.error_subcode === 33
+        ? " — credenciais incompatíveis: o token salvo não acessa este ig_user_id. Revalide/reconecte a conta."
+        : "";
+    const attempts = failures
+      .map((f) => `${f.host} ${f.status}: ${JSON.stringify(f.json)}`)
+      .join(" | ");
+    super(
+      `Graph ${primary?.status ?? 400}: ${JSON.stringify(primary?.json ?? {})}${hint}${attempts ? ` · tentativas: ${attempts}` : ""}`,
+    );
     this.name = "InstagramGraphError";
     this.failures = failures;
   }
@@ -56,8 +75,12 @@ export type ContainerStatus = {
 };
 
 function shouldTryNextHost(failure: GraphFailure) {
-  const err = failure.json.error as { code?: number; error_subcode?: number; type?: string; message?: string } | undefined;
-  return (failure.status === 400 || failure.status === 401) && (err?.code === 100 || err?.code === 190);
+  const err = failure.json.error as
+    | { code?: number; error_subcode?: number; type?: string; message?: string }
+    | undefined;
+  return (
+    (failure.status === 400 || failure.status === 401) && (err?.code === 100 || err?.code === 190)
+  );
 }
 
 async function graphRequest(
@@ -103,6 +126,14 @@ async function instagramGet(path: string, params: Record<string, string>) {
   return graphRequest("GET", path, params, [GRAPH_HOSTS[1]]);
 }
 
+async function facebookPost(path: string, body: Record<string, string>) {
+  return graphRequest("POST", path, body, [GRAPH_HOSTS[0]]);
+}
+
+async function instagramPost(path: string, body: Record<string, string>) {
+  return graphRequest("POST", path, body, [GRAPH_HOSTS[1]]);
+}
+
 function normalizeInstagramUser(json: GraphJson): GraphJson {
   return {
     ...json,
@@ -110,44 +141,143 @@ function normalizeInstagramUser(json: GraphJson): GraphJson {
   };
 }
 
-export const instagram = {
-  async validateCredentials(input: { igUserId: string; accessToken: string }) {
-    let me: GraphJson | null = null;
-    let ig: GraphJson | null = null;
-    let host: GraphHostId = "facebook";
+function isSameId(a: unknown, b: unknown) {
+  return String(a ?? "") === String(b ?? "");
+}
 
+export const instagram = {
+  async listVisibleFacebookIgAccounts(accessToken: string): Promise<VisibleFacebookIgAccount[]> {
+    const pages = (await facebookGet("/me/accounts", {
+      access_token: accessToken,
+      fields:
+        "id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count}",
+    })) as {
+      data?: Array<{
+        id: string;
+        name: string;
+        access_token?: string;
+        instagram_business_account?: {
+          id: string;
+          username?: string;
+          name?: string;
+          profile_picture_url?: string;
+          followers_count?: number;
+        };
+      }>;
+    };
+
+    return (pages.data ?? [])
+      .filter((page) => page.access_token && page.instagram_business_account?.id)
+      .map((page) => ({
+        page: page.name,
+        pageId: page.id,
+        pageAccessToken: page.access_token!,
+        ig_id: page.instagram_business_account!.id,
+        ig_username: page.instagram_business_account!.username,
+        ig_name: page.instagram_business_account!.name,
+        profile_picture: page.instagram_business_account!.profile_picture_url,
+        followers: page.instagram_business_account!.followers_count,
+      }));
+  },
+
+  async validateCredentials(input: { igUserId: string; accessToken: string }) {
     try {
-      me = await facebookGet("/me", {
+      const me = await facebookGet("/me", {
         access_token: input.accessToken,
         fields: "id,name",
       });
-    } catch {
-      me = normalizeInstagramUser(await instagramGet("/me", {
-        access_token: input.accessToken,
-        fields: "user_id,username,name",
-      }));
-      host = "instagram";
-    }
-
-    try {
-      ig = await facebookGet(`/${input.igUserId}`, {
-        access_token: input.accessToken,
-        fields: "id,username,name",
-      });
-      host = "facebook";
-    } catch (err) {
-      if (err instanceof InstagramGraphError) {
-        ig = normalizeInstagramUser(await instagramGet(`/${input.igUserId}`, {
+      try {
+        const page = await facebookGet(`/${me.id}`, {
           access_token: input.accessToken,
-          fields: "user_id,username,name",
-        }));
-        host = "instagram";
-      } else {
-        throw err;
+          fields:
+            "instagram_business_account{id,username,name,profile_picture_url,followers_count}",
+        });
+        const pageIg = page.instagram_business_account as
+          | {
+              id?: string;
+              username?: string;
+              name?: string;
+              profile_picture_url?: string;
+              followers_count?: number;
+            }
+          | undefined;
+        if (pageIg?.id) {
+          return {
+            me,
+            ig: pageIg,
+            host: "facebook" as GraphHostId,
+            accessToken: input.accessToken,
+            suggestions: [
+              {
+                page: String(me.name ?? me.id ?? "Página"),
+                pageId: String(me.id ?? ""),
+                pageAccessToken: input.accessToken,
+                ig_id: pageIg.id,
+                ig_username: pageIg.username,
+                ig_name: pageIg.name,
+                profile_picture: pageIg.profile_picture_url,
+                followers: pageIg.followers_count,
+              },
+            ],
+          };
+        }
+      } catch {
+        // Se o token for de usuário Facebook, a conta IG vem por /me/accounts abaixo.
       }
-    }
 
-    return { me, ig, host };
+      const accounts = await this.listVisibleFacebookIgAccounts(input.accessToken).catch(
+        () => [] as VisibleFacebookIgAccount[],
+      );
+      const suggestion = accounts.find((a) => isSameId(a.ig_id, input.igUserId));
+      if (suggestion) {
+        return {
+          me,
+          ig: {
+            id: suggestion.ig_id,
+            username: suggestion.ig_username,
+            name: suggestion.ig_name,
+            profile_picture_url: suggestion.profile_picture,
+            followers_count: suggestion.followers,
+          },
+          host: "facebook" as GraphHostId,
+          accessToken: suggestion.pageAccessToken,
+          suggestions: accounts,
+        };
+      }
+
+      const ig = await facebookGet(`/${input.igUserId}`, {
+        access_token: input.accessToken,
+        fields: "id,username,name,profile_picture_url,followers_count",
+      });
+      return { me, ig, host: "facebook" as GraphHostId, suggestions: accounts };
+    } catch (facebookErr) {
+      const me = normalizeInstagramUser(
+        await instagramGet("/me", {
+          access_token: input.accessToken,
+          fields: "user_id,username,name,profile_picture_url,followers_count",
+        }),
+      );
+      if (!isSameId(me.id, input.igUserId)) {
+        const instagramErr = new InstagramGraphError([
+          {
+            host: "instagram",
+            status: 400,
+            json: {
+              error: {
+                message: `Instagram token pertence ao usuário ${me.id}, mas a conta salva usa ${input.igUserId}`,
+                code: 100,
+                error_subcode: 33,
+              },
+            },
+          },
+        ]);
+        if (facebookErr instanceof InstagramGraphError) {
+          instagramErr.failures = [...facebookErr.failures, ...instagramErr.failures];
+        }
+        throw instagramErr;
+      }
+      return { me, ig: me, host: "instagram" as GraphHostId };
+    }
   },
 
   async createContainer(input: PublishInput): Promise<string> {
@@ -169,7 +299,11 @@ export const instagram = {
     return String(json.id);
   },
 
-  async publishContainer(input: { igUserId: string; accessToken: string; containerId: string }): Promise<string> {
+  async publishContainer(input: {
+    igUserId: string;
+    accessToken: string;
+    containerId: string;
+  }): Promise<string> {
     const json = await gpost(`/${input.igUserId}/media_publish`, {
       access_token: input.accessToken,
       creation_id: input.containerId,
@@ -195,7 +329,12 @@ export const instagram = {
     };
   },
 
-  async waitUntilReady(input: { containerId: string; accessToken: string; attempts?: number; delayMs?: number }) {
+  async waitUntilReady(input: {
+    containerId: string;
+    accessToken: string;
+    attempts?: number;
+    delayMs?: number;
+  }) {
     const attempts = input.attempts ?? 24;
     const delayMs = input.delayMs ?? 5000;
     let last: ContainerStatus | null = null;

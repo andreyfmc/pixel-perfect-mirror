@@ -54,13 +54,45 @@ export async function runScheduler(
       if (!account?.ig_user_id || !account?.access_token) {
         throw new Error("Conta sem ig_user_id ou access_token");
       }
+      let igUserId = account.ig_user_id;
+      let accessToken = account.access_token;
+      try {
+        const validated = await instagram.validateCredentials({
+          igUserId,
+          accessToken,
+        });
+        const validatedIgId = typeof validated.ig?.id === "string" ? validated.ig.id : undefined;
+        const validatedToken =
+          typeof validated.accessToken === "string" ? validated.accessToken : undefined;
+        if (validatedIgId || validatedToken) {
+          igUserId = validatedIgId ?? igUserId;
+          accessToken = validatedToken ?? accessToken;
+          await db.updateAccountCredentials(item.account_id, {
+            ig_user_id: validatedIgId,
+            access_token: validatedToken,
+            profile_picture:
+              typeof validated.ig?.profile_picture_url === "string"
+                ? validated.ig.profile_picture_url
+                : undefined,
+            followers:
+              typeof validated.ig?.followers_count === "number"
+                ? validated.ig.followers_count
+                : undefined,
+            health_score: 95,
+          });
+        }
+      } catch (err) {
+        console.warn(
+          `[scheduler] queue=${item.id} validação de credencial falhou: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
 
       let containerId = item.ig_container_id ?? undefined;
       if (!containerId) {
         const mediaUrl = publicMediaUrl(item.media_key, opts.baseUrl);
         containerId = await instagram.createContainer({
-          igUserId: account.ig_user_id,
-          accessToken: account.access_token,
+          igUserId,
+          accessToken,
           mediaType: item.media_type,
           mediaUrl,
           caption: item.caption,
@@ -70,20 +102,20 @@ export async function runScheduler(
 
       await instagram.waitUntilReady({
         containerId,
-        accessToken: account.access_token,
+        accessToken,
         attempts: 1,
         delayMs: 0,
       });
 
       const mediaId = await instagram.publishContainer({
-        igUserId: account.ig_user_id,
-        accessToken: account.access_token,
+        igUserId,
+        accessToken,
         containerId,
       });
 
       let permalink: string | undefined;
       try {
-        const info = await instagram.fetchMediaInfo(mediaId, account.access_token);
+        const info = await instagram.fetchMediaInfo(mediaId, accessToken);
         permalink = info.permalink as string | undefined;
       } catch {
         // campo opcional
@@ -122,4 +154,3 @@ export async function runScheduler(
 
   return { processed, errors };
 }
-

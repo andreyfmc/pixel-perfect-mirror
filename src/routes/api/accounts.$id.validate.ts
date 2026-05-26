@@ -23,34 +23,43 @@ export const Route = createFileRoute("/api/accounts/$id/validate")({
             accessToken: account.access_token,
           });
 
-          // Sugestão extra para tokens Facebook: listar IG business accounts visíveis via /me/accounts.
-          let suggestions: Array<{ page: string; ig_id?: string; ig_username?: string }> = [];
-          try {
-            const pagesRes = await fetch(
-              `https://graph.facebook.com/v21.0/me/accounts?fields=name,instagram_business_account{id,username}&access_token=${encodeURIComponent(account.access_token)}`,
-            );
-            const pages = (await pagesRes.json()) as {
-              data?: Array<{ name: string; instagram_business_account?: { id: string; username: string } }>;
-            };
-            suggestions = (pages.data ?? []).map((p) => ({
-              page: p.name,
-              ig_id: p.instagram_business_account?.id,
-              ig_username: p.instagram_business_account?.username,
-            }));
-          } catch {
-            // opcional
+          if (result.accessToken || result.ig?.id) {
+            await db.updateAccountCredentials(params.id, {
+              access_token: result.accessToken,
+              ig_user_id: typeof result.ig?.id === "string" ? result.ig.id : undefined,
+              profile_picture:
+                typeof result.ig?.profile_picture_url === "string"
+                  ? result.ig.profile_picture_url
+                  : undefined,
+              followers:
+                typeof result.ig?.followers_count === "number"
+                  ? result.ig.followers_count
+                  : undefined,
+              health_score: 95,
+            });
           }
 
-          return json({ ok: true, me: result.me, ig: result.ig, graph_host: result.host, suggestions });
+          return json({
+            ok: true,
+            me: result.me,
+            ig: result.ig,
+            graph_host: result.host,
+            suggestions: result.suggestions ?? [],
+          });
         } catch (err) {
           if (err instanceof InstagramGraphError) {
             const first = err.failures[0];
-            return json({ ok: false, scope: "graph", error: first?.json ?? err.message, failures: err.failures }, 200);
+            return json(
+              {
+                ok: false,
+                scope: "graph",
+                error: first?.json ?? err.message,
+                failures: err.failures,
+              },
+              200,
+            );
           }
-          return json(
-            { ok: false, error: err instanceof Error ? err.message : String(err) },
-            500,
-          );
+          return json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
         }
       },
     },
