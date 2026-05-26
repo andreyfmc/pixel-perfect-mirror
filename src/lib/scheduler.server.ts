@@ -64,7 +64,7 @@ export async function runScheduler(
       let provider = inferGraphProviderFromToken(account.access_token, account.provider);
       try {
         const fresh =
-          account.provider === "instagram"
+          provider === "instagram"
             ? await ensureFreshAccessToken({
                 accessToken,
                 tokenExpiresAt: account.token_expires_at,
