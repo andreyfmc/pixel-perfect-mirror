@@ -67,8 +67,7 @@ export function isInvalidAccessTokenError(err: unknown) {
     const graphErr = failure.json.error as { code?: number; message?: string } | undefined;
     return { host: failure.host, code: graphErr?.code };
   });
-  return failures.every((failure) => failure.code === 190) ||
-    failures.some((failure) => failure.host === "facebook" && failure.code === 190);
+  return failures.length > 0 && failures.every((failure) => failure.code === 190);
 }
 
 function expiredTokenError(message = "Token OAuth expirado") {
