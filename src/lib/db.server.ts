@@ -146,6 +146,23 @@ export const db = {
       .bind(status, id)
       .run();
   },
+  async manualUpdateQueue(
+    id: string,
+    input: { status: QueueRow["status"]; scheduled_at?: string; reset_container?: boolean },
+  ) {
+    await requireDb()
+      .prepare(
+        `UPDATE queue
+         SET status = ?,
+             scheduled_at = COALESCE(?, scheduled_at),
+             last_error = NULL,
+             ig_container_id = CASE WHEN ? THEN NULL ELSE ig_container_id END,
+             ig_media_id = CASE WHEN ? THEN NULL ELSE ig_media_id END
+         WHERE id = ?`,
+      )
+      .bind(input.status, input.scheduled_at ?? null, input.reset_container ? 1 : 0, input.reset_container ? 1 : 0, id)
+      .run();
+  },
   async deleteQueue(id: string) {
     await requireDb().prepare("DELETE FROM queue WHERE id = ?").bind(id).run();
   },
