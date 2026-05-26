@@ -2,7 +2,7 @@
 // Lê itens vencidos da fila, publica no Instagram e grava no histórico.
 
 import { db } from "./db.server";
-import { instagram, isInvalidAccessTokenError } from "./instagram.server";
+import { ensureFreshAccessToken, instagram, isInvalidAccessTokenError } from "./instagram.server";
 import { hasDb, env } from "./cf.server";
 
 // URL pública dos arquivos no R2 (Public Access ativado no bucket insta-media).
@@ -54,8 +54,42 @@ export async function runScheduler(
       if (!account?.ig_user_id || !account?.access_token) {
         throw new Error("Conta sem ig_user_id ou access_token");
       }
+      if (account.token_status === "expired") {
+        await db.setQueueStatus(item.id, "canceled", {
+          last_error: "Token expirado. Reconecte a conta antes de publicar.",
+        });
+        errors++;
+        continue;
+      }
       let igUserId = account.ig_user_id;
       let accessToken = account.access_token;
+      try {
+        const fresh = await ensureFreshAccessToken({
+          accessToken,
+          tokenExpiresAt: account.token_expires_at,
+        });
+        if (fresh.refreshed) {
+          accessToken = fresh.accessToken;
+          await db.updateAccountCredentials(item.account_id, {
+            access_token: fresh.accessToken,
+            token_expires_at: fresh.expiresAt,
+            token_status: "valid",
+            health_score: Math.max(account.health_score, 90),
+          });
+        }
+      } catch (err) {
+        if (isInvalidAccessTokenError(err)) {
+          await db.markAccountNeedsReconnect(item.account_id);
+          await db.setQueueStatus(item.id, "canceled", {
+            last_error: "Token OAuth inválido ou expirado. Reconecte esta conta antes de publicar.",
+          });
+          errors++;
+          continue;
+        }
+        console.warn(
+          `[scheduler] queue=${item.id} renovação de token falhou: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
       try {
         const validated = await instagram.validateCredentials({
           igUserId,
@@ -70,6 +104,7 @@ export async function runScheduler(
           await db.updateAccountCredentials(item.account_id, {
             ig_user_id: validatedIgId,
             access_token: validatedToken,
+            token_status: "valid",
             profile_picture:
               typeof validated.ig?.profile_picture_url === "string"
                 ? validated.ig.profile_picture_url
@@ -84,9 +119,11 @@ export async function runScheduler(
       } catch (err) {
         if (isInvalidAccessTokenError(err)) {
           await db.markAccountNeedsReconnect(item.account_id);
-          throw new Error(
-            "Token OAuth inválido ou expirado. Reconecte esta conta antes de publicar.",
-          );
+          await db.setQueueStatus(item.id, "canceled", {
+            last_error: "Token OAuth inválido ou expirado. Reconecte esta conta antes de publicar.",
+          });
+          errors++;
+          continue;
         }
         console.warn(
           `[scheduler] queue=${item.id} validação de credencial falhou: ${err instanceof Error ? err.message : String(err)}`,
