@@ -80,11 +80,13 @@ function relativeTime(iso: string): { label: string; tone: "ok" | "warn" | "soon
   };
 }
 
-function greet() {
-  const h = new Date().getHours();
-  if (h < 12) return "Bom dia";
-  if (h < 18) return "Boa tarde";
-  return "Boa noite";
+function useGreet() {
+  const [g, setG] = useState("Olá");
+  useEffect(() => {
+    const h = new Date().getHours();
+    setG(h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite");
+  }, []);
+  return g;
 }
 
 // Deterministic sparkline based on a seed so values don't jump on each render.
