@@ -231,155 +231,169 @@ function AccountsPage() {
           {sorted.map((a) => {
             const token = tokenInfo(a);
             return (
-            <article key={a.id} className="im-card im-card-hover p-5">
-              <div className="flex items-start gap-4">
-                <div
-                  className="rounded-full p-[2px]"
-                  style={{
-                    background: `conic-gradient(${ringForHealth(a.health_score)} ${a.health_score}%, var(--border) 0)`,
-                  }}
-                >
-                  <img
-                    src={a.profile_picture}
-                    alt={a.username}
-                    className="h-14 w-14 rounded-full bg-bg3 ring-2 ring-bg2"
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="truncate text-base font-semibold">@{a.username}</h3>
-                    {token.expired && (
-                      <span className="shrink-0 rounded-full border border-danger/40 bg-danger/10 px-2 py-0.5 text-[10px] font-semibold text-danger">
-                        Token expirado
-                      </span>
-                    )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          className="ml-auto text-text2 hover:text-foreground"
-                          aria-label="Menu"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-56">
-                        <DropdownMenuItem
-                          onSelect={async (e) => {
-                            e.preventDefault();
-                            const t = toast.loading("Validando credenciais…");
-                            try {
-                              const r = await api.validateAccount(a.id);
-                              toast.dismiss(t);
-                              if (!r) {
-                                toast.error("Falha ao validar (sem resposta)");
-                                return;
-                              }
-                              if (r.ok) {
-                                toast.success(
-                                  `OK · IG @${r.ig?.username ?? "?"} (id ${r.ig?.id ?? "?"})`,
-                                );
-                              } else if (r.needs_reconnect) {
-                                toast.error(
-                                  `@${a.username}: token expirado/inválido. Reconecte a conta.`,
-                                  {
-                                    duration: 12000,
-                                  },
-                                );
-                                qc.invalidateQueries({ queryKey: ["accounts"] });
-                              } else {
-                                const sugg = (r.suggestions ?? [])
-                                  .filter((s) => s.ig_id)
-                                  .map((s) => `@${s.ig_username} (${s.ig_id})`)
-                                  .join(", ");
-                                const detail =
-                                  typeof r.error === "object"
-                                    ? JSON.stringify(r.error)
-                                    : String(r.error ?? "erro");
-                                toast.error(
-                                  `Falha (${r.scope ?? "graph"}): ${detail}${sugg ? ` · sugestões: ${sugg}` : ""}`,
-                                  { duration: 12000 },
-                                );
-                                console.warn("[validate]", r);
-                              }
-                            } catch (err) {
-                              toast.dismiss(t);
-                              toast.error(err instanceof Error ? err.message : "Falha");
-                            }
-                          }}
-                        >
-                          <BadgeCheck className="mr-2 h-4 w-4" />
-                          Validar credenciais
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-red-500 focus:text-red-500"
-                          onSelect={async (e) => {
-                            e.preventDefault();
-                            if (
-                              !confirm(`Remover @${a.username}? Esta ação não pode ser desfeita.`)
-                            )
-                              return;
-                            const t = toast.loading("Removendo conta…");
-                            try {
-                              await api.deleteAccount(a.id);
-                              toast.success(`@${a.username} removida`);
-                              qc.invalidateQueries({ queryKey: ["accounts"] });
-                            } catch (err) {
-                              toast.error(err instanceof Error ? err.message : "Falha ao remover");
-                            } finally {
-                              toast.dismiss(t);
-                            }
-                          }}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Remover conta
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <p className="text-sm text-text2">{a.name}</p>
-                </div>
-              </div>
-
-              <dl className="mt-5 grid grid-cols-3 gap-3 text-center">
-                <div className="rounded-lg bg-bg3 px-2 py-3">
-                  <dt className="text-[10px] uppercase tracking-wider text-muted2">Saúde</dt>
-                  <dd
-                    className="mt-1 text-base font-semibold"
-                    style={{ color: ringForHealth(a.health_score) }}
+              <article key={a.id} className="im-card im-card-hover p-5">
+                <div className="flex items-start gap-4">
+                  <div
+                    className="rounded-full p-[2px]"
+                    style={{
+                      background: `conic-gradient(${ringForHealth(a.health_score)} ${a.health_score}%, var(--border) 0)`,
+                    }}
                   >
-                    {a.health_score}
-                  </dd>
+                    <img
+                      src={a.profile_picture}
+                      alt={a.username}
+                      className="h-14 w-14 rounded-full bg-bg3 ring-2 ring-bg2"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="truncate text-base font-semibold">@{a.username}</h3>
+                      {token.expired && (
+                        <span className="shrink-0 rounded-full border border-danger/40 bg-danger/10 px-2 py-0.5 text-[10px] font-semibold text-danger">
+                          Token expirado
+                        </span>
+                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="ml-auto text-text2 hover:text-foreground"
+                            aria-label="Menu"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-56">
+                          <DropdownMenuItem
+                            onSelect={async (e) => {
+                              e.preventDefault();
+                              const t = toast.loading("Validando credenciais…");
+                              try {
+                                const r = await api.validateAccount(a.id);
+                                toast.dismiss(t);
+                                if (!r) {
+                                  toast.error("Falha ao validar (sem resposta)");
+                                  return;
+                                }
+                                if (r.ok) {
+                                  toast.success(
+                                    `OK · IG @${r.ig?.username ?? "?"} (id ${r.ig?.id ?? "?"})`,
+                                  );
+                                } else if (r.needs_reconnect) {
+                                  toast.error(
+                                    `@${a.username}: token expirado/inválido. Reconecte a conta.`,
+                                    {
+                                      duration: 12000,
+                                    },
+                                  );
+                                  qc.invalidateQueries({ queryKey: ["accounts"] });
+                                } else {
+                                  const sugg = (r.suggestions ?? [])
+                                    .filter((s) => s.ig_id)
+                                    .map((s) => `@${s.ig_username} (${s.ig_id})`)
+                                    .join(", ");
+                                  const detail =
+                                    typeof r.error === "object"
+                                      ? JSON.stringify(r.error)
+                                      : String(r.error ?? "erro");
+                                  toast.error(
+                                    `Falha (${r.scope ?? "graph"}): ${detail}${sugg ? ` · sugestões: ${sugg}` : ""}`,
+                                    { duration: 12000 },
+                                  );
+                                  console.warn("[validate]", r);
+                                }
+                              } catch (err) {
+                                toast.dismiss(t);
+                                toast.error(err instanceof Error ? err.message : "Falha");
+                              }
+                            }}
+                          >
+                            <BadgeCheck className="mr-2 h-4 w-4" />
+                            Validar credenciais
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-red-500 focus:text-red-500"
+                            onSelect={async (e) => {
+                              e.preventDefault();
+                              if (
+                                !confirm(`Remover @${a.username}? Esta ação não pode ser desfeita.`)
+                              )
+                                return;
+                              const t = toast.loading("Removendo conta…");
+                              try {
+                                await api.deleteAccount(a.id);
+                                toast.success(`@${a.username} removida`);
+                                qc.invalidateQueries({ queryKey: ["accounts"] });
+                              } catch (err) {
+                                toast.error(
+                                  err instanceof Error ? err.message : "Falha ao remover",
+                                );
+                              } finally {
+                                toast.dismiss(t);
+                              }
+                            }}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Remover conta
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <p className="text-sm text-text2">{a.name}</p>
+                  </div>
                 </div>
-                <div className="rounded-lg bg-bg3 px-2 py-3">
-                  <dt className="text-[10px] uppercase tracking-wider text-muted2">Seguidores</dt>
-                  <dd className="mt-1 text-base font-semibold">
-                    {a.followers.toLocaleString("pt-BR")}
-                  </dd>
-                </div>
-                <div className="rounded-lg bg-bg3 px-2 py-3">
-                  <dt className="text-[10px] uppercase tracking-wider text-muted2">Último</dt>
-                  <dd className="mt-1 text-base font-semibold">{fmtDateShort(a.last_post_at)}</dd>
-                </div>
-              </dl>
 
-              <div className="mt-4 flex items-center justify-between gap-3 text-xs text-muted2">
-                <span
-                  className="inline-flex min-w-0 items-center gap-1"
-                  style={{ color: token.expired ? "var(--danger)" : token.warning ? "var(--warning)" : undefined }}
-                >
-                  {token.expired || token.warning ? <AlertTriangle className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                  <span className="truncate">{token.label} · {fmtDateFull(a.token_expires_at)}</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => handleConnect("instagram")}
-                  disabled={loading !== null}
-                  className="shrink-0 font-medium text-text2 hover:text-foreground disabled:opacity-60"
-                >
-                  Reconectar
-                </button>
-              </div>
-            </article>
+                <dl className="mt-5 grid grid-cols-3 gap-3 text-center">
+                  <div className="rounded-lg bg-bg3 px-2 py-3">
+                    <dt className="text-[10px] uppercase tracking-wider text-muted2">Saúde</dt>
+                    <dd
+                      className="mt-1 text-base font-semibold"
+                      style={{ color: ringForHealth(a.health_score) }}
+                    >
+                      {a.health_score}
+                    </dd>
+                  </div>
+                  <div className="rounded-lg bg-bg3 px-2 py-3">
+                    <dt className="text-[10px] uppercase tracking-wider text-muted2">Seguidores</dt>
+                    <dd className="mt-1 text-base font-semibold">
+                      {a.followers.toLocaleString("pt-BR")}
+                    </dd>
+                  </div>
+                  <div className="rounded-lg bg-bg3 px-2 py-3">
+                    <dt className="text-[10px] uppercase tracking-wider text-muted2">Último</dt>
+                    <dd className="mt-1 text-base font-semibold">{fmtDateShort(a.last_post_at)}</dd>
+                  </div>
+                </dl>
+
+                <div className="mt-4 flex items-center justify-between gap-3 text-xs text-muted2">
+                  <span
+                    className="inline-flex min-w-0 items-center gap-1"
+                    style={{
+                      color: token.expired
+                        ? "var(--danger)"
+                        : token.warning
+                          ? "var(--warning)"
+                          : undefined,
+                    }}
+                  >
+                    {token.expired || token.warning ? (
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                    ) : (
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                    )}
+                    <span className="truncate">
+                      {token.label} · {fmtDateFull(a.token_expires_at)}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleConnect("instagram")}
+                    disabled={loading !== null}
+                    className="shrink-0 font-medium text-text2 hover:text-foreground disabled:opacity-60"
+                  >
+                    Reconectar
+                  </button>
+                </div>
+              </article>
             );
           })}
 

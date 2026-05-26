@@ -112,9 +112,14 @@ export async function ensureFreshAccessToken(input: {
     throw expiredTokenError("Token OAuth expirado. Reconecte a conta para gerar um novo token.");
   }
   const shouldRefresh =
-    input.force || (Number.isFinite(expiresTime) && expiresTime - Date.now() <= TOKEN_REFRESH_WINDOW_MS);
+    input.force ||
+    (Number.isFinite(expiresTime) && expiresTime - Date.now() <= TOKEN_REFRESH_WINDOW_MS);
   if (!shouldRefresh) {
-    return { accessToken: input.accessToken, expiresAt: input.tokenExpiresAt ?? null, refreshed: false };
+    return {
+      accessToken: input.accessToken,
+      expiresAt: input.tokenExpiresAt ?? null,
+      refreshed: false,
+    };
   }
   const refreshed = await refreshLongLivedInstagramToken(input.accessToken);
   return { ...refreshed, refreshed: true };

@@ -147,7 +147,10 @@ export async function handleFacebookCallback(req: Request, code: string) {
   const long = await fbLongLived(userToken);
   const igs = await fbListIgAccounts(long.token);
   if (!igs.length) {
-    return { saved: [] as string[], error: "Nenhuma conta Instagram Business vinculada às suas Páginas." };
+    return {
+      saved: [] as string[],
+      error: "Nenhuma conta Instagram Business vinculada às suas Páginas.",
+    };
   }
   const saved: string[] = [];
   const expiresAt = new Date(Date.now() + long.expiresIn * 1000).toISOString();
@@ -272,5 +275,8 @@ export function popupResponseHtml(payload: Record<string, unknown>): Response {
   } catch (e) { document.body.innerText = "Erro: " + e.message; }
 })();
 </script>`;
-  return new Response(html, { status: 200, headers: { "content-type": "text/html; charset=utf-8" } });
+  return new Response(html, {
+    status: 200,
+    headers: { "content-type": "text/html; charset=utf-8" },
+  });
 }
