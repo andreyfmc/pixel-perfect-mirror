@@ -60,6 +60,7 @@ export async function runScheduler(
       }
       let igUserId = account.ig_user_id;
       let accessToken = account.access_token;
+      let provider = account.provider;
       try {
         const fresh =
           account.provider === "instagram"
@@ -95,16 +96,19 @@ export async function runScheduler(
         const validated = await instagram.validateCredentials({
           igUserId,
           accessToken,
+          expectedUsername: account.username,
         });
         const validatedIgId = typeof validated.ig?.id === "string" ? validated.ig.id : undefined;
         const validatedToken =
           typeof validated.accessToken === "string" ? validated.accessToken : undefined;
-        if (validatedIgId || validatedToken) {
+        provider = validated.host ?? provider;
+        if (validatedIgId || validatedToken || validated.host) {
           igUserId = validatedIgId ?? igUserId;
           accessToken = validatedToken ?? accessToken;
           await db.updateAccountCredentials(item.account_id, {
             ig_user_id: validatedIgId,
             access_token: validatedToken,
+            provider,
             token_status: "valid",
             profile_picture:
               typeof validated.ig?.profile_picture_url === "string"
@@ -138,12 +142,15 @@ export async function runScheduler(
               const reValidated = await instagram.validateCredentials({
                 igUserId: healed.ig_user_id,
                 accessToken: healed.access_token,
+                expectedUsername: healed.username,
               });
               igUserId = (typeof reValidated.ig?.id === "string" ? reValidated.ig.id : undefined) ?? healed.ig_user_id;
               accessToken = (typeof reValidated.accessToken === "string" ? reValidated.accessToken : undefined) ?? healed.access_token;
+              provider = reValidated.host ?? healed.provider;
               await db.updateAccountCredentials(item.account_id, {
                 ig_user_id: igUserId,
                 access_token: accessToken,
+                provider,
                 token_status: "valid",
                 health_score: 95,
               });
@@ -176,7 +183,7 @@ export async function runScheduler(
         containerId = await instagram.createContainer({
           igUserId,
           accessToken,
-          provider: account.provider,
+          provider,
           mediaType: item.media_type,
           mediaUrl,
           caption: item.caption,
@@ -184,7 +191,7 @@ export async function runScheduler(
         await db.markQueueProcessing(item.id, containerId);
       }
 
-      const status = await instagram.fetchContainerStatus(containerId, accessToken, account.provider);
+      const status = await instagram.fetchContainerStatus(containerId, accessToken, provider);
       if (status.statusCode === "ERROR" || status.statusCode === "EXPIRED") {
         throw new Error(
           `Container Instagram ${status.statusCode}: ${status.status ?? "sem detalhe"}`,
@@ -201,13 +208,13 @@ export async function runScheduler(
       const mediaId = await instagram.publishContainer({
         igUserId,
         accessToken,
-        provider: account.provider,
+        provider,
         containerId,
       });
 
       let permalink: string | undefined;
       try {
-        const info = await instagram.fetchMediaInfo(mediaId, accessToken, account.provider);
+        const info = await instagram.fetchMediaInfo(mediaId, accessToken, provider);
         permalink = info.permalink as string | undefined;
       } catch {
         // campo opcional
