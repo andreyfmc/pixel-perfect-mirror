@@ -15,7 +15,7 @@ async function tryJson<T>(path: string, init?: RequestInit): Promise<T | null> {
 }
 
 // ---- Adapters: linhas do D1 → tipos de UI ----
-function accountFromRow(r: AccountRow): Account {
+function accountFromRow(r: AccountRow & { posts?: number }): Account {
   return {
     id: r.id,
     username: r.username,
@@ -23,6 +23,7 @@ function accountFromRow(r: AccountRow): Account {
     profile_picture: r.profile_picture ?? "",
     health_score: r.health_score,
     followers: r.followers,
+    posts: typeof r.posts === "number" ? r.posts : 0,
     last_post_at: r.last_post_at ?? new Date().toISOString(),
     token_expires_at: r.token_expires_at,
     token_status: r.token_status ?? "valid",
