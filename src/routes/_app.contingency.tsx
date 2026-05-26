@@ -1054,6 +1054,21 @@ function ContingencyPage() {
             <DropdownMenuItem onClick={handleExport}>
               <FileDown className="mr-2 h-3.5 w-3.5" /> Exportar CSV
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => {
+                if (list.length === 0) { toast.info("Nenhuma conta para remover"); return; }
+                if (!confirm(`Remover TODAS as ${list.length} contas de contingência? Esta ação não pode ser desfeita.`)) return;
+                const ids = list.map((a) => a.id);
+                update(() => []);
+                ids.forEach(deleteOne);
+                setSelected(new Set());
+                toast.success(`${ids.length} conta(s) removida(s)`);
+              }}
+              className="text-danger focus:text-danger"
+            >
+              <Trash2 className="mr-2 h-3.5 w-3.5" /> Remover todas as contas
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
@@ -1061,19 +1076,46 @@ function ContingencyPage() {
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }} />
 
 
-        {selectMode && selected.size > 0 && (
-          <button
-            onClick={() => {
-              const ids = Array.from(selected);
-              update((prev) => prev.filter((a) => !selected.has(a.id)));
-              ids.forEach(deleteOne);
-              setSelected(new Set());
-              toast.success("Removidas");
-            }}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs text-danger hover:border-danger">
-            <Trash2 className="h-3.5 w-3.5" /> Excluir ({selected.size})
-          </button>
+        {selectMode && (
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => {
+                const allIds = filtered.map((a) => a.id);
+                const allSelected = allIds.every((id) => selected.has(id));
+                if (allSelected) {
+                  const next = new Set(selected);
+                  allIds.forEach((id) => next.delete(id));
+                  setSelected(next);
+                } else {
+                  const next = new Set(selected);
+                  allIds.forEach((id) => next.add(id));
+                  setSelected(next);
+                }
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs hover:border-border2"
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+              {filtered.every((a) => selected.has(a.id)) && filtered.length > 0
+                ? "Limpar seleção"
+                : `Selecionar todas (${filtered.length})`}
+            </button>
+            {selected.size > 0 && (
+              <button
+                onClick={() => {
+                  if (!confirm(`Excluir ${selected.size} conta(s) selecionada(s)?`)) return;
+                  const ids = Array.from(selected);
+                  update((prev) => prev.filter((a) => !selected.has(a.id)));
+                  ids.forEach(deleteOne);
+                  setSelected(new Set());
+                  toast.success(`${ids.length} conta(s) removida(s)`);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs text-danger hover:border-danger">
+                <Trash2 className="h-3.5 w-3.5" /> Excluir ({selected.size})
+              </button>
+            )}
+          </div>
         )}
+
       </div>
 
       {/* stat cards */}
