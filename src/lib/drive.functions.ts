@@ -1,6 +1,7 @@
 // Server functions: navega pastas e lista vídeos do Google Drive
 // via Lovable Connector Gateway (conta Google conectada ao workspace).
 import { createServerFn } from "@tanstack/react-start";
+import { ensureEnv } from "./cf.server";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/google_drive/drive/v3";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
