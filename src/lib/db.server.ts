@@ -4,6 +4,10 @@ import { requireDb } from "./cf.server";
 // Auto-migração: garante que colunas adicionadas após o deploy inicial
 // existam no banco do usuário (D1 não roda migrations automaticamente).
 let ensureSchemaPromise: Promise<void> | undefined;
+function normalizeUsername(value?: string | null): string {
+  return (value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 async function ensureSchema(): Promise<void> {
   if (ensureSchemaPromise) return ensureSchemaPromise;
   ensureSchemaPromise = (async () => {
@@ -218,6 +222,7 @@ const rawDb = {
       profile_picture?: string | null;
       followers?: number | null;
       health_score?: number | null;
+      provider?: AccountRow["provider"] | null;
     },
   ) {
     await requireDb()
@@ -230,6 +235,7 @@ const rawDb = {
              profile_picture = COALESCE(?, profile_picture),
              followers = COALESCE(?, followers),
              health_score = COALESCE(?, health_score),
+              provider = COALESCE(?, provider),
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
       )
@@ -241,9 +247,48 @@ const rawDb = {
         input.profile_picture ?? null,
         input.followers ?? null,
         input.health_score ?? null,
+        input.provider ?? null,
         id,
       )
       .run();
+  },
+  async resolveAccountForPublishing(id: string): Promise<AccountRow | null> {
+    const account = await rawDb.getAccount(id);
+    if (!account) return null;
+    if (account.ig_user_id && account.access_token) return account;
+
+    const { results } = await requireDb()
+      .prepare("SELECT * FROM accounts ORDER BY updated_at DESC, created_at DESC")
+      .all<AccountRow>();
+    const normalized = normalizeUsername(account.username);
+    const sibling = (results ?? []).find((candidate) => {
+      if (candidate.id === account.id || !candidate.ig_user_id || !candidate.access_token) return false;
+      if (account.ig_user_id && candidate.ig_user_id === account.ig_user_id) return true;
+      return normalized.length > 0 && normalizeUsername(candidate.username) === normalized;
+    });
+    if (!sibling) return account;
+
+    await rawDb.updateAccountCredentials(account.id, {
+      ig_user_id: sibling.ig_user_id,
+      access_token: sibling.access_token,
+      token_expires_at: sibling.token_expires_at,
+      token_status: "valid",
+      profile_picture: sibling.profile_picture,
+      followers: sibling.followers,
+      health_score: Math.max(account.health_score, sibling.health_score, 90),
+      provider: sibling.provider,
+    });
+    return {
+      ...account,
+      ig_user_id: sibling.ig_user_id,
+      access_token: sibling.access_token,
+      token_expires_at: sibling.token_expires_at,
+      token_status: "valid",
+      profile_picture: sibling.profile_picture ?? account.profile_picture,
+      followers: sibling.followers,
+      health_score: Math.max(account.health_score, sibling.health_score, 90),
+      provider: sibling.provider,
+    };
   },
   async markAccountNeedsReconnect(id: string) {
     await requireDb()
