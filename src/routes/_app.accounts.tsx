@@ -175,7 +175,46 @@ function AccountsPage() {
                           <MoreHorizontal className="h-4 w-4" />
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-44">
+                      <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuItem
+                          onSelect={async (e) => {
+                            e.preventDefault();
+                            const t = toast.loading("Validando credenciais…");
+                            try {
+                              const r = await api.validateAccount(a.id);
+                              toast.dismiss(t);
+                              if (!r) {
+                                toast.error("Falha ao validar (sem resposta)");
+                                return;
+                              }
+                              if (r.ok) {
+                                toast.success(
+                                  `OK · IG @${r.ig?.username ?? "?"} (id ${r.ig?.id ?? "?"})`,
+                                );
+                              } else {
+                                const sugg = (r.suggestions ?? [])
+                                  .filter((s) => s.ig_id)
+                                  .map((s) => `@${s.ig_username} (${s.ig_id})`)
+                                  .join(", ");
+                                const detail =
+                                  typeof r.error === "object"
+                                    ? JSON.stringify(r.error)
+                                    : String(r.error ?? "erro");
+                                toast.error(
+                                  `Falha (${r.scope ?? "graph"}): ${detail}${sugg ? ` · sugestões: ${sugg}` : ""}`,
+                                  { duration: 12000 },
+                                );
+                                console.warn("[validate]", r);
+                              }
+                            } catch (err) {
+                              toast.dismiss(t);
+                              toast.error(err instanceof Error ? err.message : "Falha");
+                            }
+                          }}
+                        >
+                          <BadgeCheck className="mr-2 h-4 w-4" />
+                          Validar credenciais
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-red-500 focus:text-red-500"
                           onSelect={async (e) => {
