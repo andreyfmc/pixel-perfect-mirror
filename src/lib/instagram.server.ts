@@ -312,10 +312,11 @@ export const instagram = {
           | undefined;
         if (pageIg?.id) {
           const expectedUsername = normalizeUsername(input.expectedUsername);
+          const hasExpectedUsername = expectedUsername.length > 0;
           const pageIgMatches =
-            isSameId(pageIg.id, input.igUserId) ||
-            expectedUsername.length === 0 ||
-            normalizeUsername(pageIg.username) === expectedUsername;
+            hasExpectedUsername
+              ? normalizeUsername(pageIg.username) === expectedUsername
+              : isSameId(pageIg.id, input.igUserId);
           if (!pageIgMatches) {
             throw new InstagramGraphError([
               {
@@ -359,10 +360,12 @@ export const instagram = {
         () => [] as VisibleFacebookIgAccount[],
       );
       const expectedUsername = normalizeUsername(input.expectedUsername);
-      const suggestion = accounts.find((a) => {
-        if (isSameId(a.ig_id, input.igUserId)) return true;
-        return expectedUsername.length > 0 && normalizeUsername(a.ig_username) === expectedUsername;
-      }) ?? (accounts.length === 1 ? accounts[0] : undefined);
+      const suggestion =
+        (expectedUsername.length > 0
+          ? accounts.find((a) => normalizeUsername(a.ig_username) === expectedUsername)
+          : undefined) ??
+        accounts.find((a) => isSameId(a.ig_id, input.igUserId)) ??
+        (accounts.length === 1 ? accounts[0] : undefined);
       if (suggestion) {
         return {
           me,
