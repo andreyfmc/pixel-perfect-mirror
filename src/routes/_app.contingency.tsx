@@ -1166,32 +1166,50 @@ function ContingencyPage() {
           </p>
         </div>
       ) : (
-        <div className="im-card overflow-x-auto">
-          <div className="min-w-[1000px]">
-            {filtered.map((a, i) => (
-              <Row
+        <>
+          {/* Mobile: stacked cards */}
+          <div className="space-y-2 md:hidden">
+            {filtered.map((a) => (
+              <MobileCard
                 key={a.id}
                 a={a}
-                idx={i}
                 privateMode={privateMode}
-                expanded={expanded.has(a.id)}
-                onToggleExpand={() => toggleExpand(a.id)}
                 onPatch={(p) => patch(a.id, p)}
                 onRemove={() => removeOne(a.id)}
-                onCopyAll={() => copyFullCreds(a)}
                 onActivate={() => { setActivateAccount(a); setActivateOpen(true); }}
-                onReveal={() => { setRevealAccount(a); setRevealOpen(true); }}
-                selectMode={selectMode}
-                selected={selected.has(a.id)}
-                onSelectChange={(v) => {
-                  const next = new Set(selected);
-                  if (v) next.add(a.id); else next.delete(a.id);
-                  setSelected(next);
-                }}
+                onCopyAll={() => copyFullCreds(a)}
               />
             ))}
           </div>
-        </div>
+
+          {/* Desktop: table */}
+          <div className="im-card hidden overflow-x-auto md:block">
+            <div className="min-w-[1000px]">
+              {filtered.map((a, i) => (
+                <Row
+                  key={a.id}
+                  a={a}
+                  idx={i}
+                  privateMode={privateMode}
+                  expanded={expanded.has(a.id)}
+                  onToggleExpand={() => toggleExpand(a.id)}
+                  onPatch={(p) => patch(a.id, p)}
+                  onRemove={() => removeOne(a.id)}
+                  onCopyAll={() => copyFullCreds(a)}
+                  onActivate={() => { setActivateAccount(a); setActivateOpen(true); }}
+                  onReveal={() => { setRevealAccount(a); setRevealOpen(true); }}
+                  selectMode={selectMode}
+                  selected={selected.has(a.id)}
+                  onSelectChange={(v) => {
+                    const next = new Set(selected);
+                    if (v) next.add(a.id); else next.delete(a.id);
+                    setSelected(next);
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </>
       )}
 
       <AddAccountModal open={addOpen} onOpenChange={setAddOpen} onSave={handleAdd} />
