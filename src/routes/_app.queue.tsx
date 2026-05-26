@@ -1300,7 +1300,9 @@ function QueuePage() {
                         );
                       })}
                     </div>
-                  )}
+                    </div>
+                  </div>
+
 
                   {/* Progress bar (bottom edge) */}
                   <ProgressBar counts={group.counts} total={group.items.length} />
