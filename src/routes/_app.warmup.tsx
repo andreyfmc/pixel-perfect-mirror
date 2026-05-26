@@ -531,6 +531,7 @@ function DistributeTab() {
   };
   const [start, setStart] = useState(localNow);
   const [gap, setGap] = useState(15);
+  const [order, setOrder] = useState<"sequential" | "random">("sequential");
   const [copied, setCopied] = useState(false);
   const [enqueueing, setEnqueueing] = useState(false);
   const [enqueueMsg, setEnqueueMsg] = useState<string | null>(null);
@@ -631,8 +632,18 @@ function DistributeTab() {
       let i = 0;
       let ok = 0;
       let fail = 0;
-      for (const v of selectedList) {
-        for (const accId of selectedAccounts) {
+      // Para cada conta, define a ordem dos vídeos (sequencial ou embaralhada por conta)
+      const shuffle = <T,>(arr: T[]): T[] => {
+        const a = [...arr];
+        for (let j = a.length - 1; j > 0; j--) {
+          const k = Math.floor(Math.random() * (j + 1));
+          [a[j], a[k]] = [a[k], a[j]];
+        }
+        return a;
+      };
+      for (const accId of selectedAccounts) {
+        const videosForAcc = order === "random" ? shuffle(selectedList) : selectedList;
+        for (const v of videosForAcc) {
           const scheduledAt = new Date(startMs + i * gap * 60_000).toISOString();
           const res = await api.enqueue({
             account_id: accId,
@@ -646,7 +657,7 @@ function DistributeTab() {
           i++;
         }
       }
-      setEnqueueMsg(`✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""}`);
+      setEnqueueMsg(`✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ordem: ${order === "random" ? "aleatória" : "sequencial"}`);
     } catch (e) {
       setEnqueueMsg(`Erro: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -656,8 +667,9 @@ function DistributeTab() {
 
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-      <div>
+    <div className="grid gap-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
+      <div className="min-w-0">
+
         <h3 className="mb-3 text-sm font-semibold flex items-center gap-2">
           <HardDrive className="h-4 w-4" /> Google Drive
         </h3>
@@ -801,7 +813,8 @@ function DistributeTab() {
         )}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 min-w-0 rounded-xl border border-border bg-bg3/30 p-4">
+
         <div>
           <div className="mb-2 flex items-center justify-between">
             <h3 className="text-sm font-semibold">Contas que recebem</h3>
@@ -851,7 +864,41 @@ function DistributeTab() {
               onChange={(e) => setGap(Number(e.target.value))}
               className="w-full rounded-lg border border-border2 bg-bg3 px-2 py-1.5 text-sm outline-none focus:border-accent"
             />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs uppercase tracking-wider text-muted2">
+            Ordem dos vídeos
+          </label>
+          <div className="grid grid-cols-2 gap-1 rounded-lg border border-border2 bg-bg3 p-1">
+            {([
+              { id: "sequential", label: "Sequencial" },
+              { id: "random", label: "Aleatória" },
+            ] as const).map((opt) => {
+              const active = order === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setOrder(opt.id)}
+                  className={[
+                    "rounded-md px-3 py-1.5 text-xs font-medium transition",
+                    active
+                      ? "bg-accent text-white shadow"
+                      : "text-text2 hover:text-foreground",
+                  ].join(" ")}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
+          <p className="mt-1 text-[11px] text-muted2">
+            {order === "random"
+              ? "Cada conta recebe os vídeos em ordem embaralhada."
+              : "Todas as contas seguem a mesma ordem de seleção."}
+          </p>
+        </div>
+
         </div>
 
         <div>
