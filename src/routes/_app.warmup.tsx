@@ -862,7 +862,7 @@ function DistributeTab() {
           </ul>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <div>
             <label className="mb-1 block text-xs uppercase tracking-wider text-muted2">Início</label>
             <input
@@ -873,11 +873,26 @@ function DistributeTab() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs uppercase tracking-wider text-muted2">Gap (min)</label>
+            <label className="mb-1 block text-xs uppercase tracking-wider text-muted2" title="Intervalo entre ciclos (cada vídeo)">
+              Ciclo (min)
+            </label>
             <input
               type="number"
+              min={1}
               value={gap}
               onChange={(e) => setGap(Number(e.target.value))}
+              className="w-full rounded-lg border border-border2 bg-bg3 px-2 py-1.5 text-sm outline-none focus:border-accent"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-wider text-muted2" title="Variação ± aplicada entre contas dentro do mesmo ciclo">
+              Jitter (±min)
+            </label>
+            <input
+              type="number"
+              min={0}
+              value={jitter}
+              onChange={(e) => setJitter(Number(e.target.value))}
               className="w-full rounded-lg border border-border2 bg-bg3 px-2 py-1.5 text-sm outline-none focus:border-accent"
             />
         </div>
