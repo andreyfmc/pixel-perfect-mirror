@@ -221,6 +221,11 @@ function AccountsPage() {
                                 toast.success(
                                   `OK · IG @${r.ig?.username ?? "?"} (id ${r.ig?.id ?? "?"})`,
                                 );
+                              } else if (r.needs_reconnect) {
+                                toast.error(`@${a.username}: token expirado/inválido. Reconecte a conta.`, {
+                                  duration: 12000,
+                                });
+                                qc.invalidateQueries({ queryKey: ["accounts"] });
                               } else {
                                 const sugg = (r.suggestions ?? [])
                                   .filter((s) => s.ig_id)
