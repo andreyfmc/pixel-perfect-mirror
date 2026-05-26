@@ -95,6 +95,11 @@ function WarmupPage() {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api.listAccounts(),
+  });
+
 
   async function handleFiles(files: File[] | FileList | null) {
     if (!files) return;
