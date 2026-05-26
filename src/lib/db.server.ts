@@ -471,6 +471,16 @@ const rawDb = {
       .bind(igContainerId, id)
       .run();
   },
+  async clearQueueContainer(id: string) {
+    await requireDb()
+      .prepare(
+        `UPDATE queue
+         SET ig_container_id = NULL, ig_media_id = NULL, last_error = NULL
+         WHERE id = ?`,
+      )
+      .bind(id)
+      .run();
+  },
   async updateLastPostAt(id: string, isoDate: string) {
     await requireDb()
       .prepare(
