@@ -87,7 +87,7 @@ export type HistoryRow = {
   fetched_at: string | null;
 };
 
-export const db = {
+const rawDb = {
   // ============ accounts ============
   async listAccounts(): Promise<AccountRow[]> {
     const { results } = await requireDb()
