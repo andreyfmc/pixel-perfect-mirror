@@ -1362,7 +1362,7 @@ function DriveImportDialog({
                     return;
                   }
                   toast.dismiss("drive-dl");
-                  onImport(res.content);
+                  onImport(res.content, f);
                 }}
                 className="flex w-full items-center justify-between rounded-md border border-border bg-bg3 px-3 py-2 text-left text-sm hover:border-border2"
               >
