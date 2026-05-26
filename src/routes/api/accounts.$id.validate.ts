@@ -21,17 +21,16 @@ export const Route = createFileRoute("/api/accounts/$id/validate")({
         if (!account) return json({ ok: false, error: "Conta não encontrada" }, 404);
         if (!account.access_token) return json({ ok: false, error: "Sem access_token" }, 400);
         if (!account.ig_user_id) return json({ ok: false, error: "Sem ig_user_id" }, 400);
-        if (account.token_status === "expired") {
-          return json({ ok: false, needs_reconnect: true, error: "Token expirado" }, 200);
-        }
-
         try {
           let accessToken = account.access_token;
-          const fresh = await ensureFreshAccessToken({
-            accessToken,
-            tokenExpiresAt: account.token_expires_at,
-          });
-          if (fresh.refreshed) {
+          const fresh =
+            account.provider === "instagram"
+              ? await ensureFreshAccessToken({
+                  accessToken,
+                  tokenExpiresAt: account.token_expires_at,
+                })
+              : { accessToken, expiresAt: account.token_expires_at, refreshed: false };
+          if (fresh.refreshed || account.token_status === "expired") {
             accessToken = fresh.accessToken;
             await db.updateAccountCredentials(params.id, {
               access_token: fresh.accessToken,
