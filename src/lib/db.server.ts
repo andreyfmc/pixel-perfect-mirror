@@ -99,7 +99,11 @@ export const db = {
   async dueQueueItems(nowIso: string): Promise<QueueRow[]> {
     const { results } = await requireDb()
       .prepare(
-        `SELECT * FROM queue WHERE status = 'scheduled' AND scheduled_at <= ? ORDER BY scheduled_at ASC LIMIT 10`,
+        `SELECT * FROM queue
+         WHERE (status = 'scheduled' AND scheduled_at <= ?)
+            OR (status = 'processing' AND ig_container_id IS NOT NULL)
+         ORDER BY scheduled_at ASC
+         LIMIT 10`,
       )
       .bind(nowIso)
       .all<QueueRow>();
@@ -124,6 +128,16 @@ export const db = {
          WHERE id = ?`,
       )
       .bind(status, extra?.last_error ?? null, extra?.ig_container_id ?? null, extra?.ig_media_id ?? null, id)
+      .run();
+  },
+  async markQueueProcessing(id: string, igContainerId: string) {
+    await requireDb()
+      .prepare(
+        `UPDATE queue
+         SET status = 'processing', attempts = attempts + 1, last_error = NULL, ig_container_id = ?
+         WHERE id = ?`,
+      )
+      .bind(igContainerId, id)
       .run();
   },
   async manualSetQueueStatus(id: string, status: QueueRow["status"]) {
