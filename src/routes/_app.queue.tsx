@@ -339,7 +339,15 @@ function QueuePage() {
     if (!ids.length) return;
     const t = toast.loading(`Preparando ${ids.length} item(ns) para publicar…`);
     try {
-      await Promise.all(ids.map((id) => api.updateQueueStatus(id, "scheduled")));
+      const nowIso = new Date().toISOString();
+      await Promise.all(
+        ids.map((id) =>
+          api.updateQueueStatus(id, "scheduled", {
+            scheduled_at: nowIso,
+            reset_container: true,
+          }),
+        ),
+      );
       await api.runScheduler();
       toast.success("Scheduler disparado");
       setSelected(new Set());
