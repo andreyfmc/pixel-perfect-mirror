@@ -3,6 +3,7 @@
 
 export type ContingencyStatus = "em_edicao" | "pronta" | "em_uso" | "descartada";
 export type ContingencyQuality = "boa" | "media" | "ruim";
+export type ConnectionType = "instagram" | "facebook";
 
 export type ContingencyAccount = {
   id: string;
@@ -13,7 +14,34 @@ export type ContingencyAccount = {
   quality: ContingencyQuality;
   notes: string;
   updated_at: string;
+  connection_type?: ConnectionType;
 };
+
+export type ActivationLog = {
+  id: string;
+  contingency_id: string;
+  contingency_username: string;
+  replaced_account_id: string;
+  replaced_username: string;
+  reason: string;
+  activated_at: string;
+};
+
+const ACTIVATION_LOG_KEY = "im_contingency_activations_v1";
+
+export function loadActivationLog(): ActivationLog[] {
+  if (typeof window === "undefined") return [];
+  try { return JSON.parse(localStorage.getItem(ACTIVATION_LOG_KEY) ?? "[]"); } catch { return []; }
+}
+export function appendActivationLog(entry: ActivationLog) {
+  if (typeof window === "undefined") return;
+  const list = loadActivationLog();
+  list.unshift(entry);
+  localStorage.setItem(ACTIVATION_LOG_KEY, JSON.stringify(list));
+}
+export function logsForContingency(id: string): ActivationLog[] {
+  return loadActivationLog().filter((l) => l.contingency_id === id);
+}
 
 const STORAGE_KEY = "im_contingency_v1";
 
