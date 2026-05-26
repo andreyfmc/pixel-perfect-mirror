@@ -5,6 +5,7 @@ import {
   InstagramGraphError,
   instagram,
   isInvalidAccessTokenError,
+  isMismatchedCredentialsError,
 } from "@/lib/instagram.server";
 
 const json = (data: unknown, status = 200) =>
@@ -71,6 +72,31 @@ export const Route = createFileRoute("/api/accounts/$id/validate")({
             suggestions: result.suggestions ?? [],
           });
         } catch (err) {
+          if (isMismatchedCredentialsError(err)) {
+            const healed = await db.healMismatchedCredentials(params.id);
+            if (healed?.ig_user_id && healed.access_token) {
+              const result = await instagram.validateCredentials({
+                igUserId: healed.ig_user_id,
+                accessToken: healed.access_token,
+                expectedUsername: healed.username,
+              });
+              await db.updateAccountCredentials(params.id, {
+                access_token: result.accessToken ?? healed.access_token,
+                ig_user_id: typeof result.ig?.id === "string" ? result.ig.id : healed.ig_user_id,
+                provider: result.host ?? healed.provider,
+                token_status: "valid",
+                health_score: 95,
+              });
+              return json({
+                ok: true,
+                me: result.me,
+                ig: result.ig,
+                graph_host: result.host,
+                suggestions: result.suggestions ?? [],
+                healed: true,
+              });
+            }
+          }
           if (err instanceof InstagramGraphError) {
             const needsReconnect = isInvalidAccessTokenError(err);
             if (needsReconnect) await db.markAccountNeedsReconnect(params.id);
