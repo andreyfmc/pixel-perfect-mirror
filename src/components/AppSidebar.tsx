@@ -93,7 +93,7 @@ export function AppSidebar() {
       </div>
 
       <ul className="mt-3 space-y-1 px-3 overflow-y-auto flex-1">
-        {mockAccounts.map((a) => (
+        {accounts.map((a) => (
           <li key={a.id}>
             <button className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-bg3">
               <div className="relative">
