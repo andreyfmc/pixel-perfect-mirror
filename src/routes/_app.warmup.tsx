@@ -308,10 +308,24 @@ function WarmupPage() {
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-medium">{u.name}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm font-medium">{u.name}</span>
+                            {u.status === "uploading" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-medium text-amber-300">
+                                <Loader2 className="h-2.5 w-2.5 animate-spin" /> enviando
+                              </span>
+                            )}
+                            {u.status === "done" && (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/15 px-2 py-0.5 text-[10px] font-medium text-sky-300">
+                                a processar metadados
+                              </span>
+                            )}
+                            {u.status === "error" && (
+                              <span className="rounded-full bg-red-500/15 px-2 py-0.5 text-[10px] font-medium text-red-300">erro</span>
+                            )}
+                          </div>
                           <div className="truncate text-xs text-muted2">
                             {(u.size / 1024 / 1024).toFixed(2)} MB ·{" "}
-                            {u.status === "uploading" && "enviando para R2…"}
                             {u.status === "done" && (
                               <>
                                 <span className="text-emerald-400">no R2</span> ·{" "}
@@ -333,6 +347,15 @@ function WarmupPage() {
                       </li>
                     ))}
                   </ul>
+                  {uploads.length > 0 &&
+                    uploads.every((u) => u.status === "done") && (
+                      <button
+                        onClick={() => setTab("post")}
+                        className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-lg im-grad-accent px-4 py-2.5 text-sm font-semibold text-white"
+                      >
+                        <Wand2 className="h-4 w-4" /> Continuar para Postagem →
+                      </button>
+                    )}
                 </>
               )}
             </div>
