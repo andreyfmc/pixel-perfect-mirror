@@ -297,66 +297,6 @@ export const instagram = {
         access_token: input.accessToken,
         fields: "id,name",
       });
-      try {
-        const page = await facebookGet(`/${me.id}`, {
-          access_token: input.accessToken,
-          fields:
-            "instagram_business_account{id,username,name,profile_picture_url,followers_count}",
-        });
-        const pageIg = page.instagram_business_account as
-          | {
-              id?: string;
-              username?: string;
-              name?: string;
-              profile_picture_url?: string;
-              followers_count?: number;
-            }
-          | undefined;
-        if (pageIg?.id) {
-          const expectedUsername = normalizeUsername(input.expectedUsername);
-          const hasExpectedUsername = expectedUsername.length > 0;
-          const pageIgMatches = hasExpectedUsername
-            ? normalizeUsername(pageIg.username) === expectedUsername
-            : isSameId(pageIg.id, input.igUserId);
-          if (!pageIgMatches) {
-            throw new InstagramGraphError([
-              {
-                host: "facebook",
-                status: 400,
-                json: {
-                  error: {
-                    message: `Facebook Page token pertence ao Instagram ${pageIg.username ?? pageIg.id}, mas a conta salva usa ${input.expectedUsername ?? input.igUserId}`,
-                    code: 100,
-                    error_subcode: 33,
-                  },
-                },
-              },
-            ]);
-          }
-          return {
-            me,
-            ig: pageIg,
-            host: "facebook" as GraphHostId,
-            accessToken: input.accessToken,
-            suggestions: [
-              {
-                page: String(me.name ?? me.id ?? "Página"),
-                pageId: String(me.id ?? ""),
-                pageAccessToken: input.accessToken,
-                ig_id: pageIg.id,
-                ig_username: pageIg.username,
-                ig_name: pageIg.name,
-                profile_picture: pageIg.profile_picture_url,
-                followers: pageIg.followers_count,
-              },
-            ],
-          };
-        }
-      } catch (pageErr) {
-        if (isMismatchedCredentialsError(pageErr)) throw pageErr;
-        // Se o token for de usuário Facebook, a conta IG vem por /me/accounts abaixo.
-      }
-
       const accounts = await this.listVisibleFacebookIgAccounts(input.accessToken).catch(
         () => [] as VisibleFacebookIgAccount[],
       );
@@ -386,11 +326,20 @@ export const instagram = {
         };
       }
 
-      const ig = await facebookGet(`/${input.igUserId}`, {
-        access_token: input.accessToken,
-        fields: "id,username,name,profile_picture_url,followers_count",
-      });
-      return { me, ig, host: "facebook" as GraphHostId, suggestions: accounts };
+      throw new InstagramGraphError([
+        {
+          host: "facebook",
+          status: 400,
+          json: {
+            error: {
+              message:
+                "Token Facebook salvo não é um User token com acesso à conta Instagram pela lista de Páginas. Reconecte via Facebook após este ajuste para gravar o token correto.",
+              code: 100,
+              error_subcode: 33,
+            },
+          },
+        },
+      ]);
     } catch (facebookErr) {
       let me: GraphJson;
       try {
