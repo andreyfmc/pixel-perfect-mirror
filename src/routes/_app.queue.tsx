@@ -53,6 +53,16 @@ function QueuePage() {
     queryKey: ["queue"],
     queryFn: () => api.listQueue(),
   });
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api.listAccounts(),
+  });
+  const accountById = useMemo(() => {
+    const m = new Map<string, { username: string; profile_picture: string }>();
+    for (const a of accounts) m.set(a.id, { username: a.username, profile_picture: a.profile_picture });
+    return m;
+  }, [accounts]);
+
 
   const [filter, setFilter] = useState<FilterKey>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -261,7 +271,7 @@ function QueuePage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-sm font-medium">@{q.account}</span>
+                    <span className="text-sm font-medium">@{accountById.get(q.account)?.username ?? q.account.slice(0, 8)}</span>
                     <span className="rounded-md bg-bg3 px-1.5 py-0.5 text-[10px] uppercase text-text2">
                       {q.media_type}
                     </span>
