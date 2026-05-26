@@ -1,5 +1,6 @@
 import "./lib/error-capture";
 
+import { setWorkerEnv } from "./lib/cf.server";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 
@@ -68,6 +69,7 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    setWorkerEnv(env);
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
@@ -81,6 +83,7 @@ export default {
   // Cron Trigger — executado conforme `triggers.crons` em wrangler.jsonc.
   // Carrega o scheduler de forma preguiçosa para manter o cold-start do fetch leve.
   async scheduled(_event: ScheduledController, _env: unknown, ctx: ExecutionContext) {
+    setWorkerEnv(_env);
     ctx.waitUntil(
       (async () => {
         try {

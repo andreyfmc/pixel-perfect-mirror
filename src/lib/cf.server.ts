@@ -11,6 +11,11 @@ type CFEnv = Partial<Cloudflare.Env>;
 
 let mod: { env?: CFEnv } | undefined;
 let importPromise: Promise<void> | undefined;
+let workerEnv: CFEnv | undefined;
+
+export function setWorkerEnv(nextEnv: unknown) {
+  workerEnv = (nextEnv ?? {}) as CFEnv;
+}
 
 function tryLoadSync() {
   if (mod || importPromise) return;
@@ -24,6 +29,7 @@ function tryLoadSync() {
 }
 
 function currentEnv(): CFEnv {
+  if (workerEnv) return workerEnv;
   tryLoadSync();
   return mod?.env ?? {};
 }
@@ -46,9 +52,10 @@ export const env: CFEnv = new Proxy({} as CFEnv, {
 // Garante que o módulo virtual seja resolvido antes do primeiro acesso.
 // Em Workers, basta uma chamada async dentro de uma request para o env aparecer.
 export async function ensureEnv(): Promise<CFEnv> {
+  if (workerEnv) return workerEnv;
   tryLoadSync();
   if (importPromise) await importPromise;
-  return mod?.env ?? {};
+  return workerEnv ?? mod?.env ?? {};
 }
 
 export function hasDb(): boolean {
