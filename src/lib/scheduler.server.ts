@@ -4,6 +4,7 @@
 import { db } from "./db.server";
 import {
   ensureFreshAccessToken,
+  inferGraphProviderFromToken,
   instagram,
   isInvalidAccessTokenError,
   isMismatchedCredentialsError,
@@ -56,13 +57,16 @@ export async function runScheduler(
     try {
       const account = await db.resolveAccountForPublishing(item.account_id);
       if (!account?.ig_user_id || !account?.access_token) {
-        throw new Error("Conta sem ig_user_id ou access_token — reconecte esta conta e recrie/retome a fila");
+        throw new Error(
+          "Conta sem ig_user_id ou access_token — reconecte esta conta e recrie/retome a fila",
+        );
       }
       let igUserId = account.ig_user_id;
       let accessToken = account.access_token;
+      let provider = inferGraphProviderFromToken(account.access_token, account.provider);
       try {
         const fresh =
-          account.provider === "instagram"
+          provider === "instagram"
             ? await ensureFreshAccessToken({
                 accessToken,
                 tokenExpiresAt: account.token_expires_at,
@@ -70,9 +74,11 @@ export async function runScheduler(
             : { accessToken, expiresAt: account.token_expires_at, refreshed: false };
         if (fresh.refreshed || account.token_status === "expired") {
           accessToken = fresh.accessToken;
+          provider = inferGraphProviderFromToken(accessToken, provider);
           await db.updateAccountCredentials(item.account_id, {
             access_token: fresh.accessToken,
             token_expires_at: fresh.expiresAt,
+            provider,
             token_status: "valid",
             health_score: Math.max(account.health_score, 90),
           });
@@ -95,16 +101,19 @@ export async function runScheduler(
         const validated = await instagram.validateCredentials({
           igUserId,
           accessToken,
+          expectedUsername: account.username,
         });
         const validatedIgId = typeof validated.ig?.id === "string" ? validated.ig.id : undefined;
         const validatedToken =
           typeof validated.accessToken === "string" ? validated.accessToken : undefined;
-        if (validatedIgId || validatedToken) {
+        provider = validated.host ?? provider;
+        if (validatedIgId || validatedToken || validated.host) {
           igUserId = validatedIgId ?? igUserId;
           accessToken = validatedToken ?? accessToken;
           await db.updateAccountCredentials(item.account_id, {
             ig_user_id: validatedIgId,
             access_token: validatedToken,
+            provider,
             token_status: "valid",
             profile_picture:
               typeof validated.ig?.profile_picture_url === "string"
@@ -138,12 +147,20 @@ export async function runScheduler(
               const reValidated = await instagram.validateCredentials({
                 igUserId: healed.ig_user_id,
                 accessToken: healed.access_token,
+                expectedUsername: healed.username,
               });
-              igUserId = (typeof reValidated.ig?.id === "string" ? reValidated.ig.id : undefined) ?? healed.ig_user_id;
-              accessToken = (typeof reValidated.accessToken === "string" ? reValidated.accessToken : undefined) ?? healed.access_token;
+              igUserId =
+                (typeof reValidated.ig?.id === "string" ? reValidated.ig.id : undefined) ??
+                healed.ig_user_id;
+              accessToken =
+                (typeof reValidated.accessToken === "string"
+                  ? reValidated.accessToken
+                  : undefined) ?? healed.access_token;
+              provider = reValidated.host ?? healed.provider;
               await db.updateAccountCredentials(item.account_id, {
                 ig_user_id: igUserId,
                 access_token: accessToken,
+                provider,
                 token_status: "valid",
                 health_score: 95,
               });
@@ -158,7 +175,8 @@ export async function runScheduler(
           } else {
             await db.markAccountNeedsReconnect(item.account_id);
             await db.setQueueStatus(item.id, "canceled", {
-              last_error: "Credenciais incompatíveis: o token salvo não acessa o ig_user_id desta conta. Reconecte a conta no Facebook para regenerar o Page token correto.",
+              last_error:
+                "Credenciais incompatíveis: o token salvo não acessa o ig_user_id desta conta. Reconecte a conta no Facebook para regenerar o Page token correto.",
             });
             errors++;
             continue;
@@ -176,7 +194,7 @@ export async function runScheduler(
         containerId = await instagram.createContainer({
           igUserId,
           accessToken,
-          provider: account.provider,
+          provider,
           mediaType: item.media_type,
           mediaUrl,
           caption: item.caption,
@@ -184,7 +202,7 @@ export async function runScheduler(
         await db.markQueueProcessing(item.id, containerId);
       }
 
-      const status = await instagram.fetchContainerStatus(containerId, accessToken, account.provider);
+      const status = await instagram.fetchContainerStatus(containerId, accessToken, provider);
       if (status.statusCode === "ERROR" || status.statusCode === "EXPIRED") {
         throw new Error(
           `Container Instagram ${status.statusCode}: ${status.status ?? "sem detalhe"}`,
@@ -197,17 +215,16 @@ export async function runScheduler(
         continue;
       }
 
-
       const mediaId = await instagram.publishContainer({
         igUserId,
         accessToken,
-        provider: account.provider,
+        provider,
         containerId,
       });
 
       let permalink: string | undefined;
       try {
-        const info = await instagram.fetchMediaInfo(mediaId, accessToken, account.provider);
+        const info = await instagram.fetchMediaInfo(mediaId, accessToken, provider);
         permalink = info.permalink as string | undefined;
       } catch {
         // campo opcional
@@ -231,7 +248,6 @@ export async function runScheduler(
       });
 
       await db.updateLastPostAt(item.account_id, new Date().toISOString());
-
 
       processed++;
     } catch (err) {
