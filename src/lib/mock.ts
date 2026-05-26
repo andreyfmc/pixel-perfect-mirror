@@ -60,6 +60,8 @@ export type QueueItem = {
   media_type: "REEL" | "IMAGE" | "STORY";
   thumb: string;
   status: "scheduled" | "processing" | "failed" | "canceled" | "published";
+  attempts?: number;
+  last_error?: string | null;
 };
 
 export const mockQueue: QueueItem[] = [

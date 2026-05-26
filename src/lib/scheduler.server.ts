@@ -47,37 +47,66 @@ export async function runScheduler(
         throw new Error("Conta sem ig_user_id ou access_token");
       }
 
-      const mediaUrl = publicMediaUrl(item.media_key, opts.baseUrl);
+      let containerId = item.ig_container_id ?? undefined;
+      if (!containerId) {
+        const mediaUrl = publicMediaUrl(item.media_key, opts.baseUrl);
+        containerId = await instagram.createContainer({
+          igUserId: account.ig_user_id,
+          accessToken: account.access_token,
+          mediaType: item.media_type,
+          mediaUrl,
+          caption: item.caption,
+        });
+        await db.markQueueProcessing(item.id, containerId);
+      }
 
-      const result = await instagram.publish({
-        igUserId: account.ig_user_id,
+      await instagram.waitUntilReady({
+        containerId,
         accessToken: account.access_token,
-        mediaType: item.media_type,
-        mediaUrl,
-        caption: item.caption,
+        attempts: 1,
+        delayMs: 0,
       });
 
+      const mediaId = await instagram.publishContainer({
+        igUserId: account.ig_user_id,
+        accessToken: account.access_token,
+        containerId,
+      });
+
+      let permalink: string | undefined;
+      try {
+        const info = await instagram.fetchMediaInfo(mediaId, account.access_token);
+        permalink = info.permalink as string | undefined;
+      } catch {
+        // campo opcional
+      }
+
       await db.setQueueStatus(item.id, "published", {
-        ig_container_id: result.containerId,
-        ig_media_id: result.mediaId,
+        ig_container_id: containerId,
+        ig_media_id: mediaId,
       });
 
       await db.recordPublication({
         id: crypto.randomUUID(),
         account_id: item.account_id,
         queue_id: item.id,
-        ig_media_id: result.mediaId,
+        ig_media_id: mediaId,
         caption: item.caption,
         media_type: item.media_type,
-        permalink: result.permalink ?? null,
+        permalink: permalink ?? null,
         thumb_url: item.thumb_key ? publicMediaUrl(item.thumb_key, opts.baseUrl) : null,
         published_at: new Date().toISOString(),
       });
 
       processed++;
     } catch (err) {
-      errors++;
       const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("ainda processando")) {
+        console.log(`[scheduler] queue=${item.id} aguardando processamento do Instagram`);
+        continue;
+      }
+
+      errors++;
       console.error(`[scheduler] queue=${item.id} err=${msg}`);
       await db.setQueueStatus(item.id, "failed", { last_error: msg });
     }

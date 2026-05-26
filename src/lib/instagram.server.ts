@@ -23,6 +23,11 @@ export type PublishResult = {
   permalink?: string;
 };
 
+export type ContainerStatus = {
+  statusCode: string;
+  status?: string;
+};
+
 async function gpost(path: string, body: Record<string, string>) {
   const url = new URL(GRAPH + path);
   const res = await fetch(url, {
@@ -79,14 +84,40 @@ export const instagram = {
     });
   },
 
+  async fetchContainerStatus(containerId: string, accessToken: string): Promise<ContainerStatus> {
+    const json = await gget(`/${containerId}`, {
+      access_token: accessToken,
+      fields: "status_code,status",
+    });
+    return {
+      statusCode: String(json.status_code ?? "UNKNOWN"),
+      status: typeof json.status === "string" ? json.status : undefined,
+    };
+  },
+
+  async waitUntilReady(input: { containerId: string; accessToken: string; attempts?: number; delayMs?: number }) {
+    const attempts = input.attempts ?? 24;
+    const delayMs = input.delayMs ?? 5000;
+    let last: ContainerStatus | null = null;
+
+    for (let i = 0; i < attempts; i++) {
+      last = await this.fetchContainerStatus(input.containerId, input.accessToken);
+      if (last.statusCode === "FINISHED" || last.statusCode === "PUBLISHED") return last;
+      if (last.statusCode === "ERROR" || last.statusCode === "EXPIRED") {
+        throw new Error(`Container Instagram ${last.statusCode}: ${last.status ?? "sem detalhe"}`);
+      }
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+
+    throw new Error(
+      `Container Instagram ainda processando (${last?.statusCode ?? "UNKNOWN"}). Tente novamente em alguns minutos.`,
+    );
+  },
+
   /** Helper completo: cria container → aguarda → publica. */
   async publish(input: PublishInput): Promise<PublishResult> {
     const containerId = await this.createContainer(input);
-    // Pequena espera — REELS exigem processamento. Para produção use polling
-    // de GET /{container-id}?fields=status_code até FINISHED.
-    if (input.mediaType === "REEL") {
-      await new Promise((r) => setTimeout(r, 8000));
-    }
+    await this.waitUntilReady({ containerId, accessToken: input.accessToken });
     const mediaId = await this.publishContainer({
       igUserId: input.igUserId,
       accessToken: input.accessToken,

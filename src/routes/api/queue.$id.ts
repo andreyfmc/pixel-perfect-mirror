@@ -10,6 +10,8 @@ const json = (data: unknown, status = 200) =>
 
 const PatchSchema = z.object({
   status: z.enum(["scheduled", "processing", "published", "failed", "canceled"]),
+  scheduled_at: z.string().optional(),
+  reset_container: z.boolean().optional(),
 });
 
 export const Route = createFileRoute("/api/queue/$id")({
@@ -17,7 +19,7 @@ export const Route = createFileRoute("/api/queue/$id")({
     handlers: {
       PATCH: async ({ params, request }) => {
         const body = PatchSchema.parse(await request.json());
-        await db.manualSetQueueStatus(params.id, body.status);
+        await db.manualUpdateQueue(params.id, body);
         return json({ ok: true });
       },
       DELETE: async ({ params }) => {

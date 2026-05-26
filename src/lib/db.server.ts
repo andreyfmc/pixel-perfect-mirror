@@ -99,7 +99,11 @@ export const db = {
   async dueQueueItems(nowIso: string): Promise<QueueRow[]> {
     const { results } = await requireDb()
       .prepare(
-        `SELECT * FROM queue WHERE status = 'scheduled' AND scheduled_at <= ? ORDER BY scheduled_at ASC LIMIT 10`,
+        `SELECT * FROM queue
+         WHERE (status = 'scheduled' AND scheduled_at <= ?)
+            OR (status = 'processing' AND ig_container_id IS NOT NULL)
+         ORDER BY scheduled_at ASC
+         LIMIT 10`,
       )
       .bind(nowIso)
       .all<QueueRow>();
@@ -126,10 +130,37 @@ export const db = {
       .bind(status, extra?.last_error ?? null, extra?.ig_container_id ?? null, extra?.ig_media_id ?? null, id)
       .run();
   },
+  async markQueueProcessing(id: string, igContainerId: string) {
+    await requireDb()
+      .prepare(
+        `UPDATE queue
+         SET status = 'processing', attempts = attempts + 1, last_error = NULL, ig_container_id = ?
+         WHERE id = ?`,
+      )
+      .bind(igContainerId, id)
+      .run();
+  },
   async manualSetQueueStatus(id: string, status: QueueRow["status"]) {
     await requireDb()
       .prepare(`UPDATE queue SET status = ? WHERE id = ?`)
       .bind(status, id)
+      .run();
+  },
+  async manualUpdateQueue(
+    id: string,
+    input: { status: QueueRow["status"]; scheduled_at?: string; reset_container?: boolean },
+  ) {
+    await requireDb()
+      .prepare(
+        `UPDATE queue
+         SET status = ?,
+             scheduled_at = COALESCE(?, scheduled_at),
+             last_error = NULL,
+             ig_container_id = CASE WHEN ? THEN NULL ELSE ig_container_id END,
+             ig_media_id = CASE WHEN ? THEN NULL ELSE ig_media_id END
+         WHERE id = ?`,
+      )
+      .bind(input.status, input.scheduled_at ?? null, input.reset_container ? 1 : 0, input.reset_container ? 1 : 0, id)
       .run();
   },
   async deleteQueue(id: string) {

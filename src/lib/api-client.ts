@@ -37,6 +37,8 @@ function queueFromRow(r: QueueRow): QueueItem {
     media_type: r.media_type === "CAROUSEL" ? "IMAGE" : r.media_type,
     thumb: r.thumb_key ?? "",
     status: r.status,
+    attempts: r.attempts,
+    last_error: r.last_error,
   };
 }
 
@@ -75,11 +77,15 @@ export const api = {
     await fetch(`/api/queue/${id}`, { method: "DELETE" });
   },
 
-  async updateQueueStatus(id: string, status: QueueItem["status"]) {
+  async updateQueueStatus(
+    id: string,
+    status: QueueItem["status"],
+    options?: { scheduled_at?: string; reset_container?: boolean },
+  ) {
     await fetch(`/api/queue/${id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, ...options }),
     });
   },
 
