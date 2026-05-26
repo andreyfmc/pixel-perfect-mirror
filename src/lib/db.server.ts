@@ -59,6 +59,9 @@ async function ensureSchema(): Promise<void> {
       if (!queueCols.has("group_scheduled_at")) {
         await db.prepare("ALTER TABLE queue ADD COLUMN group_scheduled_at TEXT").run();
       }
+      if (!queueCols.has("retry_count")) {
+        await db.prepare("ALTER TABLE queue ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0").run();
+      }
       // oauth_states — links únicos de conexão (Instagram OAuth Tester).
       await db
         .prepare(
