@@ -90,7 +90,7 @@ export async function runScheduler(
         id: crypto.randomUUID(),
         account_id: item.account_id,
         queue_id: item.id,
-        ig_media_id: result.mediaId,
+        ig_media_id: mediaId,
         caption: item.caption,
         media_type: item.media_type,
         permalink: permalink ?? null,
