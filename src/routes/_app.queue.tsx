@@ -373,6 +373,7 @@ function QueuePage() {
           expiredIds.map((id) =>
             api.updateQueueStatus(id, "canceled", {
               reset_container: true,
+              last_error: "Token expirado. Reconecte a conta antes de publicar.",
             }),
           ),
         );
@@ -615,9 +616,10 @@ function QueuePage() {
                         )}
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {group.accounts.slice(0, 12).map((account, index) => (
-                            <span key={`${account.username}-${index}`} className="inline-flex max-w-full items-center gap-1 rounded-full border border-border bg-bg3 px-2 py-1 text-[11px] font-semibold text-text2">
+                            <span key={`${account.username}-${index}`} className={["inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold", isTokenExpired(account) ? "border-danger/40 bg-danger/10 text-danger" : "border-border bg-bg3 text-text2"].join(" ")}>
                               {account.profile_picture ? <img src={account.profile_picture} alt="" className="h-4 w-4 rounded-full" /> : <Users className="h-3 w-3" />}
                               <span className="truncate">@{account.username}</span>
+                              {isTokenExpired(account) && <span className="shrink-0">· Token expirado</span>}
                             </span>
                           ))}
                           {group.accounts.length > 12 && <span className="rounded-full border border-border bg-bg3 px-2 py-1 text-[11px] text-muted2">+{group.accounts.length - 12}</span>}
@@ -668,13 +670,16 @@ function QueuePage() {
 
                   <div className="space-y-1 border-t border-border bg-bg3/25 p-3">
                     {group.items.map((item) => {
-                      const account = accountById.get(item.account) ?? { username: item.account.slice(0, 16), name: item.account, profile_picture: "" };
+                      const account = accountById.get(item.account) ?? { id: item.account, username: item.account.slice(0, 16), name: item.account, profile_picture: "" };
                       const itemMeta = STATUS_META[item.status];
+                      const tokenExpired = isTokenExpired(account);
                       return (
                         <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-bg3/60 px-3 py-2 text-sm hover:border-border2">
                           <input type="checkbox" checked={selected.has(item.id)} onChange={() => toggle(item.id)} className="accent-accent" />
                           {account.profile_picture ? <img src={account.profile_picture} alt="" className="h-6 w-6 rounded-full" /> : <Users className="h-4 w-4 text-muted2" />}
                           <span className="min-w-0 flex-1 truncate font-semibold">@{account.username}</span>
+                          {tokenExpired && <span className="shrink-0 rounded-md border border-danger/40 bg-danger/10 px-2 py-1 text-[11px] font-semibold text-danger">Token expirado</span>}
+                          {tokenExpired && <button type="button" disabled={loading !== null} onClick={(e) => { e.preventDefault(); void handleReconnect(account.username); }} className="shrink-0 rounded-md border border-border2 bg-bg2 px-2 py-1 text-[11px] font-semibold text-text2 hover:border-accent hover:text-foreground disabled:opacity-60">Reconectar</button>}
                           <span className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold" style={{ background: itemMeta.bg, color: itemMeta.fg }}>{itemMeta.short}</span>
                         </label>
                       );
