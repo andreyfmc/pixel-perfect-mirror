@@ -22,6 +22,7 @@ export const mockAccounts: Account[] = [
     last_post_at: "2026-05-24T18:30:00Z",
     token_expires_at: "2026-07-12T00:00:00Z",
     token_status: "valid",
+    provider: "facebook",
   },
   {
     id: "2",
@@ -33,6 +34,7 @@ export const mockAccounts: Account[] = [
     last_post_at: "2026-05-23T09:12:00Z",
     token_expires_at: "2026-06-02T00:00:00Z",
     token_status: "valid",
+    provider: "facebook",
   },
   {
     id: "3",
@@ -44,6 +46,7 @@ export const mockAccounts: Account[] = [
     last_post_at: "2026-05-20T22:00:00Z",
     token_expires_at: "2026-05-30T00:00:00Z",
     token_status: "expired",
+    provider: "facebook",
   },
   {
     id: "4",
@@ -55,6 +58,7 @@ export const mockAccounts: Account[] = [
     last_post_at: "2026-05-25T07:45:00Z",
     token_expires_at: "2026-08-01T00:00:00Z",
     token_status: "valid",
+    provider: "facebook",
   },
 ];
 
