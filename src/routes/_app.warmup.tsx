@@ -647,9 +647,9 @@ function DistributeTab() {
           order === "random" ? shuffle(selectedAccounts) : selectedAccounts;
         for (const accId of accountsForCycle) {
           const v = selectedList[cycle];
-          const jitterOffset = jitterMs
-            ? Math.round((Math.random() * 2 - 1) * jitterMs)
-            : 0;
+          // Jitter apenas para cima: cada item recebe um offset individual
+          // entre 0 e jitterMs, garantindo intervalo mínimo = gap.
+          const jitterOffset = jitterMs ? Math.floor(Math.random() * (jitterMs + 1)) : 0;
           const scheduledAt = new Date(cycleStartMs + jitterOffset).toISOString();
           const res = await api.enqueue({
             account_id: accId,
