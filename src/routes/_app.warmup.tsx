@@ -1185,8 +1185,8 @@ function DistributeTab() {
           )}
 
           <p className="text-[11px] text-muted2">
-            Cada vídeo vira um ciclo: todas as contas selecionadas postam o mesmo vídeo dentro
-            de uma janela de ±{jitter}min, e o próximo ciclo começa {gap}min depois.
+            Cada vídeo vira um ciclo: todas as contas selecionadas postam o mesmo vídeo com
+            um atraso aleatório de 0 a {jitter}min, e o próximo ciclo começa {gap}min depois.
           </p>
         </section>
 
