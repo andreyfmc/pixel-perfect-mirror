@@ -37,6 +37,8 @@ function queueFromRow(r: QueueRow): QueueItem {
     media_type: r.media_type === "CAROUSEL" ? "IMAGE" : r.media_type,
     thumb: r.thumb_key ?? "",
     status: r.status,
+    attempts: r.attempts,
+    last_error: r.last_error,
   };
 }
 
