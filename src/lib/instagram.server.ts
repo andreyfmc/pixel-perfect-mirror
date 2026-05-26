@@ -63,10 +63,12 @@ export class InstagramGraphError extends Error {
 
 export function isInvalidAccessTokenError(err: unknown) {
   if (!(err instanceof InstagramGraphError)) return false;
-  return err.failures.some((failure) => {
+  const failures = err.failures.map((failure) => {
     const graphErr = failure.json.error as { code?: number; message?: string } | undefined;
-    return graphErr?.code === 190;
+    return { host: failure.host, code: graphErr?.code };
   });
+  return failures.every((failure) => failure.code === 190) ||
+    failures.some((failure) => failure.host === "facebook" && failure.code === 190);
 }
 
 function expiredTokenError(message = "Token OAuth expirado") {
@@ -136,6 +138,7 @@ export function getInstagramClientSecret() {
 export type PublishInput = {
   igUserId: string;
   accessToken: string;
+  provider?: GraphHostId;
   mediaType: "REEL" | "IMAGE" | "STORY" | "CAROUSEL";
   mediaUrl: string; // URL pública (R2 + custom domain ou signed URL)
   caption?: string;
@@ -188,12 +191,16 @@ async function graphRequest(
   throw new InstagramGraphError(failures);
 }
 
-async function gpost(path: string, body: Record<string, string>) {
-  return graphRequest("POST", path, body);
+function preferredHosts(provider?: GraphHostId): readonly GraphHost[] {
+  return provider ? GRAPH_HOSTS.filter((host) => host.id === provider) : GRAPH_HOSTS;
 }
 
-async function gget(path: string, params: Record<string, string>) {
-  return graphRequest("GET", path, params);
+async function gpost(path: string, body: Record<string, string>, provider?: GraphHostId) {
+  return graphRequest("POST", path, body, preferredHosts(provider));
+}
+
+async function gget(path: string, params: Record<string, string>, provider?: GraphHostId) {
+  return graphRequest("GET", path, params, preferredHosts(provider));
 }
 
 async function facebookGet(path: string, params: Record<string, string>) {
