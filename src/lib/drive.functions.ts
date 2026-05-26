@@ -63,7 +63,7 @@ async function fetchBreadcrumbs(folderId: string, h: Record<string, string>): Pr
 export const listDriveEntries = createServerFn({ method: "GET" })
   .inputValidator((data: { folderId?: string }) => ({ folderId: data?.folderId ?? "root" }))
   .handler(async ({ data }): Promise<DriveListing> => {
-    const auth = headers();
+    const auth = await headers();
     if (!auth.ok) {
       return { folders: [], videos: [], breadcrumbs: [], error: auth.err };
     }
@@ -134,7 +134,7 @@ export const listDriveEntries = createServerFn({ method: "GET" })
 
 // Backwards-compatible: lista TODOS os vídeos (busca global) sem navegar.
 export const listDriveVideos = createServerFn({ method: "GET" }).handler(async () => {
-  const auth = headers();
+  const auth = await headers();
   if (!auth.ok) return { videos: [] as DriveVideo[], error: auth.err };
   const params = new URLSearchParams({
     q: "mimeType contains 'video/' and trashed = false",
