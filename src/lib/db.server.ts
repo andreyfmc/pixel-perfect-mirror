@@ -475,13 +475,26 @@ const rawDb = {
       | "created_at"
       | "group_id"
       | "group_scheduled_at"
+      | "variant_processed"
+      | "variant_method"
+      | "variant_error"
+      | "original_media_key"
     > &
-      Partial<Pick<QueueRow, "group_id" | "group_scheduled_at">>,
+      Partial<
+        Pick<
+          QueueRow,
+          | "group_id"
+          | "group_scheduled_at"
+          | "variant_processed"
+          | "variant_method"
+          | "original_media_key"
+        >
+      >,
   ) {
     await requireDb()
       .prepare(
-        `INSERT INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at, group_id, group_scheduled_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at, group_id, group_scheduled_at, variant_processed, variant_method, original_media_key)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         q.id,
@@ -493,6 +506,9 @@ const rawDb = {
         q.scheduled_at,
         q.group_id ?? null,
         q.group_scheduled_at ?? null,
+        q.variant_processed ?? 0,
+        q.variant_method ?? null,
+        q.original_media_key ?? null,
       )
       .run();
   },
