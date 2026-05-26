@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api-client";
-import { fmtDateShort, fmtDateFull } from "@/lib/format";
+import { fmtDateTime } from "@/lib/format";
+import type { Account } from "@/lib/mock";
 import {
   Plus,
   MoreHorizontal,
@@ -14,7 +15,10 @@ import {
   Trash2,
   ArrowDownUp,
   BadgeCheck,
-  AlertTriangle,
+  RefreshCw,
+  Users,
+  Image as ImageIcon,
+  Clock,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -129,7 +133,7 @@ function AccountsPage() {
             type="button"
             onClick={async () => {
               if (!accounts.length) return;
-              const t = toast.loading(`Validando ${accounts.length} contas…`);
+              const t = toast.loading(`Atualizando ${accounts.length} contas…`);
               let ok = 0;
               const fails: string[] = [];
               for (const a of accounts) {
@@ -142,7 +146,8 @@ function AccountsPage() {
                 }
               }
               toast.dismiss(t);
-              if (!fails.length) toast.success(`Todas válidas (${ok}/${accounts.length})`);
+              qc.invalidateQueries({ queryKey: ["accounts"] });
+              if (!fails.length) toast.success(`Atualizadas (${ok}/${accounts.length})`);
               else
                 toast.error(`${ok}/${accounts.length} ok · falhas: ${fails.join(", ")}`, {
                   duration: 12000,
@@ -150,7 +155,7 @@ function AccountsPage() {
             }}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground"
           >
-            <BadgeCheck className="h-3.5 w-3.5" /> Validar todas
+            <RefreshCw className="h-3.5 w-3.5" /> Atualizar todas
           </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -227,173 +232,169 @@ function AccountsPage() {
           <Loader2 className="h-5 w-5 animate-spin" />
         </div>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="space-y-2">
           {sorted.map((a) => {
-            const token = tokenInfo(a);
+            const token = tokenInfo(a as Account);
+            const posts = (a as Account).posts ?? 0;
+            const hasLastPost = !!a.last_post_at;
             return (
-              <article key={a.id} className="im-card im-card-hover p-5">
-                <div className="flex items-start gap-4">
-                  <div
-                    className="rounded-full p-[2px]"
-                    style={{
-                      background: `conic-gradient(${ringForHealth(a.health_score)} ${a.health_score}%, var(--border) 0)`,
-                    }}
-                  >
-                    <img
-                      src={a.profile_picture}
-                      alt={a.username}
-                      className="h-14 w-14 rounded-full bg-bg3 ring-2 ring-bg2"
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="truncate text-base font-semibold">@{a.username}</h3>
-                      {token.expired && (
-                        <span className="shrink-0 rounded-full border border-danger/40 bg-danger/10 px-2 py-0.5 text-[10px] font-semibold text-danger">
-                          Token expirado
-                        </span>
-                      )}
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            className="ml-auto text-text2 hover:text-foreground"
-                            aria-label="Menu"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-56">
-                          <DropdownMenuItem
-                            onSelect={async (e) => {
-                              e.preventDefault();
-                              const t = toast.loading("Validando credenciais…");
-                              try {
-                                const r = await api.validateAccount(a.id);
-                                toast.dismiss(t);
-                                if (!r) {
-                                  toast.error("Falha ao validar (sem resposta)");
-                                  return;
-                                }
-                                if (r.ok) {
-                                  toast.success(
-                                    `OK · IG @${r.ig?.username ?? "?"} (id ${r.ig?.id ?? "?"})`,
-                                  );
-                                } else if (r.needs_reconnect) {
-                                  toast.error(
-                                    `@${a.username}: token expirado/inválido. Reconecte a conta.`,
-                                    {
-                                      duration: 12000,
-                                    },
-                                  );
-                                  qc.invalidateQueries({ queryKey: ["accounts"] });
-                                } else {
-                                  const sugg = (r.suggestions ?? [])
-                                    .filter((s) => s.ig_id)
-                                    .map((s) => `@${s.ig_username} (${s.ig_id})`)
-                                    .join(", ");
-                                  const detail =
-                                    typeof r.error === "object"
-                                      ? JSON.stringify(r.error)
-                                      : String(r.error ?? "erro");
-                                  toast.error(
-                                    `Falha (${r.scope ?? "graph"}): ${detail}${sugg ? ` · sugestões: ${sugg}` : ""}`,
-                                    { duration: 12000 },
-                                  );
-                                  console.warn("[validate]", r);
-                                }
-                              } catch (err) {
-                                toast.dismiss(t);
-                                toast.error(err instanceof Error ? err.message : "Falha");
-                              }
-                            }}
-                          >
-                            <BadgeCheck className="mr-2 h-4 w-4" />
-                            Validar credenciais
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-red-500 focus:text-red-500"
-                            onSelect={async (e) => {
-                              e.preventDefault();
-                              if (
-                                !confirm(`Remover @${a.username}? Esta ação não pode ser desfeita.`)
-                              )
-                                return;
-                              const t = toast.loading("Removendo conta…");
-                              try {
-                                await api.deleteAccount(a.id);
-                                toast.success(`@${a.username} removida`);
-                                qc.invalidateQueries({ queryKey: ["accounts"] });
-                              } catch (err) {
-                                toast.error(
-                                  err instanceof Error ? err.message : "Falha ao remover",
-                                );
-                              } finally {
-                                toast.dismiss(t);
-                              }
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Remover conta
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                    <p className="text-sm text-text2">{a.name}</p>
-                  </div>
+              <article
+                key={a.id}
+                className="im-card im-card-hover flex items-center gap-3 px-3 py-2.5 sm:gap-4 sm:px-4"
+              >
+                <div
+                  className="shrink-0 rounded-full p-[2px]"
+                  style={{
+                    background: `conic-gradient(${ringForHealth(a.health_score)} ${a.health_score}%, var(--border) 0)`,
+                  }}
+                  title={`Saúde ${a.health_score}`}
+                >
+                  <img
+                    src={a.profile_picture}
+                    alt={a.username}
+                    className="h-10 w-10 rounded-full bg-bg3 ring-2 ring-bg2"
+                  />
                 </div>
 
-                <dl className="mt-5 grid grid-cols-3 gap-3 text-center">
-                  <div className="rounded-lg bg-bg3 px-2 py-3">
-                    <dt className="text-[10px] uppercase tracking-wider text-muted2">Saúde</dt>
-                    <dd
-                      className="mt-1 text-base font-semibold"
-                      style={{ color: ringForHealth(a.health_score) }}
-                    >
-                      {a.health_score}
-                    </dd>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate text-sm font-semibold">@{a.username}</h3>
+                    {token.expired ? (
+                      <span className="shrink-0 rounded-full border border-danger/40 bg-danger/10 px-1.5 py-0.5 text-[10px] font-semibold text-danger">
+                        Token expirado
+                      </span>
+                    ) : token.warning ? (
+                      <span className="shrink-0 rounded-full border border-warning/40 bg-warning/10 px-1.5 py-0.5 text-[10px] font-semibold text-warning">
+                        Expira em breve
+                      </span>
+                    ) : null}
                   </div>
-                  <div className="rounded-lg bg-bg3 px-2 py-3">
-                    <dt className="text-[10px] uppercase tracking-wider text-muted2">Seguidores</dt>
-                    <dd className="mt-1 text-base font-semibold">
-                      {a.followers.toLocaleString("pt-BR")}
-                    </dd>
-                  </div>
-                  <div className="rounded-lg bg-bg3 px-2 py-3">
-                    <dt className="text-[10px] uppercase tracking-wider text-muted2">Último</dt>
-                    <dd className="mt-1 text-base font-semibold">{fmtDateShort(a.last_post_at)}</dd>
-                  </div>
-                </dl>
+                  <p className="truncate text-xs text-text2">{a.name}</p>
+                </div>
 
-                <div className="mt-4 flex items-center justify-between gap-3 text-xs text-muted2">
-                  <span
-                    className="inline-flex min-w-0 items-center gap-1"
-                    style={{
-                      color: token.expired
-                        ? "var(--danger)"
-                        : token.warning
-                          ? "var(--warning)"
-                          : undefined,
-                    }}
-                  >
-                    {token.expired || token.warning ? (
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                    ) : (
-                      <ShieldCheck className="h-3.5 w-3.5" />
-                    )}
-                    <span className="truncate">
-                      {token.label}
-                      {a.token_expires_at ? ` · ${fmtDateFull(a.token_expires_at)}` : ""}
-                    </span>
+                <div
+                  className="hidden shrink-0 items-center gap-1 rounded-md bg-bg3 px-2 py-1 text-xs font-semibold sm:inline-flex"
+                  style={{ color: ringForHealth(a.health_score) }}
+                  title="Saúde"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" /> {a.health_score}
+                </div>
+
+                <div
+                  className="hidden shrink-0 items-center gap-1 text-xs text-text2 md:inline-flex"
+                  title="Seguidores"
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  <span className="tabular-nums">{a.followers.toLocaleString("pt-BR")}</span>
+                </div>
+
+                <div
+                  className="hidden shrink-0 items-center gap-1 text-xs text-text2 md:inline-flex"
+                  title="Posts publicados"
+                >
+                  <ImageIcon className="h-3.5 w-3.5" />
+                  <span className="tabular-nums">{posts.toLocaleString("pt-BR")}</span>
+                </div>
+
+                <div
+                  className="hidden shrink-0 items-center gap-1 text-xs text-text2 lg:inline-flex"
+                  title="Último post"
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  <span className="tabular-nums">
+                    {hasLastPost ? fmtDateTime(a.last_post_at) : "—"}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => handleConnect(a.provider ?? "facebook")}
-                    disabled={loading !== null}
-                    className="shrink-0 font-medium text-text2 hover:text-foreground disabled:opacity-60"
-                  >
-                    Reconectar via {(a.provider ?? "facebook") === "facebook" ? "Facebook" : "Instagram"}
-                  </button>
                 </div>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="shrink-0 rounded-md p-1.5 text-text2 hover:bg-bg3 hover:text-foreground"
+                      aria-label="Menu"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem
+                      onSelect={async (e) => {
+                        e.preventDefault();
+                        const t = toast.loading("Validando credenciais…");
+                        try {
+                          const r = await api.validateAccount(a.id);
+                          toast.dismiss(t);
+                          if (!r) {
+                            toast.error("Falha ao validar (sem resposta)");
+                            return;
+                          }
+                          if (r.ok) {
+                            toast.success(
+                              `OK · IG @${r.ig?.username ?? "?"} (id ${r.ig?.id ?? "?"})`,
+                            );
+                            qc.invalidateQueries({ queryKey: ["accounts"] });
+                          } else if (r.needs_reconnect) {
+                            toast.error(
+                              `@${a.username}: token expirado/inválido. Reconecte a conta.`,
+                              { duration: 12000 },
+                            );
+                            qc.invalidateQueries({ queryKey: ["accounts"] });
+                          } else {
+                            const sugg = (r.suggestions ?? [])
+                              .filter((s) => s.ig_id)
+                              .map((s) => `@${s.ig_username} (${s.ig_id})`)
+                              .join(", ");
+                            const detail =
+                              typeof r.error === "object"
+                                ? JSON.stringify(r.error)
+                                : String(r.error ?? "erro");
+                            toast.error(
+                              `Falha (${r.scope ?? "graph"}): ${detail}${sugg ? ` · sugestões: ${sugg}` : ""}`,
+                              { duration: 12000 },
+                            );
+                            console.warn("[validate]", r);
+                          }
+                        } catch (err) {
+                          toast.dismiss(t);
+                          toast.error(err instanceof Error ? err.message : "Falha");
+                        }
+                      }}
+                    >
+                      <BadgeCheck className="mr-2 h-4 w-4" />
+                      Validar credenciais
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        handleConnect(a.provider ?? "facebook");
+                      }}
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Reconectar via{" "}
+                      {(a.provider ?? "facebook") === "facebook" ? "Facebook" : "Instagram"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-red-500 focus:text-red-500"
+                      onSelect={async (e) => {
+                        e.preventDefault();
+                        if (!confirm(`Remover @${a.username}? Esta ação não pode ser desfeita.`))
+                          return;
+                        const t = toast.loading("Removendo conta…");
+                        try {
+                          await api.deleteAccount(a.id);
+                          toast.success(`@${a.username} removida`);
+                          qc.invalidateQueries({ queryKey: ["accounts"] });
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : "Falha ao remover");
+                        } finally {
+                          toast.dismiss(t);
+                        }
+                      }}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Remover conta
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </article>
             );
           })}
@@ -402,16 +403,10 @@ function AccountsPage() {
             type="button"
             onClick={() => handleConnect("instagram")}
             disabled={loading !== null}
-            className="im-card border-dashed flex min-h-[260px] flex-col items-center justify-center gap-2 text-text2 hover:text-foreground hover:border-accent disabled:opacity-60"
+            className="im-card border-dashed flex w-full items-center justify-center gap-2 px-4 py-3 text-sm text-text2 hover:border-accent hover:text-foreground disabled:opacity-60"
           >
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg3">
-              {loading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Plus className="h-5 w-5" />
-              )}
-            </div>
-            <span className="text-sm">Adicionar nova conta</span>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+            Adicionar nova conta
           </button>
         </div>
       )}
