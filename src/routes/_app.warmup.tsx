@@ -649,6 +649,8 @@ function DistributeTab() {
       const jitterMs = Math.max(0, jitter) * 60_000;
       for (let cycle = 0; cycle < selectedList.length; cycle++) {
         const cycleStartMs = startMs + cycle * gap * 60_000;
+        const groupId = crypto.randomUUID();
+        const groupScheduledAt = new Date(cycleStartMs).toISOString();
         const accountsForCycle =
           order === "random" ? shuffle(selectedAccounts) : selectedAccounts;
         for (const accId of accountsForCycle) {
@@ -663,6 +665,8 @@ function DistributeTab() {
             media_type: "REEL",
             media_key: `drive:${v.id}`,
             scheduled_at: scheduledAt,
+            group_id: groupId,
+            group_scheduled_at: groupScheduledAt,
           });
           if (res) ok++;
           else fail++;
