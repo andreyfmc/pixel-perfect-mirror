@@ -256,6 +256,7 @@ function ContingencyPage() {
   const [list, update] = useContingency();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ContingencyStatus>("all");
+  const [sortBy, setSortBy] = useState<"updated_desc" | "username_asc" | "username_desc" | "status" | "quality">("updated_desc");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
@@ -269,12 +270,25 @@ function ContingencyPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return list.filter((a) => {
+    const statusOrder: Record<ContingencyStatus, number> = { pronta: 0, em_uso: 1, em_edicao: 2, descartada: 3 };
+    const qualityOrder: Record<string, number> = { boa: 0, media: 1, ruim: 2 };
+    const out = list.filter((a) => {
       if (statusFilter !== "all" && a.status !== statusFilter) return false;
       if (q && !a.username.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [list, query, statusFilter]);
+    out.sort((a, b) => {
+      switch (sortBy) {
+        case "username_asc": return a.username.localeCompare(b.username);
+        case "username_desc": return b.username.localeCompare(a.username);
+        case "status": return statusOrder[a.status] - statusOrder[b.status];
+        case "quality": return qualityOrder[a.quality] - qualityOrder[b.quality];
+        case "updated_desc":
+        default: return b.updated_at.localeCompare(a.updated_at);
+      }
+    });
+    return out;
+  }, [list, query, statusFilter, sortBy]);
 
   const patch = (id: string, p: Partial<ContingencyAccount>) =>
     update((prev) => {
@@ -388,15 +402,27 @@ function ContingencyPage() {
             placeholder="Buscar por username ou nome..."
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted2" />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-          className="w-full rounded-lg border border-border bg-bg2 px-3 py-2.5 text-sm">
-          <option value="all">● Todos os status</option>
-          {(Object.keys(STATUS_META) as ContingencyStatus[]).map((s) => (
-            <option key={s} value={s}>● {STATUS_META[s].label}</option>
-          ))}
-        </select>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+            className="w-full rounded-lg border border-border bg-bg2 px-3 py-2.5 text-sm">
+            <option value="all">● Todos os status</option>
+            {(Object.keys(STATUS_META) as ContingencyStatus[]).map((s) => (
+              <option key={s} value={s}>● {STATUS_META[s].label}</option>
+            ))}
+          </select>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            className="w-full rounded-lg border border-border bg-bg2 px-3 py-2.5 text-sm">
+            <option value="updated_desc">↓ Atualizadas recentemente</option>
+            <option value="username_asc">A → Z (username)</option>
+            <option value="username_desc">Z → A (username)</option>
+            <option value="status">Status (prontas primeiro)</option>
+            <option value="quality">Qualidade (boas primeiro)</option>
+          </select>
+        </div>
       </div>
 
       <div className="mb-2 text-right text-[11px] text-muted2">{filtered.length}/{list.length}</div>
