@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { mockAccounts } from "@/lib/mock";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { listDriveEntries, type DriveVideo, type DriveFolder, type DriveCrumb } from "@/lib/drive.functions";
 import { Folder, ChevronRight, Home } from "lucide-react";
