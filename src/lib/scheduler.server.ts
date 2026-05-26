@@ -9,6 +9,7 @@ import {
   instagram,
   isInvalidAccessTokenError,
   isMismatchedCredentialsError,
+  refreshLongLivedInstagramToken,
 } from "./instagram.server";
 import { hasDb, env } from "./cf.server";
 
@@ -293,6 +294,29 @@ export async function runScheduler(
       console.error(`[scheduler] queue=${item.id} err=${msg}`);
       await db.setQueueStatus(item.id, "failed", { last_error: msg });
     }
+  }
+
+  // Renovação preventiva de tokens longos do Instagram (60 dias).
+  // Roda em todo tick mas só age sobre tokens que expiram nos próximos 10 dias —
+  // cada token é renovado no máximo uma vez (depois fica fora do filtro).
+  try {
+    const stale = await db.listAccountsForTokenRefresh(10);
+    for (const account of stale) {
+      if (!account.access_token) continue;
+      try {
+        const refreshed = await refreshLongLivedInstagramToken(account.access_token);
+        await db.updateAccountCredentials(account.id, {
+          access_token: refreshed.accessToken,
+          token_expires_at: refreshed.expiresAt,
+          token_status: "valid",
+        });
+      } catch (err) {
+        console.warn(`[scheduler] refresh token falhou para ${account.username}:`, err);
+        await db.markAccountTokenExpired(account.id);
+      }
+    }
+  } catch (err) {
+    console.warn("[scheduler] varredura de refresh falhou:", err);
   }
 
   return { processed, errors };
