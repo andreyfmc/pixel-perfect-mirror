@@ -132,6 +132,7 @@ export async function runScheduler(
         containerId = await instagram.createContainer({
           igUserId,
           accessToken,
+          provider: account.provider,
           mediaType: item.media_type,
           mediaUrl,
           caption: item.caption,
@@ -139,7 +140,7 @@ export async function runScheduler(
         await db.markQueueProcessing(item.id, containerId);
       }
 
-      const status = await instagram.fetchContainerStatus(containerId, accessToken);
+      const status = await instagram.fetchContainerStatus(containerId, accessToken, account.provider);
       if (status.statusCode === "ERROR" || status.statusCode === "EXPIRED") {
         throw new Error(
           `Container Instagram ${status.statusCode}: ${status.status ?? "sem detalhe"}`,
@@ -156,12 +157,13 @@ export async function runScheduler(
       const mediaId = await instagram.publishContainer({
         igUserId,
         accessToken,
+        provider: account.provider,
         containerId,
       });
 
       let permalink: string | undefined;
       try {
-        const info = await instagram.fetchMediaInfo(mediaId, accessToken);
+        const info = await instagram.fetchMediaInfo(mediaId, accessToken, account.provider);
         permalink = info.permalink as string | undefined;
       } catch {
         // campo opcional
