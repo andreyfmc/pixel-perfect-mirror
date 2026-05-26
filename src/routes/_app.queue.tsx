@@ -49,6 +49,7 @@ type AccountMeta = {
   profile_picture: string;
   token_status?: "valid" | "expired";
   token_expires_at?: string | null;
+  provider?: "facebook" | "instagram";
 };
 
 type QueueGroup = {
@@ -192,6 +193,7 @@ function QueuePage() {
         profile_picture: a.profile_picture,
         token_status: a.token_status,
         token_expires_at: a.token_expires_at,
+        provider: a.provider,
       });
     }
     return m;
@@ -385,33 +387,9 @@ function QueuePage() {
     if (!ids.length) return;
     const t = toast.loading(`Preparando ${ids.length} item(ns) para publicar…`);
     try {
-      const expiredIds = ids.filter((id) => {
-        const item = queue.find((q) => q.id === id);
-        return isTokenExpired(item ? accountById.get(item.account) : undefined);
-      });
-      if (expiredIds.length) {
-        await Promise.all(
-          expiredIds.map((id) =>
-            api.updateQueueStatus(id, "canceled", {
-              reset_container: true,
-              last_error: "Token expirado. Reconecte a conta antes de publicar.",
-            }),
-          ),
-        );
-        toast.warning(
-          `${expiredIds.length} item(ns) pausado(s): token expirado. Reconecte a conta.`,
-        );
-      }
-      const runnableIds = ids.filter((id) => !expiredIds.includes(id));
-      if (!runnableIds.length) {
-        setSelected(new Set());
-        qc.invalidateQueries({ queryKey: ["queue"] });
-        qc.invalidateQueries({ queryKey: ["accounts"] });
-        return;
-      }
       const nowIso = new Date().toISOString();
       await Promise.all(
-        runnableIds.map((id) =>
+        ids.map((id) =>
           api.updateQueueStatus(id, "scheduled", {
             scheduled_at: nowIso,
             reset_container: true,
