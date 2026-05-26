@@ -42,12 +42,14 @@ export const Route = createFileRoute("/api/accounts/$id/validate")({
           const result = await instagram.validateCredentials({
             igUserId: account.ig_user_id,
             accessToken,
+            expectedUsername: account.username,
           });
 
-          if (result.accessToken || result.ig?.id) {
+          if (result.accessToken || result.ig?.id || result.host) {
             await db.updateAccountCredentials(params.id, {
               access_token: result.accessToken,
               ig_user_id: typeof result.ig?.id === "string" ? result.ig.id : undefined,
+              provider: result.host,
               token_status: "valid",
               profile_picture:
                 typeof result.ig?.profile_picture_url === "string"
