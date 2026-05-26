@@ -264,12 +264,18 @@ const rawDb = {
   async resolveAccountForPublishing(id: string): Promise<AccountRow | null> {
     const account = await rawDb.getAccount(id);
     if (!account) return null;
-    if (account.ig_user_id && account.access_token && account.token_status !== "expired") return account;
 
+    // SEMPRE procura o "irmão" mais recente com credenciais válidas (mesmo username
+    // ou mesmo ig_user_id). Isso resolve o caso em que uma linha antiga ficou com
+    // (ig_user_id, access_token) que não batem entre si — ex.: tentativa anterior
+    // via Instagram OAuth seguida de reconexão via Facebook OAuth criando outra
+    // linha. Sem isso, a fila continua usando credenciais quebradas porque a
+    // linha antiga "parece" completa.
     const { results } = await requireDb()
       .prepare("SELECT * FROM accounts ORDER BY updated_at DESC, created_at DESC")
       .all<AccountRow>();
     const normalized = normalizeUsername(account.username);
+    const currentUpdated = Date.parse(account.updated_at ?? account.created_at ?? "") || 0;
     const sibling = (results ?? []).find((candidate) => {
       if (
         candidate.id === account.id ||
@@ -279,10 +285,20 @@ const rawDb = {
       ) {
         return false;
       }
+      const candidateUpdated = Date.parse(candidate.updated_at ?? candidate.created_at ?? "") || 0;
+      // Se a conta atual já tem credenciais válidas, só substitui por uma mais nova.
+      const accountLooksOk =
+        !!account.ig_user_id && !!account.access_token && account.token_status !== "expired";
+      if (accountLooksOk && candidateUpdated <= currentUpdated) return false;
       if (account.ig_user_id && candidate.ig_user_id === account.ig_user_id) return true;
       return normalized.length > 0 && normalizeUsername(candidate.username) === normalized;
     });
-    if (!sibling) return account;
+
+    if (!sibling) {
+      // Sem irmão: devolve o que tem. Se está incompleto, o scheduler vai
+      // reportar erro claro de reconexão.
+      return account;
+    }
 
     await rawDb.updateAccountCredentials(account.id, {
       ig_user_id: sibling.ig_user_id,
@@ -304,6 +320,50 @@ const rawDb = {
       followers: sibling.followers,
       health_score: Math.max(account.health_score, sibling.health_score, 90),
       provider: sibling.provider,
+    };
+  },
+
+  /**
+   * Marca a linha como "precisa reconectar" e tenta recuperar credenciais de um
+   * irmão mais novo. Chamado pelo scheduler quando o Graph devolve subcode 33
+   * (credenciais incompatíveis) — significa que a linha está corrompida e
+   * precisa ser refeita a partir de uma reconexão mais recente.
+   */
+  async healMismatchedCredentials(id: string): Promise<AccountRow | null> {
+    const account = await rawDb.getAccount(id);
+    if (!account) return null;
+    const { results } = await requireDb()
+      .prepare("SELECT * FROM accounts WHERE id != ? ORDER BY updated_at DESC, created_at DESC")
+      .bind(id)
+      .all<AccountRow>();
+    const normalized = normalizeUsername(account.username);
+    const sibling = (results ?? []).find((candidate) => {
+      if (!candidate.ig_user_id || !candidate.access_token || candidate.token_status === "expired") {
+        return false;
+      }
+      // ig_user_id pode estar errado na linha atual, então só casamos por username.
+      return normalized.length > 0 && normalizeUsername(candidate.username) === normalized;
+    });
+    if (!sibling) return null;
+    await rawDb.updateAccountCredentials(account.id, {
+      ig_user_id: sibling.ig_user_id,
+      access_token: sibling.access_token,
+      token_expires_at: sibling.token_expires_at,
+      token_status: "valid",
+      provider: sibling.provider,
+      profile_picture: sibling.profile_picture,
+      followers: sibling.followers,
+      health_score: Math.max(account.health_score, sibling.health_score, 90),
+    });
+    return {
+      ...account,
+      ig_user_id: sibling.ig_user_id,
+      access_token: sibling.access_token,
+      token_expires_at: sibling.token_expires_at,
+      token_status: "valid",
+      provider: sibling.provider,
+      profile_picture: sibling.profile_picture ?? account.profile_picture,
+      followers: sibling.followers,
     };
   },
   async markAccountNeedsReconnect(id: string) {
