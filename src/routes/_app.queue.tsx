@@ -161,7 +161,10 @@ function QueuePage() {
                 <Eraser className="h-4 w-4" /> Limpar
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem onSelect={() => clearByStatus(["scheduled"], "Remover agendados")}>
+                Remover agendados ({counts.scheduled})
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => clearByStatus(["failed"], "Remover falhas")}>
                 Remover falhas ({counts.failed})
               </DropdownMenuItem>
@@ -179,6 +182,17 @@ function QueuePage() {
                 }
               >
                 Limpar tudo finalizado
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-red-500 focus:text-red-500"
+                onSelect={() =>
+                  clearByStatus(
+                    ["scheduled", "processing", "failed", "canceled", "published"],
+                    "Remover TUDO da fila",
+                  )
+                }
+              >
+                Remover tudo ({queue.length})
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
