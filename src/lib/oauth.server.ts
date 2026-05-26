@@ -164,6 +164,7 @@ export async function handleFacebookCallback(req: Request, code: string) {
       ig_user_id: ig.igUserId,
       access_token: ig.pageAccessToken,
       token_expires_at: expiresAt,
+      provider: "facebook",
       followers: ig.followers,
       health_score: 90,
     });
