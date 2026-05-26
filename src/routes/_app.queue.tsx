@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api-client";
 import { fmtDateTime } from "@/lib/format";
@@ -10,18 +10,28 @@ import {
   AlertTriangle,
   BarChart3,
   CalendarDays,
+  Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Clock,
   Clock3,
   Eraser,
+  ExternalLink,
+  Image as ImageIcon,
+  Layers,
   ListChecks,
+  Loader2,
   MoreHorizontal,
   Pause,
   Play,
   RefreshCw,
+  Rows3,
   Search,
   Trash2,
   Users,
   X,
+  XCircle,
   Zap,
 } from "lucide-react";
 import {
@@ -31,6 +41,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export const Route = createFileRoute("/_app/queue")({
   component: QueuePage,
@@ -39,8 +65,9 @@ export const Route = createFileRoute("/_app/queue")({
 
 type StatusKey = QueueItem["status"];
 type FilterKey = "all" | StatusKey;
-type DateFilterKey = "all" | "today" | "tomorrow" | "after-tomorrow" | string;
+type DateFilterKey = "all" | "today" | "tomorrow" | "after-tomorrow" | "this-week" | string;
 type SortKey = "asc" | "desc";
+type Density = "expanded" | "compact";
 
 type AccountMeta = {
   id: string;
@@ -72,13 +99,13 @@ const STATUS_META: Record<StatusKey, { bg: string; fg: string; label: string; sh
     short: "Pendente",
   },
   processing: {
-    bg: "color-mix(in oklab, var(--warning) 16%, transparent)",
+    bg: "color-mix(in oklab, var(--warning) 18%, transparent)",
     fg: "var(--warning)",
     label: "Processando",
     short: "Rodando",
   },
   failed: {
-    bg: "color-mix(in oklab, var(--danger) 16%, transparent)",
+    bg: "color-mix(in oklab, var(--danger) 18%, transparent)",
     fg: "var(--danger)",
     label: "Falhou",
     short: "Erro",
@@ -97,13 +124,19 @@ const STATUS_META: Record<StatusKey, { bg: string; fg: string; label: string; sh
   },
 };
 
-const FILTERS: { id: FilterKey; label: string }[] = [
-  { id: "all", label: "Todos" },
-  { id: "scheduled", label: "Pendentes" },
-  { id: "processing", label: "Rodando" },
-  { id: "published", label: "Publicados" },
-  { id: "failed", label: "Erros" },
-  { id: "canceled", label: "Pausados" },
+const TYPE_BADGE: Record<string, { bg: string; fg: string }> = {
+  REEL: { bg: "color-mix(in oklab, var(--accent2) 22%, transparent)", fg: "var(--accent2)" },
+  IMAGE: { bg: "color-mix(in oklab, #3b82f6 22%, transparent)", fg: "#7aa8ff" },
+  STORY: { bg: "color-mix(in oklab, #f97316 22%, transparent)", fg: "#ffb072" },
+};
+
+const FILTERS: { id: FilterKey; label: string; key: string }[] = [
+  { id: "all", label: "Todos", key: "T" },
+  { id: "scheduled", label: "Pendentes", key: "P" },
+  { id: "processing", label: "Rodando", key: "R" },
+  { id: "published", label: "Publicados", key: "U" },
+  { id: "failed", label: "Erros", key: "E" },
+  { id: "canceled", label: "Pausados", key: "S" },
 ];
 
 const STATUS_PRIORITY: StatusKey[] = ["failed", "processing", "scheduled", "canceled", "published"];
@@ -128,6 +161,7 @@ function dateChipLabel(key: DateFilterKey) {
   const tomorrow = localDateKey(addDays(new Date(), 1));
   const afterTomorrow = localDateKey(addDays(new Date(), 2));
   if (key === "all") return "Todos os dias";
+  if (key === "this-week") return "Esta semana";
   if (key === "today" || key === today) return "Hoje";
   if (key === "tomorrow" || key === tomorrow) return "Amanhã";
   if (key === "after-tomorrow" || key === afterTomorrow) return "Depois de amanhã";
@@ -139,12 +173,12 @@ function dateChipLabel(key: DateFilterKey) {
   }).format(new Date(year, month - 1, day));
 }
 
-function dateFilterToKey(filter: DateFilterKey) {
-  if (filter === "all") return "all";
-  if (filter === "today") return localDateKey(new Date());
-  if (filter === "tomorrow") return localDateKey(addDays(new Date(), 1));
-  if (filter === "after-tomorrow") return localDateKey(addDays(new Date(), 2));
-  return filter;
+function isInThisWeek(iso: string) {
+  const d = new Date(iso);
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = addDays(start, 7);
+  return d >= start && d < end;
 }
 
 function groupStatus(items: QueueItem[]): StatusKey {
@@ -171,16 +205,205 @@ function queueGroupKey(item: QueueItem) {
   return [new Date(hourBucketMs).toISOString(), mediaKey, item.caption, item.media_type].join("::");
 }
 
+function relativeFromNow(iso: string, now: number) {
+  const t = new Date(iso).getTime();
+  const diff = t - now;
+  const abs = Math.abs(diff);
+  const min = Math.round(abs / 60000);
+  if (min < 60) return diff >= 0 ? `em ${min}min` : `há ${min}min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return (diff >= 0 ? "em " : "há ") + `${h}h${m ? m.toString().padStart(2, "0") : ""}`;
+}
+
+function timeHHmm(iso: string) {
+  return new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function StatusBadge({
+  status,
+  scheduledAt,
+  lastError,
+  now,
+}: {
+  status: StatusKey;
+  scheduledAt?: string;
+  lastError?: string | null;
+  now: number;
+}) {
+  const meta = STATUS_META[status];
+  const Icon = ({ className = "" }: { className?: string }) => {
+    if (status === "processing")
+      return <Loader2 className={`h-3 w-3 animate-spin ${className}`} />;
+    if (status === "published") return <Check className={`h-3 w-3 ${className}`} />;
+    if (status === "failed") return <XCircle className={`h-3 w-3 ${className}`} />;
+    if (status === "canceled") return <Pause className={`h-3 w-3 ${className}`} />;
+    return <Clock className={`h-3 w-3 ${className}`} />;
+  };
+  const extra =
+    status === "scheduled" && scheduledAt
+      ? relativeFromNow(scheduledAt, now)
+      : status === "processing" && scheduledAt
+        ? `há ${Math.max(0, Math.round((now - new Date(scheduledAt).getTime()) / 60000))}min`
+        : null;
+
+  const pill = (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold"
+      style={{ background: meta.bg, color: meta.fg }}
+    >
+      <Icon />
+      {meta.short}
+      {extra && <span className="opacity-80">· {extra}</span>}
+    </span>
+  );
+
+  if (status === "failed" && lastError) {
+    return (
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>{pill}</TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            <p className="text-xs">{lastError}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+  return pill;
+}
+
+function ProgressBar({ counts, total }: { counts: Record<StatusKey, number>; total: number }) {
+  const pub = total ? (counts.published / total) * 100 : 0;
+  const proc = total ? (counts.processing / total) * 100 : 0;
+  const fail = total ? (counts.failed / total) * 100 : 0;
+  return (
+    <div className="flex h-1 w-full overflow-hidden bg-bg3">
+      <div style={{ width: `${pub}%`, background: "var(--success)" }} />
+      <div style={{ width: `${proc}%`, background: "var(--warning)" }} />
+      <div style={{ width: `${fail}%`, background: "var(--danger)" }} />
+    </div>
+  );
+}
+
+function CountPill({ done, total }: { done: number; total: number }) {
+  const full = total > 0 && done === total;
+  const partial = done > 0 && done < total;
+  const bg = full
+    ? "color-mix(in oklab, var(--success) 18%, transparent)"
+    : partial
+      ? "color-mix(in oklab, var(--warning) 16%, transparent)"
+      : "color-mix(in oklab, var(--muted) 22%, transparent)";
+  const fg = full ? "var(--success)" : partial ? "var(--warning)" : "var(--text2)";
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-semibold tabular-nums"
+      style={{ background: bg, color: fg }}
+    >
+      {full && <CheckCircle2 className="h-3 w-3" />}
+      {done}/{total} contas
+    </span>
+  );
+}
+
+function TypeBadge({ type }: { type: string }) {
+  const m = TYPE_BADGE[type] ?? TYPE_BADGE.IMAGE;
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-wider"
+      style={{ background: m.bg, color: m.fg }}
+    >
+      {type}
+    </span>
+  );
+}
+
+function Thumb({ src, type, size = "md" }: { src?: string; type: string; size?: "sm" | "md" }) {
+  const cls = size === "sm" ? "h-12 w-12" : "h-16 w-16 sm:h-20 sm:w-20";
+  return (
+    <div className={`${cls} relative shrink-0 overflow-hidden rounded-lg border border-border`}>
+      {src ? (
+        <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
+      ) : (
+        <div
+          className="flex h-full w-full items-center justify-center"
+          style={{
+            background:
+              "linear-gradient(135deg, color-mix(in oklab, var(--accent2) 38%, transparent), color-mix(in oklab, var(--accent) 28%, transparent))",
+          }}
+        >
+          {type === "IMAGE" ? (
+            <ImageIcon className="h-5 w-5 text-white/85" />
+          ) : (
+            <Play className="h-5 w-5 fill-white/85 text-white/85" />
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AvatarStack({
+  accounts,
+  onClick,
+}: {
+  accounts: AccountMeta[];
+  onClick?: () => void;
+}) {
+  const shown = accounts.slice(0, 5);
+  const extra = accounts.length - shown.length;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
+      className="inline-flex items-center hover:opacity-90"
+      title={accounts.map((a) => `@${a.username}`).join(", ")}
+    >
+      {shown.map((a, i) =>
+        a.profile_picture ? (
+          <img
+            key={a.id + i}
+            src={a.profile_picture}
+            alt=""
+            className="h-[22px] w-[22px] rounded-full border-2 border-bg2 object-cover"
+            style={{ marginLeft: i === 0 ? 0 : -6 }}
+          />
+        ) : (
+          <span
+            key={a.id + i}
+            className="flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-bg2 bg-bg3 text-[9px]"
+            style={{ marginLeft: i === 0 ? 0 : -6 }}
+          >
+            {a.username.slice(0, 1).toUpperCase()}
+          </span>
+        ),
+      )}
+      {extra > 0 && (
+        <span
+          className="ml-[-6px] flex h-[22px] min-w-[22px] items-center justify-center rounded-full border-2 border-bg2 bg-bg3 px-1 text-[10px] font-semibold text-text2"
+        >
+          +{extra}
+        </span>
+      )}
+    </button>
+  );
+}
+
 function QueuePage() {
   const qc = useQueryClient();
   const { connect, loading } = useOAuthPopup();
   const { data: queue = [] } = useQuery({
     queryKey: ["queue"],
     queryFn: () => api.listQueue(),
+    refetchInterval: 30_000,
   });
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
+    refetchInterval: 60_000,
   });
 
   const accountById = useMemo(() => {
@@ -204,6 +427,41 @@ function QueuePage() {
   const [sort, setSort] = useState<SortKey>("asc");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [density, setDensity] = useState<Density>("expanded");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [confirmClear, setConfirmClear] = useState<null | {
+    statuses: StatusKey[];
+    label: string;
+    count: number;
+  }>(null);
+
+  // Live clock and refresh countdown
+  const [now, setNow] = useState(() => Date.now());
+  const [refreshIn, setRefreshIn] = useState(30);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setNow(Date.now());
+      setRefreshIn((s) => (s <= 1 ? 30 : s - 1));
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Keyboard shortcuts for filters
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const k = e.key.toUpperCase();
+      const hit = FILTERS.find((f) => f.key === k);
+      if (hit) {
+        e.preventDefault();
+        setFilter(hit.id);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const counts = useMemo(() => {
     const c: Record<FilterKey, number> = {
@@ -226,22 +484,29 @@ function QueuePage() {
   }, [queue]);
 
   const dateFilters = useMemo(() => {
-    const base: DateFilterKey[] = ["all", "today", "tomorrow", "after-tomorrow"];
-    const known = new Set(base.map(dateFilterToKey));
-    const nextDates = [...dayCounts.keys()]
-      .sort()
-      .filter((key) => !known.has(key))
-      .slice(0, 4);
-    return [...base, ...nextDates];
-  }, [dayCounts]);
+    const base: DateFilterKey[] = ["all", "today", "tomorrow", "after-tomorrow", "this-week"];
+    return base;
+  }, []);
+
+  const matchesDate = (iso: string) => {
+    if (dateFilter === "all") return true;
+    if (dateFilter === "this-week") return isInThisWeek(iso);
+    const key =
+      dateFilter === "today"
+        ? localDateKey(new Date())
+        : dateFilter === "tomorrow"
+          ? localDateKey(addDays(new Date(), 1))
+          : dateFilter === "after-tomorrow"
+            ? localDateKey(addDays(new Date(), 2))
+            : (dateFilter as string);
+    return localDateKey(iso) === key;
+  };
 
   const visibleItems = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const pickedDate = dateFilterToKey(dateFilter);
-
     return queue
       .filter((item) => filter === "all" || item.status === filter)
-      .filter((item) => pickedDate === "all" || localDateKey(item.scheduled_at) === pickedDate)
+      .filter((item) => matchesDate(item.scheduled_at))
       .filter((item) => {
         if (!q) return true;
         const account = accountById.get(item.account);
@@ -263,6 +528,7 @@ function QueuePage() {
         const diff = new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
         return sort === "asc" ? diff : -diff;
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accountById, dateFilter, filter, query, queue, sort]);
 
   const groups = useMemo<QueueGroup[]>(() => {
@@ -271,9 +537,7 @@ function QueuePage() {
       const key = queueGroupKey(item);
       map.set(key, [...(map.get(key) ?? []), item]);
     }
-
     return [...map.entries()].map(([id, items]) => {
-      // Ordena itens do ciclo por horário real de cada conta.
       items.sort(
         (a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime(),
       );
@@ -345,6 +609,15 @@ function QueuePage() {
     });
   }
 
+  function toggleExpand(id: string) {
+    setExpanded((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+
   async function runBulk(label: string, fn: (id: string) => Promise<void>, ids = [...selected]) {
     if (!ids.length) return;
     const t = toast.loading(`${label} ${ids.length} ${ids.length > 1 ? "itens" : "item"}…`);
@@ -377,12 +650,6 @@ function QueuePage() {
     }
   }
 
-  async function clearByStatus(statuses: StatusKey[], label: string) {
-    if (!confirm(`${label}? Esta ação remove os itens da fila.`)) return;
-    await singleAction(label, () => api.clearQueue(statuses));
-    setSelected(new Set());
-  }
-
   async function publishSelectedNow(ids = [...selected]) {
     if (!ids.length) return;
     const t = toast.loading(`Preparando ${ids.length} item(ns) para publicar…`);
@@ -410,7 +677,9 @@ function QueuePage() {
 
   async function handleReconnect(account: { username: string; provider?: "facebook" | "instagram" }) {
     const provider = account.provider ?? "facebook";
-    const t = toast.loading(`Reconectando @${account.username} via ${provider === "facebook" ? "Facebook" : "Instagram"}…`);
+    const t = toast.loading(
+      `Reconectando @${account.username} via ${provider === "facebook" ? "Facebook" : "Instagram"}…`,
+    );
     const res = await connect(provider);
     toast.dismiss(t);
     if (res.ok) {
@@ -424,11 +693,43 @@ function QueuePage() {
     }
   }
 
-  const metrics = [
-    { label: "Total", value: counts.all, tone: "text-foreground", icon: ListChecks },
-    { label: "Pendentes", value: counts.scheduled, tone: "text-info", icon: Clock3 },
-    { label: "Publicados", value: counts.published, tone: "text-success", icon: CheckCircle2 },
-    { label: "Erros", value: counts.failed, tone: "text-danger", icon: AlertTriangle },
+  const metrics: {
+    label: string;
+    value: number;
+    accent: string;
+    icon: React.ComponentType<{ className?: string }>;
+    onClick?: () => void;
+    danger?: boolean;
+  }[] = [
+    {
+      label: "Total",
+      value: counts.all,
+      accent: "var(--text2)",
+      icon: ListChecks,
+      onClick: () => setFilter("all"),
+    },
+    {
+      label: "Pendentes",
+      value: counts.scheduled,
+      accent: "var(--info)",
+      icon: Clock3,
+      onClick: () => setFilter("scheduled"),
+    },
+    {
+      label: "Publicados",
+      value: counts.published,
+      accent: "var(--success)",
+      icon: CheckCircle2,
+      onClick: () => setFilter("published"),
+    },
+    {
+      label: "Erros",
+      value: counts.failed,
+      accent: "var(--danger)",
+      icon: AlertTriangle,
+      onClick: () => setFilter("failed"),
+      danger: counts.failed > 0,
+    },
   ];
 
   return (
@@ -445,16 +746,34 @@ function QueuePage() {
             </button>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() =>
+              onClick={() => setDensity(density === "expanded" ? "compact" : "expanded")}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm hover:border-accent"
+              title="Alternar densidade"
+            >
+              {density === "expanded" ? (
+                <>
+                  <Rows3 className="h-4 w-4" /> Compacto
+                </>
+              ) : (
+                <>
+                  <Layers className="h-4 w-4" /> Expandido
+                </>
+              )}
+            </button>
+            <button
+              onClick={() => {
+                setRefreshIn(30);
                 singleAction("Atualizando scheduler", async () => {
                   await api.runScheduler();
-                })
-              }
+                });
+              }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm hover:border-accent"
+              title="Atualizar agora (auto a cada 30s)"
             >
               <RefreshCw className="h-4 w-4" /> Atualizar
+              <span className="ml-1 tabular-nums text-[11px] text-muted2">({refreshIn}s)</span>
             </button>
             <button
               onClick={toggleAllVisible}
@@ -464,34 +783,63 @@ function QueuePage() {
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="inline-flex items-center gap-1.5 rounded-lg border border-danger/35 bg-danger/10 px-3 py-2 text-sm text-danger hover:border-danger">
+                <button className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground">
                   <Eraser className="h-4 w-4" /> Limpar
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
                 <DropdownMenuItem
-                  onSelect={() => clearByStatus(["scheduled"], "Remover agendados")}
+                  onSelect={() =>
+                    setConfirmClear({
+                      statuses: ["scheduled"],
+                      label: "Remover agendados",
+                      count: counts.scheduled,
+                    })
+                  }
                 >
                   Remover agendados ({counts.scheduled})
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => clearByStatus(["failed"], "Remover erros")}>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    setConfirmClear({
+                      statuses: ["failed"],
+                      label: "Remover erros",
+                      count: counts.failed,
+                    })
+                  }
+                >
                   Remover erros ({counts.failed})
                 </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => clearByStatus(["canceled"], "Remover pausados")}>
+                <DropdownMenuItem
+                  onSelect={() =>
+                    setConfirmClear({
+                      statuses: ["canceled"],
+                      label: "Remover pausados",
+                      count: counts.canceled,
+                    })
+                  }
+                >
                   Remover pausados ({counts.canceled})
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onSelect={() => clearByStatus(["published"], "Limpar publicados")}
+                  onSelect={() =>
+                    setConfirmClear({
+                      statuses: ["published"],
+                      label: "Limpar publicados",
+                      count: counts.published,
+                    })
+                  }
                 >
                   Limpar publicados ({counts.published})
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onSelect={() =>
-                    clearByStatus(
-                      ["scheduled", "processing", "failed", "canceled", "published"],
-                      "Limpar tudo",
-                    )
+                    setConfirmClear({
+                      statuses: ["scheduled", "processing", "failed", "canceled", "published"],
+                      label: "Limpar tudo",
+                      count: queue.length,
+                    })
                   }
                   className="text-danger focus:text-danger"
                 >
@@ -503,14 +851,28 @@ function QueuePage() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {metrics.map(({ label, value, tone, icon: Icon }) => (
-            <div key={label} className="rounded-xl border border-border bg-bg2 px-4 py-4">
+          {metrics.map(({ label, value, accent, icon: Icon, onClick, danger }) => (
+            <button
+              key={label}
+              onClick={onClick}
+              className="im-card im-card-hover group relative cursor-pointer overflow-hidden px-4 py-4 text-left transition-all"
+              style={{
+                borderTop: `2px solid ${accent}`,
+                borderColor: danger ? "var(--danger)" : undefined,
+                boxShadow: danger ? "inset 0 0 0 1px var(--danger)" : undefined,
+              }}
+            >
               <div className="flex items-center justify-between text-muted2">
-                <span className="text-xs">{label}</span>
+                <span className="text-xs uppercase tracking-wider">{label}</span>
                 <Icon className="h-4 w-4" />
               </div>
-              <div className={["mt-2 text-2xl font-bold", tone].join(" ")}>{value}</div>
-            </div>
+              <div
+                className="mt-2 text-2xl font-bold tabular-nums"
+                style={{ color: danger ? "var(--danger)" : accent }}
+              >
+                {value}
+              </div>
+            </button>
           ))}
         </div>
       </header>
@@ -549,6 +911,7 @@ function QueuePage() {
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
+              title={`Atalho: ${f.key}`}
               className={[
                 "shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold transition",
                 filter === f.id
@@ -557,14 +920,29 @@ function QueuePage() {
               ].join(" ")}
             >
               {f.label} <span className="opacity-80">({counts[f.id]})</span>
+              <span className="ml-1.5 hidden rounded bg-bg3/60 px-1 py-0.5 text-[9px] text-muted2 sm:inline">
+                {f.key}
+              </span>
             </button>
           ))}
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {dateFilters.map((f) => {
-            const key = dateFilterToKey(f);
-            const count = f === "all" ? visibleItems.length : (dayCounts.get(key) ?? 0);
+            const count =
+              f === "all"
+                ? visibleItems.length
+                : f === "this-week"
+                  ? queue.filter((q) => isInThisWeek(q.scheduled_at)).length
+                  : (dayCounts.get(
+                      f === "today"
+                        ? localDateKey(new Date())
+                        : f === "tomorrow"
+                          ? localDateKey(addDays(new Date(), 1))
+                          : f === "after-tomorrow"
+                            ? localDateKey(addDays(new Date(), 2))
+                            : (f as string),
+                    ) ?? 0);
             return (
               <button
                 key={f}
@@ -620,7 +998,7 @@ function QueuePage() {
         </div>
       )}
 
-      <div className="space-y-5">
+      <div className={density === "compact" ? "space-y-2" : "space-y-4"}>
         {groups.length === 0 ? (
           <div className="flex min-h-[240px] flex-col items-center justify-center rounded-xl border border-border bg-bg2 p-10 text-center text-sm text-text2">
             <CheckCircle2 className="mb-2 h-7 w-7 text-muted2" />
@@ -628,24 +1006,25 @@ function QueuePage() {
           </div>
         ) : (
           groups.map((group, groupIndex) => {
-            const meta = STATUS_META[group.status];
             const groupIds = group.items.map((item) => item.id);
             const selectedInGroup = groupIds.filter((id) => selected.has(id)).length;
             const isGroupSelected = selectedInGroup === groupIds.length;
             const overdue = group.items.some(
               (item) =>
-                item.status === "scheduled" && new Date(item.scheduled_at).getTime() < Date.now(),
+                item.status === "scheduled" && new Date(item.scheduled_at).getTime() < now,
             );
             const dayLabel =
               groupIndex === 0 ||
               localDateKey(groups[groupIndex - 1].scheduledAt) !== localDateKey(group.scheduledAt)
                 ? dateChipLabel(localDateKey(group.scheduledAt))
                 : null;
+            const isOpen = expanded.has(group.id) || query.trim().length > 0;
+            const isCompact = density === "compact";
 
             return (
-              <div key={group.id} className="space-y-3">
+              <div key={group.id}>
                 {dayLabel && (
-                  <div className="flex items-center gap-3 pt-1">
+                  <div className="sticky top-0 z-10 -mx-3 mb-3 flex items-center gap-3 bg-bg/85 px-3 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:-mx-10 md:px-10">
                     <div className="h-px flex-1 bg-border" />
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg2 px-3 py-1 text-xs text-text2">
                       <CalendarDays className="h-3.5 w-3.5" /> {dayLabel} —{" "}
@@ -657,235 +1036,285 @@ function QueuePage() {
 
                 <article
                   className={[
-                    "overflow-hidden rounded-xl border bg-bg2",
+                    "overflow-hidden rounded-xl border bg-bg2 transition-colors",
                     overdue
                       ? "border-warning"
                       : group.status === "failed"
                         ? "border-danger/60"
-                        : "border-border",
+                        : "border-border hover:border-border2",
                   ].join(" ")}
                 >
-                  <div className="flex flex-col gap-3 p-3 sm:p-4 lg:flex-row lg:items-start">
-                    <div className="flex items-start gap-3 lg:min-w-0 lg:flex-1">
-                      <input
-                        type="checkbox"
-                        checked={isGroupSelected}
-                        onChange={() => toggleIds(groupIds)}
-                        className="mt-1 accent-accent"
-                        aria-label="Selecionar grupo"
+                  {isCompact ? (
+                    /* ============= COMPACT MODE ============= */
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(group.id)}
+                      className="flex w-full items-center gap-3 px-3 py-2 text-left"
+                    >
+                      <Thumb src={group.thumb} type={group.mediaType} size="sm" />
+                      <TypeBadge type={group.mediaType} />
+                      <span className="min-w-0 flex-1 truncate text-sm">
+                        {group.caption || "Sem legenda"}
+                      </span>
+                      <CountPill done={group.counts.published} total={group.items.length} />
+                      <StatusBadge
+                        status={group.status}
+                        scheduledAt={group.scheduledAt}
+                        now={now}
                       />
-                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border bg-bg3 sm:h-20 sm:w-20">
-                        {group.thumb ? (
-                          <img
-                            src={group.thumb}
-                            alt="Prévia da publicação"
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-muted2">
-                            <Play className="h-5 w-5" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {overdue && (
-                            <span className="rounded-full border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] font-semibold text-warning">
-                              <AlertTriangle className="mr-1 inline h-3 w-3" />
-                              Atrasado
-                            </span>
-                          )}
-                          <span className="rounded-full border border-border2 bg-bg3 px-2 py-1 text-[11px] font-semibold text-text2">
-                            {group.mediaType}
-                          </span>
-                          <span
-                            className="rounded-full px-2 py-1 text-[11px] font-semibold"
-                            style={{ background: meta.bg, color: meta.fg }}
-                          >
-                            {meta.label}
-                          </span>
-                          {group.items.some((item) => (item.attempts ?? 0) > 0) && (
-                            <span className="rounded-full border border-accent/35 bg-accent/10 px-2 py-1 text-[11px] font-semibold text-accent2">
-                              +{Math.max(...group.items.map((item) => item.attempts ?? 0))}{" "}
-                              tentativa(s)
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-2 line-clamp-2 text-sm font-medium">
-                          {group.caption || "Sem legenda"}
-                        </p>
-                        {group.items.some((item) => item.last_error) && (
-                          <p className="mt-1 line-clamp-2 text-xs text-danger">
-                            {group.items.find((item) => item.last_error)?.last_error}
-                          </p>
-                        )}
-                        <div className="mt-3 flex flex-wrap gap-1.5">
-                          {group.accounts.slice(0, 12).map((account, index) => (
-                            <span
-                              key={`${account.username}-${index}`}
-                              className={[
-                                "inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold",
-                                isTokenExpired(account)
-                                  ? "border-danger/40 bg-danger/10 text-danger"
-                                  : "border-border bg-bg3 text-text2",
-                              ].join(" ")}
-                            >
-                              {account.profile_picture ? (
-                                <img
-                                  src={account.profile_picture}
-                                  alt=""
-                                  className="h-4 w-4 rounded-full"
-                                />
-                              ) : (
-                                <Users className="h-3 w-3" />
-                              )}
-                              <span className="truncate">@{account.username}</span>
-                              {isTokenExpired(account) && (
-                                <span className="shrink-0">· Token expirado</span>
-                              )}
-                            </span>
-                          ))}
-                          {group.accounts.length > 12 && (
-                            <span className="rounded-full border border-border bg-bg3 px-2 py-1 text-[11px] text-muted2">
-                              +{group.accounts.length - 12}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3 border-t border-border pt-3 lg:w-64 lg:border-t-0 lg:pt-0">
-                      <div className="text-left lg:text-right">
-                        <div className="text-sm font-bold text-warning">
-                          <Clock3 className="mr-1 inline h-3.5 w-3.5" />
-                          {fmtDateTime(group.scheduledAt)}
-                        </div>
-                        <div className="mt-1 text-xs text-muted2">
-                          {group.counts.published}/{group.items.length} contas publicadas
-                        </div>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            className="rounded-lg p-2 text-muted2 hover:bg-bg3 hover:text-foreground"
-                            aria-label="Ações"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-52">
-                          <DropdownMenuItem onSelect={() => toggleIds(groupIds)}>
-                            <CheckCircle2 className="mr-2 h-4 w-4" />{" "}
-                            {isGroupSelected ? "Desmarcar grupo" : "Selecionar grupo"}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={() =>
-                              runBulk(
-                                "Pausando",
-                                (id) => api.updateQueueStatus(id, "canceled"),
-                                groupIds,
-                              )
-                            }
-                          >
-                            <Pause className="mr-2 h-4 w-4" /> Pausar grupo
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onSelect={() =>
-                              runBulk(
-                                "Retomando",
-                                (id) => api.updateQueueStatus(id, "scheduled"),
-                                groupIds,
-                              )
-                            }
-                          >
-                            <Play className="mr-2 h-4 w-4" /> Retomar grupo
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => publishSelectedNow(groupIds)}>
-                            <Zap className="mr-2 h-4 w-4" /> Tentar agora
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-danger focus:text-danger"
-                            onSelect={() => {
-                              if (!confirm("Remover este grupo da fila?")) return;
-                              runBulk("Removendo", (id) => api.deleteQueue(id), groupIds);
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" /> Remover grupo
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-
-                  <div className="space-y-1 border-t border-border bg-bg3/25 p-3">
-                    {group.items.map((item) => {
-                      const account = accountById.get(item.account) ?? {
-                        id: item.account,
-                        username: item.account.slice(0, 16),
-                        name: item.account,
-                        profile_picture: "",
-                      };
-                      const itemMeta = STATUS_META[item.status];
-                      const tokenExpired = isTokenExpired(account);
-                      return (
-                        <label
-                          key={item.id}
-                          className="flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-bg3/60 px-3 py-2 text-sm hover:border-border2"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selected.has(item.id)}
-                            onChange={() => toggle(item.id)}
-                            className="accent-accent"
-                          />
-                          {account.profile_picture ? (
-                            <img
-                              src={account.profile_picture}
-                              alt=""
-                              className="h-6 w-6 rounded-full"
+                      <span className="hidden whitespace-nowrap text-xs text-muted2 sm:inline tabular-nums">
+                        {timeHHmm(group.scheduledAt)}
+                      </span>
+                      {isOpen ? (
+                        <ChevronDown className="h-4 w-4 shrink-0 text-muted2" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 shrink-0 text-muted2" />
+                      )}
+                    </button>
+                  ) : (
+                    /* ============= EXPANDED MODE ============= */
+                    <div className="flex flex-col gap-3 p-3 lg:flex-row lg:items-start">
+                      <div className="flex items-start gap-3 lg:min-w-0 lg:flex-1">
+                        <input
+                          type="checkbox"
+                          checked={isGroupSelected}
+                          onChange={() => toggleIds(groupIds)}
+                          className="mt-1 accent-accent"
+                          aria-label="Selecionar grupo"
+                        />
+                        <Thumb src={group.thumb} type={group.mediaType} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <TypeBadge type={group.mediaType} />
+                            <StatusBadge
+                              status={group.status}
+                              scheduledAt={group.scheduledAt}
+                              now={now}
                             />
-                          ) : (
-                            <Users className="h-4 w-4 text-muted2" />
+                            {overdue && (
+                              <span className="rounded-full border border-warning/40 bg-warning/10 px-2 py-1 text-[11px] font-semibold text-warning">
+                                <AlertTriangle className="mr-1 inline h-3 w-3" />
+                                Atrasado
+                              </span>
+                            )}
+                            {group.items.some((item) => (item.attempts ?? 0) > 0) && (
+                              <span className="rounded-full border border-accent/35 bg-accent/10 px-2 py-1 text-[11px] font-semibold text-accent2">
+                                +{Math.max(...group.items.map((item) => item.attempts ?? 0))}{" "}
+                                tentativa(s)
+                              </span>
+                            )}
+                            <div className="ml-auto">
+                              <CountPill
+                                done={group.counts.published}
+                                total={group.items.length}
+                              />
+                            </div>
+                          </div>
+                          <p className="mt-2 line-clamp-2 text-sm font-medium">
+                            {group.caption || "Sem legenda"}
+                          </p>
+                          {group.items.some((item) => item.last_error) && (
+                            <p className="mt-1 line-clamp-2 text-xs text-danger">
+                              {group.items.find((item) => item.last_error)?.last_error}
+                            </p>
                           )}
-                          <span className="min-w-0 flex-1 truncate font-semibold">
-                            @{account.username}
-                          </span>
-                          {tokenExpired && (
-                            <span className="shrink-0 rounded-md border border-danger/40 bg-danger/10 px-2 py-1 text-[11px] font-semibold text-danger">
-                              Token expirado
-                            </span>
-                          )}
-                          {tokenExpired && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <AvatarStack
+                              accounts={group.accounts}
+                              onClick={() => toggleExpand(group.id)}
+                            />
                             <button
                               type="button"
-                              disabled={loading !== null}
-                              onClick={(e) => {
-                                e.preventDefault();
-                                void handleReconnect(account);
-                              }}
-                              className="shrink-0 rounded-md border border-border2 bg-bg2 px-2 py-1 text-[11px] font-semibold text-text2 hover:border-accent hover:text-foreground disabled:opacity-60"
+                              onClick={() => toggleExpand(group.id)}
+                              className="text-[11px] font-medium text-text2 hover:text-foreground"
                             >
-                              Reconectar
+                              {isOpen ? "ocultar contas" : "ver contas"}
                             </button>
-                          )}
-                          <span
-                            className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold"
-                            style={{ background: itemMeta.bg, color: itemMeta.fg }}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 border-t border-border pt-3 lg:w-56 lg:border-t-0 lg:pt-0">
+                        <div className="text-left lg:text-right">
+                          <div className="text-sm font-bold text-warning tabular-nums">
+                            <Clock3 className="mr-1 inline h-3.5 w-3.5" />
+                            {fmtDateTime(group.scheduledAt)}
+                          </div>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              className="rounded-lg p-2 text-muted2 hover:bg-bg3 hover:text-foreground"
+                              aria-label="Ações"
+                            >
+                              <MoreHorizontal className="h-4 w-4" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuItem onSelect={() => toggleIds(groupIds)}>
+                              <CheckCircle2 className="mr-2 h-4 w-4" />{" "}
+                              {isGroupSelected ? "Desmarcar grupo" : "Selecionar grupo"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                runBulk(
+                                  "Pausando",
+                                  (id) => api.updateQueueStatus(id, "canceled"),
+                                  groupIds,
+                                )
+                              }
+                            >
+                              <Pause className="mr-2 h-4 w-4" /> Pausar grupo
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                runBulk(
+                                  "Retomando",
+                                  (id) => api.updateQueueStatus(id, "scheduled"),
+                                  groupIds,
+                                )
+                              }
+                            >
+                              <Play className="mr-2 h-4 w-4" /> Retomar grupo
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => publishSelectedNow(groupIds)}>
+                              <Zap className="mr-2 h-4 w-4" /> Tentar agora
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-danger focus:text-danger"
+                              onSelect={() => {
+                                if (!confirm("Remover este grupo da fila?")) return;
+                                runBulk("Removendo", (id) => api.deleteQueue(id), groupIds);
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" /> Remover grupo
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Sub-list of accounts */}
+                  {isOpen && (
+                    <div className="space-y-0 border-t border-border bg-bg3/20 p-2 transition-all">
+                      {group.items.map((item, idx) => {
+                        const account = accountById.get(item.account) ?? {
+                          id: item.account,
+                          username: item.account.slice(0, 16),
+                          name: item.account,
+                          profile_picture: "",
+                        };
+                        const tokenExpired = isTokenExpired(account);
+                        const timeLabel =
+                          item.status === "published"
+                            ? `Publicado ${timeHHmm(item.scheduled_at)}`
+                            : item.status === "processing"
+                              ? `Rodando há ${Math.max(0, Math.round((now - new Date(item.scheduled_at).getTime()) / 60000))}min`
+                              : item.status === "scheduled"
+                                ? `Previsto ${timeHHmm(item.scheduled_at)}`
+                                : item.status === "failed"
+                                  ? "Falhou"
+                                  : "Pausado";
+                        return (
+                          <div
+                            key={item.id}
+                            className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-bg3"
+                            style={{
+                              background: idx % 2 === 1 ? "rgba(255,255,255,0.03)" : undefined,
+                            }}
                           >
-                            {itemMeta.short}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
+                            <input
+                              type="checkbox"
+                              checked={selected.has(item.id)}
+                              onChange={() => toggle(item.id)}
+                              className="accent-accent"
+                            />
+                            {account.profile_picture ? (
+                              <img
+                                src={account.profile_picture}
+                                alt=""
+                                className="h-6 w-6 rounded-full"
+                              />
+                            ) : (
+                              <Users className="h-4 w-4 text-muted2" />
+                            )}
+                            <span className="min-w-0 flex-1 truncate font-semibold">
+                              @{account.username}
+                            </span>
+                            <span className="hidden text-[11px] text-muted2 sm:inline tabular-nums">
+                              {timeLabel}
+                            </span>
+                            {tokenExpired && (
+                              <span className="shrink-0 rounded-md border border-danger/40 bg-danger/10 px-2 py-0.5 text-[11px] font-semibold text-danger">
+                                Token expirado
+                              </span>
+                            )}
+                            {tokenExpired && (
+                              <button
+                                type="button"
+                                disabled={loading !== null}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  void handleReconnect(account);
+                                }}
+                                className="shrink-0 rounded-md border border-border2 bg-bg2 px-2 py-0.5 text-[11px] font-semibold text-text2 hover:border-accent hover:text-foreground disabled:opacity-60"
+                              >
+                                Reconectar
+                              </button>
+                            )}
+                            <StatusBadge
+                              status={item.status}
+                              scheduledAt={item.scheduled_at}
+                              lastError={item.last_error}
+                              now={now}
+                            />
+                            {item.status === "published" && (
+                              <ExternalLink className="h-3 w-3 shrink-0 text-muted2" />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Progress bar (bottom edge) */}
+                  <ProgressBar counts={group.counts} total={group.items.length} />
                 </article>
               </div>
             );
           })
         )}
       </div>
+
+      <AlertDialog open={!!confirmClear} onOpenChange={(o) => !o && setConfirmClear(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmClear?.label}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação irá remover {confirmClear?.count ?? 0}{" "}
+              {(confirmClear?.count ?? 0) === 1 ? "item" : "itens"} da fila e não pode ser
+              desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-danger text-white hover:bg-danger/90"
+              onClick={async () => {
+                if (!confirmClear) return;
+                const c = confirmClear;
+                setConfirmClear(null);
+                await singleAction(c.label, () => api.clearQueue(c.statuses));
+                setSelected(new Set());
+              }}
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

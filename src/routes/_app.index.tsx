@@ -80,11 +80,13 @@ function relativeTime(iso: string): { label: string; tone: "ok" | "warn" | "soon
   };
 }
 
-function greet() {
-  const h = new Date().getHours();
-  if (h < 12) return "Bom dia";
-  if (h < 18) return "Boa tarde";
-  return "Boa noite";
+function useGreet() {
+  const [g, setG] = useState("Olá");
+  useEffect(() => {
+    const h = new Date().getHours();
+    setG(h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite");
+  }, []);
+  return g;
 }
 
 // Deterministic sparkline based on a seed so values don't jump on each render.
@@ -181,6 +183,7 @@ function MetricCard({
 
 // ---------- Dashboard ----------
 function Dashboard() {
+  const greeting = useGreet();
   const [now, setNow] = useState(Date.now());
   const [lastRefresh, setLastRefresh] = useState(Date.now());
   const [tick, setTick] = useState(0);
@@ -287,7 +290,7 @@ function Dashboard() {
         <div>
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Visão geral</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl">
-            {greet()}. {subtitle}
+            {greeting}. {subtitle}
           </h1>
         </div>
         <Link
