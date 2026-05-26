@@ -183,6 +183,7 @@ function MetricCard({
 
 // ---------- Dashboard ----------
 function Dashboard() {
+  const greeting = useGreet();
   const [now, setNow] = useState(Date.now());
   const [lastRefresh, setLastRefresh] = useState(Date.now());
   const [tick, setTick] = useState(0);
