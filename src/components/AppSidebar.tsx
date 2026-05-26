@@ -1,4 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Users,
@@ -10,7 +11,8 @@ import {
   Plus,
   Sparkles,
 } from "lucide-react";
-import { mockAccounts } from "@/lib/mock";
+import { api } from "@/lib/api-client";
+
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
