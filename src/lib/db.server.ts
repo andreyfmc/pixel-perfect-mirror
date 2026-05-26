@@ -136,7 +136,16 @@ const rawDb = {
     const { results } = await requireDb()
       .prepare("SELECT * FROM accounts ORDER BY created_at DESC")
       .all<AccountRow>();
-    return results ?? [];
+    const accounts = results ?? [];
+    const repairable = accounts.filter((account) => !account.ig_user_id || !account.access_token);
+    if (repairable.length) {
+      await Promise.all(repairable.map((account) => rawDb.resolveAccountForPublishing(account.id)));
+      const repaired = await requireDb()
+        .prepare("SELECT * FROM accounts ORDER BY created_at DESC")
+        .all<AccountRow>();
+      return repaired.results ?? accounts;
+    }
+    return accounts;
   },
   async getAccount(id: string): Promise<AccountRow | null> {
     return (
