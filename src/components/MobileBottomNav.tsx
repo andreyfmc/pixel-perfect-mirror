@@ -1,17 +1,16 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { LayoutDashboard, Flame, CalendarClock, Users, ShieldAlert } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { loadContingency } from "@/lib/contingency-store";
 
 const items = [
-  { to: "/", label: "Início", emoji: "📊" },
-  { to: "/accounts", label: "Contas", emoji: "👥" },
-  { to: "/queue", label: "Fila", emoji: "🗓️" },
-  { to: "/warmup", label: "Warmup", emoji: "🔥" },
-  { to: "/contingency", label: "Contin.", emoji: "🛡️" },
-  { to: "/history", label: "Hist.", emoji: "📚" },
-  
+  { to: "/", label: "Dashboard", Icon: LayoutDashboard },
+  { to: "/warmup", label: "Postagem", Icon: Flame },
+  { to: "/queue", label: "Fila", Icon: CalendarClock },
+  { to: "/accounts", label: "Contas", Icon: Users },
+  { to: "/contingency", label: "Contin.", Icon: ShieldAlert },
 ] as const;
 
 export function MobileBottomNav() {
@@ -30,15 +29,12 @@ export function MobileBottomNav() {
   const pendingQueue = queue.filter((q) => q.status === "scheduled").length;
   const lowHealth = accounts.filter((a) => (a.health_score ?? 100) < 60).length;
 
-  // Contingency is localStorage — reflect changes via storage event
   const [contingencyCount, setContingencyCount] = useState(0);
   useEffect(() => {
     const update = () => {
       try {
         setContingencyCount(loadContingency().filter((c) => c.status !== "descartada").length);
-      } catch {
-        setContingencyCount(0);
-      }
+      } catch { setContingencyCount(0); }
     };
     update();
     const onStorage = () => update();
@@ -65,46 +61,35 @@ export function MobileBottomNav() {
       className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-bg2/95 backdrop-blur"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="grid grid-cols-7">
-        {items.map(({ to, label, emoji }) => {
+      <ul className="grid grid-cols-5" style={{ height: 60 }}>
+        {items.map(({ to, label, Icon }) => {
           const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
           const badge = badgeFor(to);
           const isWarn = to === "/accounts" || to === "/contingency";
           return (
-            <li key={to}>
+            <li key={to} className="flex">
               <Link
                 to={to}
-                className="relative flex flex-col items-center gap-0.5 py-2 text-[9px] font-medium transition-colors"
+                className="relative flex flex-1 flex-col items-center justify-center gap-1 px-1 active:bg-bg3/60"
                 style={{ color: active ? "var(--accent2)" : "var(--text2)" }}
               >
                 <span className="relative">
-                  <span
-                    className={[
-                      "flex h-7 w-7 items-center justify-center rounded-lg text-base leading-none transition",
-                      active ? "scale-110 bg-bg3" : "",
-                    ].join(" ")}
-                  >
-                    {emoji}
-                  </span>
+                  <Icon style={{ width: 24, height: 24 }} strokeWidth={active ? 2.4 : 2} />
                   {badge !== null && (
                     <span
-                      className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white ring-2 ring-bg2 tabular-nums"
+                      className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold text-white ring-2 ring-bg2 tabular-nums"
                       style={{
-                        background: isWarn
-                          ? badge > 0
-                            ? "var(--danger, #ef4444)"
-                            : "var(--accent2)"
-                          : "var(--accent2)",
+                        background: isWarn && badge > 0 ? "var(--danger)" : "var(--accent2)",
                       }}
                     >
                       {badge > 99 ? "99+" : badge}
                     </span>
                   )}
                 </span>
-                <span className="truncate max-w-full px-0.5">{label}</span>
+                <span className="truncate max-w-full text-[11px] font-medium leading-none">{label}</span>
                 {active && (
                   <span
-                    className="absolute -top-px left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full"
+                    className="absolute top-0 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full"
                     style={{ background: "var(--accent2)" }}
                   />
                 )}

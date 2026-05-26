@@ -1132,13 +1132,13 @@ function DistributeTab() {
         <div className="border-t border-border/60" />
 
         {/* --- Ação principal --- */}
-        <section className="space-y-2">
+        <section className="im-sticky-bottom space-y-2 -mx-4 px-4 py-3 sm:mx-0 sm:px-0 sm:py-0 md:static md:!border-t-0 md:!bg-transparent md:!backdrop-blur-none">
           <button
             onClick={enqueueAll}
             disabled={!canEnqueue}
             title={disabledReason || undefined}
             className={[
-              "inline-flex w-full items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-semibold text-white shadow transition",
+              "inline-flex w-full min-h-[44px] items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-semibold text-white shadow transition",
               enqueueOk
                 ? "bg-emerald-500 hover:bg-emerald-500/90"
                 : "bg-[var(--accent2)] hover:opacity-90",

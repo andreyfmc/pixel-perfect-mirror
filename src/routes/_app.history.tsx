@@ -485,8 +485,51 @@ function HistoryPage() {
         </div>
       )}
 
-      {/* Tabela */}
-      <div className="im-card overflow-hidden">
+      {/* Mobile: card list */}
+      <div className="space-y-2 md:hidden">
+        {pageItems.length === 0 ? (
+          <div className="im-card p-8 text-center text-sm text-text2">Nenhum post encontrado.</div>
+        ) : (
+          pageItems.map((h) => {
+            const info = resolveAccount(h.account);
+            const isSelected = selected.has(h.id);
+            const permalink = (h as { permalink?: string }).permalink;
+            return (
+              <article
+                key={h.id}
+                className={`im-card flex gap-3 p-3 ${isSelected ? "ring-1 ring-[var(--accent2)]" : ""}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => toggleSelect(h.id)}
+                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--accent2)]"
+                  aria-label="Selecionar"
+                />
+                <PostThumb thumb={h.thumb} permalink={permalink} caption={h.caption} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <AccountAvatar src={info.avatar} name={info.username} size={20} />
+                    <span className="truncate text-sm font-medium">@{info.username}</span>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-[12px] text-text2">
+                    {h.caption || <em className="text-muted2">sem legenda</em>}
+                  </p>
+                  <div className="mt-1 text-[10px] text-muted2">{fmtDateTime(h.published_at)}</div>
+                  <div className="mt-2 flex items-center gap-4 text-[12px] tabular-nums text-text2">
+                    <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{h.reach}</span>
+                    <span className="inline-flex items-center gap-1"><Heart className="h-3.5 w-3.5" />{h.likes}</span>
+                    <span className="inline-flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" />{h.comments}</span>
+                  </div>
+                </div>
+              </article>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop: tabela */}
+      <div className="im-card hidden overflow-hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead
