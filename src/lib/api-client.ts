@@ -197,4 +197,22 @@ export const api = {
       return null;
     }
   },
+
+  async buildVariant(queueId: string): Promise<{ ok: boolean; mediaKey?: string; error?: string }> {
+    try {
+      const res = await fetch("/api/variants/build", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ queue_id: queueId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        mediaKey?: string;
+        error?: string;
+      };
+      return { ok: !!data.ok, mediaKey: data.mediaKey, error: data.error };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  },
 };
