@@ -9,6 +9,7 @@ export type Account = {
   token_expires_at: string | null;
   token_status: "valid" | "expired";
   provider: "facebook" | "instagram";
+  can_publish?: boolean;
 };
 
 export const mockAccounts: Account[] = [
