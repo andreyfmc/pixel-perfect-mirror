@@ -77,6 +77,7 @@ export const api = {
     ok: boolean;
     error?: unknown;
     scope?: string;
+    needs_reconnect?: boolean;
     me?: { id?: string; name?: string };
     ig?: { id?: string; username?: string; name?: string };
     suggestions?: Array<{ page: string; ig_id?: string; ig_username?: string }>;
@@ -87,6 +88,7 @@ export const api = {
         ok: boolean;
         error?: unknown;
         scope?: string;
+        needs_reconnect?: boolean;
         me?: { id?: string; name?: string };
         ig?: { id?: string; username?: string; name?: string };
         suggestions?: Array<{ page: string; ig_id?: string; ig_username?: string }>;
