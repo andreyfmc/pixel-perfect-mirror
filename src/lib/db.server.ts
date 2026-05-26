@@ -9,6 +9,7 @@ export type AccountRow = {
   ig_user_id: string | null;
   access_token: string | null;
   token_expires_at: string | null;
+  token_status: "valid" | "expired";
   followers: number;
   health_score: number;
   last_post_at: string | null;
@@ -76,6 +77,7 @@ export const db = {
              ig_user_id = COALESCE(?, ig_user_id),
              access_token = COALESCE(?, access_token),
              token_expires_at = COALESCE(?, token_expires_at),
+             token_status = 'valid',
              followers = ?,
              health_score = ?,
              updated_at = CURRENT_TIMESTAMP
@@ -99,14 +101,15 @@ export const db = {
 
     await requireDb()
       .prepare(
-        `INSERT INTO accounts (id, username, name, profile_picture, ig_user_id, access_token, token_expires_at, followers, health_score)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO accounts (id, username, name, profile_picture, ig_user_id, access_token, token_expires_at, token_status, followers, health_score)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?)
          ON CONFLICT(username) DO UPDATE SET
            name = excluded.name,
            profile_picture = COALESCE(excluded.profile_picture, accounts.profile_picture),
            ig_user_id = COALESCE(excluded.ig_user_id, accounts.ig_user_id),
            access_token = COALESCE(excluded.access_token, accounts.access_token),
            token_expires_at = COALESCE(excluded.token_expires_at, accounts.token_expires_at),
+           token_status = 'valid',
            followers = excluded.followers,
            updated_at = CURRENT_TIMESTAMP`,
       )
@@ -128,6 +131,8 @@ export const db = {
     input: {
       ig_user_id?: string | null;
       access_token?: string | null;
+      token_expires_at?: string | null;
+      token_status?: AccountRow["token_status"] | null;
       profile_picture?: string | null;
       followers?: number | null;
       health_score?: number | null;
@@ -138,6 +143,8 @@ export const db = {
         `UPDATE accounts
          SET ig_user_id = COALESCE(?, ig_user_id),
              access_token = COALESCE(?, access_token),
+             token_expires_at = COALESCE(?, token_expires_at),
+             token_status = COALESCE(?, token_status),
              profile_picture = COALESCE(?, profile_picture),
              followers = COALESCE(?, followers),
              health_score = COALESCE(?, health_score),
@@ -147,6 +154,8 @@ export const db = {
       .bind(
         input.ig_user_id ?? null,
         input.access_token ?? null,
+        input.token_expires_at ?? null,
+        input.token_status ?? null,
         input.profile_picture ?? null,
         input.followers ?? null,
         input.health_score ?? null,
@@ -160,6 +169,7 @@ export const db = {
         `UPDATE accounts
          SET access_token = NULL,
              token_expires_at = NULL,
+             token_status = 'expired',
              health_score = 0,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
