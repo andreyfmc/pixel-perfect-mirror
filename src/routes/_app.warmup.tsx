@@ -803,15 +803,26 @@ function DistributeTab() {
 
       <div className="space-y-4">
         <div>
-          <h3 className="mb-2 text-sm font-semibold">Contas que recebem</h3>
-          <ul className="space-y-1.5">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-sm font-semibold">Contas que recebem</h3>
+            <button
+              onClick={toggleAllAccounts}
+              className="rounded-md border border-border2 bg-bg3 px-2 py-1 text-xs text-text2 hover:text-foreground"
+            >
+              {allAccountsSelected ? "Desmarcar todas" : "Selecionar todas"}
+            </button>
+          </div>
+          <div className="mb-2 text-xs text-muted2">
+            {selectedAccounts.length} de {accounts.length} selecionada(s)
+          </div>
+          <ul className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
             {accounts.map((a) => (
               <li key={a.id}>
-                <label className="flex items-center gap-2 rounded-md border border-border bg-bg3 p-2 text-sm">
+                <label className="flex items-center gap-2 rounded-md border border-border bg-bg3 p-2 text-sm cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={selectedAccounts.includes(a.username)}
-                    onChange={() => toggleAccount(a.username)}
+                    checked={selectedAccounts.includes(a.id)}
+                    onChange={() => toggleAccount(a.id)}
                     className="accent-accent"
                   />
                   <img src={a.profile_picture} alt="" className="h-6 w-6 rounded-full" />
