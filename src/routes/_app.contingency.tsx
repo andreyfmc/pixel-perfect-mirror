@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { ConnectLinkButton } from "@/components/ConnectLinkButton";
 
 export const Route = createFileRoute("/_app/contingency")({
   component: ContingencyPage,
@@ -796,6 +797,9 @@ function ContingencyPage() {
         >
           <Zap className="h-3.5 w-3.5" /> Ativar conta
         </button>
+
+        <ConnectLinkButton variant="ghost" />
+
 
         <button
           onClick={() => setDriveOpen(true)}
