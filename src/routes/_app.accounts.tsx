@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api-client";
 import { fmtDateShort, fmtDateFull } from "@/lib/format";
-import { Plus, MoreHorizontal, ShieldCheck, Loader2, Instagram, Facebook, Trash2, ArrowDownUp } from "lucide-react";
+import { Plus, MoreHorizontal, ShieldCheck, Loader2, Instagram, Facebook, Trash2, ArrowDownUp, BadgeCheck } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
