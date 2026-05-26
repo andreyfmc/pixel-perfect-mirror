@@ -28,12 +28,10 @@ export const Route = createFileRoute("/_app/warmup")({
 });
 
 const tabs = [
-  { id: "upload", label: "Upload", icon: UploadCloud },
-  { id: "distribute", label: "Distribuir", icon: Wand2 },
-  { id: "captions", label: "Legendas", icon: Type },
-  { id: "config", label: "Configurações", icon: Settings2 },
-  { id: "preview", label: "Preview da Fila", icon: ListChecks },
-  { id: "monitor", label: "Monitor", icon: Activity },
+  { id: "upload", label: "Upload", icon: UploadCloud, emoji: "📤" },
+  { id: "post", label: "Postagem", icon: Wand2, emoji: "✨" },
+  { id: "config", label: "Rate Limit", icon: Settings2, emoji: "⚙️" },
+  { id: "monitor", label: "Monitor", icon: Activity, emoji: "📡" },
 ] as const;
 
 type TabId = (typeof tabs)[number]["id"];
