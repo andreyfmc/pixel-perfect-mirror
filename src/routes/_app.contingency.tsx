@@ -1118,12 +1118,20 @@ function ContingencyPage() {
       </div>
 
       {/* search + filters compact */}
-      <div className="mb-3 grid gap-2 md:grid-cols-[1fr_auto_auto_auto]">
-        <div className="flex h-9 items-center gap-2 rounded-lg border border-border bg-bg2 px-3">
+      <div className="sticky top-0 z-20 -mx-4 mb-3 grid gap-2 bg-bg/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:static md:mx-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none md:grid-cols-[1fr_auto_auto_auto]">
+        <div className="flex h-11 items-center gap-2 rounded-lg border border-border bg-bg2 px-3 md:h-9">
           <Search className="h-4 w-4 text-muted2" />
           <input value={query} onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por username..."
-            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted2" />
+            className="flex-1 bg-transparent text-base outline-none placeholder:text-muted2 md:text-sm" />
+          {query && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted2 hover:bg-bg3 hover:text-text"
+              aria-label="Limpar busca"
+            >✕</button>
+          )}
         </div>
         <select
           value={statusFilter}
