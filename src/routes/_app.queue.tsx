@@ -434,13 +434,14 @@ function QueuePage() {
     }
   }
 
-  async function handleReconnect(username: string) {
-    const t = toast.loading(`Reconectando @${username}…`);
-    const res = await connect("instagram");
+  async function handleReconnect(account: { username: string; provider?: "facebook" | "instagram" }) {
+    const provider = account.provider ?? "facebook";
+    const t = toast.loading(`Reconectando @${account.username} via ${provider === "facebook" ? "Facebook" : "Instagram"}…`);
+    const res = await connect(provider);
     toast.dismiss(t);
     if (res.ok) {
       toast.success(
-        `Reconectado: ${(res.saved ?? []).map((u) => `@${u}`).join(", ") || `@${username}`}`,
+        `Reconectado: ${(res.saved ?? []).map((u) => `@${u}`).join(", ") || `@${account.username}`}`,
       );
       qc.invalidateQueries({ queryKey: ["accounts"] });
       qc.invalidateQueries({ queryKey: ["queue"] });
@@ -888,7 +889,7 @@ function QueuePage() {
                               disabled={loading !== null}
                               onClick={(e) => {
                                 e.preventDefault();
-                                void handleReconnect(account.username);
+                                void handleReconnect(account);
                               }}
                               className="shrink-0 rounded-md border border-border2 bg-bg2 px-2 py-1 text-[11px] font-semibold text-text2 hover:border-accent hover:text-foreground disabled:opacity-60"
                             >

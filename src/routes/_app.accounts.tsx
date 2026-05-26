@@ -386,11 +386,11 @@ function AccountsPage() {
                   </span>
                   <button
                     type="button"
-                    onClick={() => handleConnect("instagram")}
+                    onClick={() => handleConnect(a.provider ?? "facebook")}
                     disabled={loading !== null}
                     className="shrink-0 font-medium text-text2 hover:text-foreground disabled:opacity-60"
                   >
-                    Reconectar
+                    Reconectar via {(a.provider ?? "facebook") === "facebook" ? "Facebook" : "Instagram"}
                   </button>
                 </div>
               </article>

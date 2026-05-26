@@ -28,6 +28,23 @@ async function ensureSchema(): Promise<void> {
           )
           .run();
       }
+      if (!cols.has("provider")) {
+        // Tokens de Página do Facebook começam com "EAA"; tokens longos do
+        // Instagram Login direto começam com "IGAA". Usa esse heurístico para
+        // backfill — novas contas gravam o provider explícito.
+        await db
+          .prepare(
+            "ALTER TABLE accounts ADD COLUMN provider TEXT NOT NULL DEFAULT 'facebook'",
+          )
+          .run();
+        await db
+          .prepare(
+            `UPDATE accounts SET provider = CASE
+               WHEN access_token LIKE 'IGAA%' THEN 'instagram'
+               ELSE 'facebook' END`,
+          )
+          .run();
+      }
     } catch (err) {
       // Não bloqueia o app se o PRAGMA falhar — reseta a promise para tentar de novo
       // na próxima request.
@@ -48,6 +65,7 @@ export type AccountRow = {
   access_token: string | null;
   token_expires_at: string | null;
   token_status: "valid" | "expired";
+  provider: "facebook" | "instagram";
   followers: number;
   health_score: number;
   last_post_at: string | null;
@@ -104,6 +122,7 @@ const rawDb = {
     );
   },
   async createAccount(a: Pick<AccountRow, "id" | "username" | "name"> & Partial<AccountRow>) {
+    const provider = a.provider ?? "facebook";
     // Atualiza qualquer registro já conhecido pelo username OU pelo ig_user_id.
     // Isso mantém itens antigos da fila apontando para uma linha com token novo.
     const updated = await requireDb()
@@ -116,6 +135,7 @@ const rawDb = {
              access_token = COALESCE(?, access_token),
              token_expires_at = COALESCE(?, token_expires_at),
              token_status = 'valid',
+             provider = ?,
              followers = ?,
              health_score = ?,
              updated_at = CURRENT_TIMESTAMP
@@ -128,6 +148,7 @@ const rawDb = {
         a.ig_user_id ?? null,
         a.access_token ?? null,
         a.token_expires_at ?? null,
+        provider,
         a.followers ?? 0,
         a.health_score ?? 100,
         a.username,
@@ -139,8 +160,8 @@ const rawDb = {
 
     await requireDb()
       .prepare(
-        `INSERT INTO accounts (id, username, name, profile_picture, ig_user_id, access_token, token_expires_at, token_status, followers, health_score)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?)
+        `INSERT INTO accounts (id, username, name, profile_picture, ig_user_id, access_token, token_expires_at, token_status, provider, followers, health_score)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?)
          ON CONFLICT(username) DO UPDATE SET
            name = excluded.name,
            profile_picture = COALESCE(excluded.profile_picture, accounts.profile_picture),
@@ -148,6 +169,7 @@ const rawDb = {
            access_token = COALESCE(excluded.access_token, accounts.access_token),
            token_expires_at = COALESCE(excluded.token_expires_at, accounts.token_expires_at),
            token_status = 'valid',
+           provider = excluded.provider,
            followers = excluded.followers,
            updated_at = CURRENT_TIMESTAMP`,
       )
@@ -159,6 +181,7 @@ const rawDb = {
         a.ig_user_id ?? null,
         a.access_token ?? null,
         a.token_expires_at ?? null,
+        provider,
         a.followers ?? 0,
         a.health_score ?? 100,
       )
