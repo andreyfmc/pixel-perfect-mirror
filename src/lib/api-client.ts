@@ -24,7 +24,7 @@ function accountFromRow(r: AccountRow): Account {
     health_score: r.health_score,
     followers: r.followers,
     last_post_at: r.last_post_at ?? new Date().toISOString(),
-    token_expires_at: r.token_expires_at ?? new Date().toISOString(),
+    token_expires_at: r.token_expires_at,
     token_status: r.token_status ?? "valid",
     provider: r.provider ?? "facebook",
   };
