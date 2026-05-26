@@ -230,9 +230,11 @@ export const db = {
     status: QueueRow["status"],
     extra?: { last_error?: string; ig_container_id?: string; ig_media_id?: string },
   ) {
+    const incrementAttempts = status === "failed" || status === "canceled";
     await requireDb()
       .prepare(
-        `UPDATE queue SET status = ?, attempts = attempts + 1,
+        `UPDATE queue SET status = ?,
+           attempts = CASE WHEN ? THEN attempts + 1 ELSE attempts END,
            last_error = COALESCE(?, last_error),
            ig_container_id = COALESCE(?, ig_container_id),
            ig_media_id = COALESCE(?, ig_media_id)
@@ -240,6 +242,7 @@ export const db = {
       )
       .bind(
         status,
+        incrementAttempts ? 1 : 0,
         extra?.last_error ?? null,
         extra?.ig_container_id ?? null,
         extra?.ig_media_id ?? null,
@@ -251,12 +254,21 @@ export const db = {
     await requireDb()
       .prepare(
         `UPDATE queue
-         SET status = 'processing', attempts = attempts + 1, last_error = NULL, ig_container_id = ?
+         SET status = 'processing', last_error = NULL, ig_container_id = ?
          WHERE id = ?`,
       )
       .bind(igContainerId, id)
       .run();
   },
+  async updateLastPostAt(id: string, isoDate: string) {
+    await requireDb()
+      .prepare(
+        `UPDATE accounts SET last_post_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      )
+      .bind(isoDate, id)
+      .run();
+  },
+
   async manualSetQueueStatus(id: string, status: QueueRow["status"]) {
     await requireDb().prepare(`UPDATE queue SET status = ? WHERE id = ?`).bind(status, id).run();
   },
