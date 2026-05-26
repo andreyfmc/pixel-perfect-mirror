@@ -756,6 +756,55 @@ const rawDb = {
       .bind(id)
       .run();
   },
+
+  // ============ variantes serverless ============
+  async getQueueItem(id: string): Promise<QueueRow | null> {
+    return (
+      (await requireDb()
+        .prepare("SELECT * FROM queue WHERE id = ?")
+        .bind(id)
+        .first<QueueRow>()) ?? null
+    );
+  },
+  async listPendingVariantItems(limit = 8): Promise<QueueRow[]> {
+    // Itens com variante ainda não processada, ordenados por proximidade do scheduled_at.
+    const { results } = await requireDb()
+      .prepare(
+        `SELECT * FROM queue
+         WHERE variant_processed = 0
+           AND status IN ('scheduled')
+           AND media_type IN ('REEL','STORY','IMAGE')
+           AND (media_key LIKE 'drive:%' OR original_media_key LIKE 'drive:%')
+         ORDER BY scheduled_at ASC
+         LIMIT ?`,
+      )
+      .bind(limit)
+      .all<QueueRow>();
+    return results ?? [];
+  },
+  async markVariantProcessed(
+    id: string,
+    input: { mediaKey: string; method: string; originalMediaKey?: string | null },
+  ) {
+    await requireDb()
+      .prepare(
+        `UPDATE queue
+         SET variant_processed = 1,
+             variant_method = ?,
+             variant_error = NULL,
+             original_media_key = COALESCE(original_media_key, ?),
+             media_key = ?
+         WHERE id = ?`,
+      )
+      .bind(input.method, input.originalMediaKey ?? null, input.mediaKey, id)
+      .run();
+  },
+  async markVariantFailed(id: string, error: string) {
+    await requireDb()
+      .prepare(`UPDATE queue SET variant_error = ? WHERE id = ?`)
+      .bind(error.slice(0, 500), id)
+      .run();
+  },
 };
 
 // Proxy que garante a auto-migração antes de cada chamada de método.
