@@ -793,6 +793,28 @@ function ContingencyPage() {
           <Zap className="h-3.5 w-3.5" /> Ativar conta
         </button>
 
+        <button
+          onClick={() => setDriveOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs hover:border-border2"
+          title="Importar CSV do Google Drive (mesma conexão do app)"
+        >
+          <HardDrive className="h-3.5 w-3.5" /> Drive
+        </button>
+        <button
+          onClick={async () => {
+            const csv = toCSV(list);
+            const filename = `contingencia-${new Date().toISOString().slice(0, 10)}.csv`;
+            toast.loading("Enviando ao Drive...", { id: "drive-save" });
+            const res = await uploadCsv({ data: { filename, csv } });
+            if (res.error) toast.error(`Falha: ${res.error}`, { id: "drive-save" });
+            else toast.success(`Salvo no Drive: ${filename}`, { id: "drive-save" });
+          }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs hover:border-border2"
+          title="Salvar CSV no Google Drive (mesma conexão do app)"
+        >
+          <Save className="h-3.5 w-3.5" /> Salvar no Drive
+        </button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs hover:border-border2">
@@ -807,12 +829,6 @@ function ContingencyPage() {
             <DropdownMenuItem onClick={() => fileRef.current?.click()}>
               <FileUp className="mr-2 h-3.5 w-3.5" /> Importar CSV/XLSX
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info("Conecte o Google Drive em Configurações")}>
-              <HardDrive className="mr-2 h-3.5 w-3.5" /> Drive
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info("Em breve: salvar no Drive")}>
-              <Save className="mr-2 h-3.5 w-3.5" /> Salvar no Drive
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleExport}>
               <FileDown className="mr-2 h-3.5 w-3.5" /> Exportar CSV
             </DropdownMenuItem>
@@ -821,6 +837,7 @@ function ContingencyPage() {
 
         <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }} />
+
 
         {selectMode && selected.size > 0 && (
           <button
