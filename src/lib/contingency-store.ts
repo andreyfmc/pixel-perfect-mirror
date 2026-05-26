@@ -1,0 +1,149 @@
+// Estoque de contas de contingência — persistido em localStorage.
+// Storage separado das contas principais (Graph API).
+
+export type ContingencyStatus = "em_edicao" | "pronta" | "em_uso" | "descartada";
+export type ContingencyQuality = "boa" | "media" | "ruim";
+
+export type ContingencyAccount = {
+  id: string;
+  username: string;
+  password: string;
+  totp_secret: string;
+  status: ContingencyStatus;
+  quality: ContingencyQuality;
+  notes: string;
+  updated_at: string;
+};
+
+const STORAGE_KEY = "im_contingency_v1";
+
+export const STATUS_META: Record<
+  ContingencyStatus,
+  { label: string; color: string }
+> = {
+  em_edicao: { label: "Em Edição", color: "var(--accent2)" },
+  pronta: { label: "Pronta", color: "var(--success)" },
+  em_uso: { label: "Em Uso", color: "var(--info)" },
+  descartada: { label: "Descartada", color: "var(--danger)" },
+};
+
+export const QUALITY_META: Record<ContingencyQuality, { label: string; color: string }> = {
+  boa: { label: "Boa", color: "var(--success)" },
+  media: { label: "Média", color: "var(--warning)" },
+  ruim: { label: "Ruim", color: "var(--danger)" },
+};
+
+export function loadContingency(): ContingencyAccount[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as ContingencyAccount[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveContingency(list: ContingencyAccount[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  window.dispatchEvent(new CustomEvent("contingency:changed"));
+}
+
+export function newAccount(partial: Partial<ContingencyAccount> = {}): ContingencyAccount {
+  return {
+    id: crypto.randomUUID(),
+    username: "",
+    password: "",
+    totp_secret: "",
+    status: "em_edicao",
+    quality: "boa",
+    notes: "",
+    updated_at: new Date().toISOString(),
+    ...partial,
+  };
+}
+
+// ---- CSV ----
+function csvEscape(s: string) {
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+export function toCSV(list: ContingencyAccount[]): string {
+  const header = ["username", "password", "totp_secret", "status", "quality", "notes", "updated_at"];
+  const lines = [header.join(",")];
+  for (const a of list) {
+    lines.push(
+      [a.username, a.password, a.totp_secret, a.status, a.quality, a.notes, a.updated_at]
+        .map((v) => csvEscape(String(v ?? "")))
+        .join(","),
+    );
+  }
+  return lines.join("\n");
+}
+
+function parseCSVLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = "";
+  let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQ) {
+      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (ch === '"') inQ = false;
+      else cur += ch;
+    } else {
+      if (ch === ",") { out.push(cur); cur = ""; }
+      else if (ch === '"') inQ = true;
+      else cur += ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+export function fromCSV(text: string): ContingencyAccount[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length === 0) return [];
+  const header = parseCSVLine(lines[0]).map((h) => h.trim().toLowerCase());
+  const idx = (k: string) => header.indexOf(k);
+  const iUser = idx("username");
+  const iPass = idx("password") >= 0 ? idx("password") : idx("senha");
+  const iTotp = idx("totp_secret") >= 0 ? idx("totp_secret") : idx("2fa");
+  const iStatus = idx("status");
+  const iQuality = idx("quality") >= 0 ? idx("quality") : idx("qualidade");
+  const iNotes = idx("notes") >= 0 ? idx("notes") : idx("notas");
+
+  const normStatus = (s: string): ContingencyStatus => {
+    const v = s.trim().toLowerCase();
+    if (v.includes("uso")) return "em_uso";
+    if (v.includes("descart")) return "descartada";
+    if (v.includes("pront")) return "pronta";
+    return "em_edicao";
+  };
+  const normQuality = (s: string): ContingencyQuality => {
+    const v = s.trim().toLowerCase();
+    if (v.startsWith("m")) return "media";
+    if (v.startsWith("r")) return "ruim";
+    return "boa";
+  };
+
+  const out: ContingencyAccount[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = parseCSVLine(lines[i]);
+    const username = iUser >= 0 ? cells[iUser]?.trim() : "";
+    if (!username) continue;
+    out.push(
+      newAccount({
+        username,
+        password: iPass >= 0 ? cells[iPass] ?? "" : "",
+        totp_secret: iTotp >= 0 ? (cells[iTotp] ?? "").replace(/\s+/g, "") : "",
+        status: iStatus >= 0 ? normStatus(cells[iStatus] ?? "") : "em_edicao",
+        quality: iQuality >= 0 ? normQuality(cells[iQuality] ?? "") : "boa",
+        notes: iNotes >= 0 ? cells[iNotes] ?? "" : "",
+      }),
+    );
+  }
+  return out;
+}
