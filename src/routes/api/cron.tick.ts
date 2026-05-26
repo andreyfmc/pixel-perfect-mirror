@@ -14,15 +14,30 @@ export const Route = createFileRoute("/api/cron/tick")({
         if (secret && request.headers.get("x-cron-secret") !== secret) {
           return new Response("forbidden", { status: 403 });
         }
-        // Deriva o origin da própria request para servir como base do proxy
-        // /api/public/drive/*, garantindo que a Instagram consiga baixar
-        // sem precisar de PUBLIC_BASE_URL setado.
         const url = new URL(request.url);
         const baseUrl = `${url.protocol}//${url.host}`;
-        const result = await runScheduler(new Date(), { baseUrl });
-        return new Response(JSON.stringify(result), {
-          headers: { "content-type": "application/json" },
-        });
+        try {
+          const result = await runScheduler(new Date(), { baseUrl });
+          return new Response(JSON.stringify(result), {
+            headers: { "content-type": "application/json" },
+          });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          const stack = err instanceof Error ? err.stack : undefined;
+          console.error("[cron.tick] runScheduler threw", message, stack);
+          return new Response(
+            JSON.stringify({
+              processed: 0,
+              errors: 1,
+              error: message,
+              stack: stack?.split("\n").slice(0, 5).join("\n"),
+            }),
+            {
+              status: 500,
+              headers: { "content-type": "application/json" },
+            },
+          );
+        }
       },
     },
   },
