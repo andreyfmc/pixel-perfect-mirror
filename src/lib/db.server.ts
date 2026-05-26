@@ -116,6 +116,7 @@ export type QueueRow = {
   group_scheduled_at: string | null;
   status: "scheduled" | "processing" | "published" | "failed" | "canceled";
   attempts: number;
+  retry_count: number;
   last_error: string | null;
   ig_container_id: string | null;
   ig_media_id: string | null;
