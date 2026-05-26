@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { db } from "@/lib/db.server";
+import { InstagramGraphError, instagram } from "@/lib/instagram.server";
 
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), {
@@ -17,25 +18,12 @@ export const Route = createFileRoute("/api/accounts/$id/validate")({
         if (!account.ig_user_id) return json({ ok: false, error: "Sem ig_user_id" }, 400);
 
         try {
-          // 1) Token vivo?
-          const meRes = await fetch(
-            `https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${encodeURIComponent(account.access_token)}`,
-          );
-          const me = (await meRes.json()) as Record<string, unknown>;
-          if (!meRes.ok) {
-            return json({ ok: false, scope: "token", error: me }, 200);
-          }
+          const result = await instagram.validateCredentials({
+            igUserId: account.ig_user_id,
+            accessToken: account.access_token,
+          });
 
-          // 2) ig_user_id resolve para essa conta?
-          const igRes = await fetch(
-            `https://graph.facebook.com/v21.0/${account.ig_user_id}?fields=id,username,name&access_token=${encodeURIComponent(account.access_token)}`,
-          );
-          const ig = (await igRes.json()) as Record<string, unknown>;
-          if (!igRes.ok) {
-            return json({ ok: false, scope: "ig_user", me, error: ig }, 200);
-          }
-
-          // 3) Sugestão: listar IG business accounts visíveis pelo token (via /me/accounts).
+          // Sugestão extra para tokens Facebook: listar IG business accounts visíveis via /me/accounts.
           let suggestions: Array<{ page: string; ig_id?: string; ig_username?: string }> = [];
           try {
             const pagesRes = await fetch(
@@ -53,8 +41,12 @@ export const Route = createFileRoute("/api/accounts/$id/validate")({
             // opcional
           }
 
-          return json({ ok: true, me, ig, suggestions });
+          return json({ ok: true, me: result.me, ig: result.ig, graph_host: result.host, suggestions });
         } catch (err) {
+          if (err instanceof InstagramGraphError) {
+            const first = err.failures[0];
+            return json({ ok: false, scope: "graph", error: first?.json ?? err.message, failures: err.failures }, 200);
+          }
           return json(
             { ok: false, error: err instanceof Error ? err.message : String(err) },
             500,
