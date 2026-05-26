@@ -632,8 +632,18 @@ function DistributeTab() {
       let i = 0;
       let ok = 0;
       let fail = 0;
-      for (const v of selectedList) {
-        for (const accId of selectedAccounts) {
+      // Para cada conta, define a ordem dos vídeos (sequencial ou embaralhada por conta)
+      const shuffle = <T,>(arr: T[]): T[] => {
+        const a = [...arr];
+        for (let j = a.length - 1; j > 0; j--) {
+          const k = Math.floor(Math.random() * (j + 1));
+          [a[j], a[k]] = [a[k], a[j]];
+        }
+        return a;
+      };
+      for (const accId of selectedAccounts) {
+        const videosForAcc = order === "random" ? shuffle(selectedList) : selectedList;
+        for (const v of videosForAcc) {
           const scheduledAt = new Date(startMs + i * gap * 60_000).toISOString();
           const res = await api.enqueue({
             account_id: accId,
@@ -647,7 +657,7 @@ function DistributeTab() {
           i++;
         }
       }
-      setEnqueueMsg(`✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""}`);
+      setEnqueueMsg(`✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ordem: ${order === "random" ? "aleatória" : "sequencial"}`);
     } catch (e) {
       setEnqueueMsg(`Erro: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
