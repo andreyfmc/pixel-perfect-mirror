@@ -27,22 +27,39 @@ export const Route = createFileRoute("/api/accounts/$id/validate")({
             await db.updateAccountCredentials(params.id, {
               access_token: result.accessToken,
               ig_user_id: typeof result.ig?.id === "string" ? result.ig.id : undefined,
-              profile_picture: typeof result.ig?.profile_picture_url === "string" ? result.ig.profile_picture_url : undefined,
-              followers: typeof result.ig?.followers_count === "number" ? result.ig.followers_count : undefined,
+              profile_picture:
+                typeof result.ig?.profile_picture_url === "string"
+                  ? result.ig.profile_picture_url
+                  : undefined,
+              followers:
+                typeof result.ig?.followers_count === "number"
+                  ? result.ig.followers_count
+                  : undefined,
               health_score: 95,
             });
           }
 
-          return json({ ok: true, me: result.me, ig: result.ig, graph_host: result.host, suggestions: result.suggestions ?? [] });
+          return json({
+            ok: true,
+            me: result.me,
+            ig: result.ig,
+            graph_host: result.host,
+            suggestions: result.suggestions ?? [],
+          });
         } catch (err) {
           if (err instanceof InstagramGraphError) {
             const first = err.failures[0];
-            return json({ ok: false, scope: "graph", error: first?.json ?? err.message, failures: err.failures }, 200);
+            return json(
+              {
+                ok: false,
+                scope: "graph",
+                error: first?.json ?? err.message,
+                failures: err.failures,
+              },
+              200,
+            );
           }
-          return json(
-            { ok: false, error: err instanceof Error ? err.message : String(err) },
-            500,
-          );
+          return json({ ok: false, error: err instanceof Error ? err.message : String(err) }, 500);
         }
       },
     },
