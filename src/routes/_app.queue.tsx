@@ -271,7 +271,7 @@ function QueuePage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-sm font-medium">@{q.account}</span>
+                    <span className="text-sm font-medium">@{accountById.get(q.account)?.username ?? q.account.slice(0, 8)}</span>
                     <span className="rounded-md bg-bg3 px-1.5 py-0.5 text-[10px] uppercase text-text2">
                       {q.media_type}
                     </span>
