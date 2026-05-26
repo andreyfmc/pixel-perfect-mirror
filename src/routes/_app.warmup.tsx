@@ -865,18 +865,6 @@ function DistributeTab() {
           />
         </div>
 
-        <div>
-          <div className="mb-1 flex items-center justify-between">
-            <label className="text-xs uppercase tracking-wider text-muted2">Comando local</label>
-            {command && (
-              <button
-                onClick={copy}
-                className="inline-flex items-center gap-1 text-xs text-text2 hover:text-foreground"
-              >
-                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {copied ? "copiado" : "copiar"}
-              </button>
-            )}
         <div className="space-y-2">
           <button
             onClick={enqueueAll}
