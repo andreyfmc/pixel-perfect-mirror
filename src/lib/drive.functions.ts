@@ -1,6 +1,7 @@
 // Server functions: navega pastas e lista vídeos do Google Drive
 // via Lovable Connector Gateway (conta Google conectada ao workspace).
 import { createServerFn } from "@tanstack/react-start";
+import { ensureEnv } from "./cf.server";
 
 const GATEWAY = "https://connector-gateway.lovable.dev/google_drive/drive/v3";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
@@ -30,9 +31,10 @@ export type DriveListing = {
   error: string | null;
 };
 
-function headers(): { ok: true; h: Record<string, string> } | { ok: false; err: string } {
-  const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
-  const GOOGLE_DRIVE_API_KEY = process.env.GOOGLE_DRIVE_API_KEY;
+async function headers(): Promise<{ ok: true; h: Record<string, string> } | { ok: false; err: string }> {
+  const env = await ensureEnv();
+  const LOVABLE_API_KEY = env.LOVABLE_API_KEY ?? process.env.LOVABLE_API_KEY;
+  const GOOGLE_DRIVE_API_KEY = env.GOOGLE_DRIVE_API_KEY ?? process.env.GOOGLE_DRIVE_API_KEY;
   if (!LOVABLE_API_KEY) return { ok: false, err: "LOVABLE_API_KEY ausente" };
   if (!GOOGLE_DRIVE_API_KEY) return { ok: false, err: "Google Drive não conectado" };
   return {
@@ -61,7 +63,7 @@ async function fetchBreadcrumbs(folderId: string, h: Record<string, string>): Pr
 export const listDriveEntries = createServerFn({ method: "GET" })
   .inputValidator((data: { folderId?: string }) => ({ folderId: data?.folderId ?? "root" }))
   .handler(async ({ data }): Promise<DriveListing> => {
-    const auth = headers();
+    const auth = await headers();
     if (!auth.ok) {
       return { folders: [], videos: [], breadcrumbs: [], error: auth.err };
     }
@@ -132,7 +134,7 @@ export const listDriveEntries = createServerFn({ method: "GET" })
 
 // Backwards-compatible: lista TODOS os vídeos (busca global) sem navegar.
 export const listDriveVideos = createServerFn({ method: "GET" }).handler(async () => {
-  const auth = headers();
+  const auth = await headers();
   if (!auth.ok) return { videos: [] as DriveVideo[], error: auth.err };
   const params = new URLSearchParams({
     q: "mimeType contains 'video/' and trashed = false",

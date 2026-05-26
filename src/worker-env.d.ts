@@ -20,6 +20,9 @@ declare global {
       META_IG_APP_SECRET?: string;
       // Override opcional do origin público (caso o Worker rode atrás de proxy)
       PUBLIC_BASE_URL?: string;
+      // Lovable connector gateway
+      LOVABLE_API_KEY?: string;
+      GOOGLE_DRIVE_API_KEY?: string;
     }
   }
 }
