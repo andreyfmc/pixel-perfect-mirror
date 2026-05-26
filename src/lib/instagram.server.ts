@@ -99,6 +99,17 @@ async function facebookGet(path: string, params: Record<string, string>) {
   return graphRequest("GET", path, params, [GRAPH_HOSTS[0]]);
 }
 
+async function instagramGet(path: string, params: Record<string, string>) {
+  return graphRequest("GET", path, params, [GRAPH_HOSTS[1]]);
+}
+
+function normalizeInstagramUser(json: GraphJson): GraphJson {
+  return {
+    ...json,
+    id: String(json.id ?? json.user_id ?? ""),
+  };
+}
+
 export const instagram = {
   async validateCredentials(input: { igUserId: string; accessToken: string }) {
     let me: GraphJson | null = null;
@@ -111,25 +122,25 @@ export const instagram = {
         fields: "id,name",
       });
     } catch {
-      me = await graphRequest("GET", "/me", {
+      me = normalizeInstagramUser(await instagramGet("/me", {
         access_token: input.accessToken,
-        fields: "id,username,name",
-      }, [GRAPH_HOSTS[1]]);
+        fields: "user_id,username,name",
+      }));
       host = "instagram";
     }
 
     try {
-      ig = await graphRequest("GET", `/${input.igUserId}`, {
+      ig = await facebookGet(`/${input.igUserId}`, {
         access_token: input.accessToken,
         fields: "id,username,name",
       });
       host = "facebook";
     } catch (err) {
       if (err instanceof InstagramGraphError) {
-        ig = await graphRequest("GET", `/${input.igUserId}`, {
+        ig = normalizeInstagramUser(await instagramGet(`/${input.igUserId}`, {
           access_token: input.accessToken,
-          fields: "id,username,name",
-        }, [GRAPH_HOSTS[1]]);
+          fields: "user_id,username,name",
+        }));
         host = "instagram";
       } else {
         throw err;
