@@ -45,7 +45,7 @@ export class InstagramGraphError extends Error {
         ? " — credenciais incompatíveis: o token salvo não acessa este ig_user_id. Revalide/reconecte a conta."
         : err?.code === 190
           ? " — token OAuth inválido/expirado ou malformado. Reconecte a conta para gerar um novo token."
-        : "";
+          : "";
     const attempts = failures
       .map((f) => `${f.host} ${f.status}: ${JSON.stringify(f.json)}`)
       .join(" | ");
@@ -270,7 +270,10 @@ export const instagram = {
           }),
         );
       } catch (instagramErr) {
-        if (facebookErr instanceof InstagramGraphError && instagramErr instanceof InstagramGraphError) {
+        if (
+          facebookErr instanceof InstagramGraphError &&
+          instagramErr instanceof InstagramGraphError
+        ) {
           throw new InstagramGraphError([...facebookErr.failures, ...instagramErr.failures]);
         }
         throw instagramErr;

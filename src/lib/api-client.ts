@@ -42,7 +42,6 @@ function queueFromRow(r: QueueRow): QueueItem {
   };
 }
 
-
 export const api = {
   async listAccounts(): Promise<Account[]> {
     const data = await tryJson<{ accounts: AccountRow[] }>("/api/accounts");
@@ -146,7 +145,6 @@ export const api = {
       return null;
     }
   },
-
 
   async uploadMedia(file: File): Promise<{ key: string; url: string } | null> {
     try {

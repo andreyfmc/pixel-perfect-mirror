@@ -4,7 +4,17 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api-client";
 import { fmtDateShort, fmtDateFull } from "@/lib/format";
-import { Plus, MoreHorizontal, ShieldCheck, Loader2, Instagram, Facebook, Trash2, ArrowDownUp, BadgeCheck } from "lucide-react";
+import {
+  Plus,
+  MoreHorizontal,
+  ShieldCheck,
+  Loader2,
+  Instagram,
+  Facebook,
+  Trash2,
+  ArrowDownUp,
+  BadgeCheck,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,9 +57,7 @@ function AccountsPage() {
       case "health":
         return arr.sort((a, b) => b.health_score - a.health_score);
       case "recent":
-        return arr.sort(
-          (a, b) => +new Date(b.last_post_at) - +new Date(a.last_post_at),
-        );
+        return arr.sort((a, b) => +new Date(b.last_post_at) - +new Date(a.last_post_at));
       case "name":
         return arr.sort((a, b) => a.username.localeCompare(b.username));
     }
@@ -87,7 +95,6 @@ function AccountsPage() {
     window.history.replaceState({}, "", window.location.pathname);
   }, [qc]);
 
-
   return (
     <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-7 md:px-10 md:py-8">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
@@ -115,10 +122,9 @@ function AccountsPage() {
               toast.dismiss(t);
               if (!fails.length) toast.success(`Todas válidas (${ok}/${accounts.length})`);
               else
-                toast.error(
-                  `${ok}/${accounts.length} ok · falhas: ${fails.join(", ")}`,
-                  { duration: 12000 },
-                );
+                toast.error(`${ok}/${accounts.length} ok · falhas: ${fails.join(", ")}`, {
+                  duration: 12000,
+                });
             }}
             className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground"
           >
@@ -141,21 +147,33 @@ function AccountsPage() {
         </div>
       </header>
 
-
       <section className="mb-8 grid gap-4 md:grid-cols-2">
         <button
           type="button"
           onClick={() => handleConnect("instagram")}
           disabled={loading !== null}
           className="im-card im-card-hover group relative flex items-center gap-4 p-5 text-left disabled:opacity-60"
-          style={{ background: "linear-gradient(135deg, rgba(225,48,108,0.18), rgba(131,58,180,0.18))" }}
+          style={{
+            background: "linear-gradient(135deg, rgba(225,48,108,0.18), rgba(131,58,180,0.18))",
+          }}
         >
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl text-white" style={{ background: "linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)" }}>
-            {loading === "instagram" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Instagram className="h-5 w-5" />}
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-xl text-white"
+            style={{
+              background: "linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",
+            }}
+          >
+            {loading === "instagram" ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Instagram className="h-5 w-5" />
+            )}
           </div>
           <div className="min-w-0">
             <div className="text-base font-semibold">Conectar com Instagram</div>
-            <div className="text-xs text-text2">Instagram Login direto · contas Business sem Página</div>
+            <div className="text-xs text-text2">
+              Instagram Login direto · contas Business sem Página
+            </div>
           </div>
         </button>
 
@@ -164,10 +182,16 @@ function AccountsPage() {
           onClick={() => handleConnect("facebook")}
           disabled={loading !== null}
           className="im-card im-card-hover group relative flex items-center gap-4 p-5 text-left disabled:opacity-60"
-          style={{ background: "linear-gradient(135deg, rgba(24,119,242,0.18), rgba(0,82,204,0.18))" }}
+          style={{
+            background: "linear-gradient(135deg, rgba(24,119,242,0.18), rgba(0,82,204,0.18))",
+          }}
         >
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#1877F2] text-white">
-            {loading === "facebook" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Facebook className="h-5 w-5" />}
+            {loading === "facebook" ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Facebook className="h-5 w-5" />
+            )}
           </div>
           <div className="min-w-0">
             <div className="text-base font-semibold">Conectar via Facebook</div>
@@ -175,7 +199,6 @@ function AccountsPage() {
           </div>
         </button>
       </section>
-
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20 text-text2">
@@ -188,7 +211,9 @@ function AccountsPage() {
               <div className="flex items-start gap-4">
                 <div
                   className="rounded-full p-[2px]"
-                  style={{ background: `conic-gradient(${ringForHealth(a.health_score)} ${a.health_score}%, var(--border) 0)` }}
+                  style={{
+                    background: `conic-gradient(${ringForHealth(a.health_score)} ${a.health_score}%, var(--border) 0)`,
+                  }}
                 >
                   <img
                     src={a.profile_picture}
@@ -201,7 +226,10 @@ function AccountsPage() {
                     <h3 className="truncate text-base font-semibold">@{a.username}</h3>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <button className="ml-auto text-text2 hover:text-foreground" aria-label="Menu">
+                        <button
+                          className="ml-auto text-text2 hover:text-foreground"
+                          aria-label="Menu"
+                        >
                           <MoreHorizontal className="h-4 w-4" />
                         </button>
                       </DropdownMenuTrigger>
@@ -222,9 +250,12 @@ function AccountsPage() {
                                   `OK · IG @${r.ig?.username ?? "?"} (id ${r.ig?.id ?? "?"})`,
                                 );
                               } else if (r.needs_reconnect) {
-                                toast.error(`@${a.username}: token expirado/inválido. Reconecte a conta.`, {
-                                  duration: 12000,
-                                });
+                                toast.error(
+                                  `@${a.username}: token expirado/inválido. Reconecte a conta.`,
+                                  {
+                                    duration: 12000,
+                                  },
+                                );
                                 qc.invalidateQueries({ queryKey: ["accounts"] });
                               } else {
                                 const sugg = (r.suggestions ?? [])
@@ -254,7 +285,10 @@ function AccountsPage() {
                           className="text-red-500 focus:text-red-500"
                           onSelect={async (e) => {
                             e.preventDefault();
-                            if (!confirm(`Remover @${a.username}? Esta ação não pode ser desfeita.`)) return;
+                            if (
+                              !confirm(`Remover @${a.username}? Esta ação não pode ser desfeita.`)
+                            )
+                              return;
                             const t = toast.loading("Removendo conta…");
                             try {
                               await api.deleteAccount(a.id);
@@ -274,20 +308,24 @@ function AccountsPage() {
                     </DropdownMenu>
                   </div>
                   <p className="text-sm text-text2">{a.name}</p>
-
                 </div>
               </div>
 
               <dl className="mt-5 grid grid-cols-3 gap-3 text-center">
                 <div className="rounded-lg bg-bg3 px-2 py-3">
                   <dt className="text-[10px] uppercase tracking-wider text-muted2">Saúde</dt>
-                  <dd className="mt-1 text-base font-semibold" style={{ color: ringForHealth(a.health_score) }}>
+                  <dd
+                    className="mt-1 text-base font-semibold"
+                    style={{ color: ringForHealth(a.health_score) }}
+                  >
                     {a.health_score}
                   </dd>
                 </div>
                 <div className="rounded-lg bg-bg3 px-2 py-3">
                   <dt className="text-[10px] uppercase tracking-wider text-muted2">Seguidores</dt>
-                  <dd className="mt-1 text-base font-semibold">{a.followers.toLocaleString("pt-BR")}</dd>
+                  <dd className="mt-1 text-base font-semibold">
+                    {a.followers.toLocaleString("pt-BR")}
+                  </dd>
                 </div>
                 <div className="rounded-lg bg-bg3 px-2 py-3">
                   <dt className="text-[10px] uppercase tracking-wider text-muted2">Último</dt>
@@ -312,11 +350,14 @@ function AccountsPage() {
             className="im-card border-dashed flex min-h-[260px] flex-col items-center justify-center gap-2 text-text2 hover:text-foreground hover:border-accent disabled:opacity-60"
           >
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-bg3">
-              {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />}
+              {loading ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Plus className="h-5 w-5" />
+              )}
             </div>
             <span className="text-sm">Adicionar nova conta</span>
           </button>
-
         </div>
       )}
     </div>
