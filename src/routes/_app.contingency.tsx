@@ -474,7 +474,7 @@ function Row({
 
         {/* username */}
         <div className="flex w-48 min-w-0 shrink-0 items-center gap-1.5">
-          <TypeIcon type={ctype} />
+          <TypeToggle type={ctype} onChange={(t) => onPatch({ connection_type: t })} />
           <span className="truncate font-mono text-[13px]">@{a.username || <span className="text-muted2">sem nome</span>}</span>
           <button
             onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(a.username); toast.success("Copiado"); }}
