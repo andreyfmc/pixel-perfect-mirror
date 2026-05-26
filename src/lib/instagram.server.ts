@@ -378,7 +378,10 @@ export const instagram = {
             followers_count: suggestion.followers,
           },
           host: "facebook" as GraphHostId,
-          accessToken: suggestion.pageAccessToken,
+          // Mantenha o User token original para publicação. O Page token serve
+          // para descobrir/ler a IG vinculada, mas falha em media container com
+          // GraphMethodException code=100 subcode=33.
+          accessToken: input.accessToken,
           suggestions: accounts,
         };
       }
