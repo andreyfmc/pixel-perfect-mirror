@@ -864,7 +864,41 @@ function DistributeTab() {
               onChange={(e) => setGap(Number(e.target.value))}
               className="w-full rounded-lg border border-border2 bg-bg3 px-2 py-1.5 text-sm outline-none focus:border-accent"
             />
+        </div>
+
+        <div>
+          <label className="mb-1.5 block text-xs uppercase tracking-wider text-muted2">
+            Ordem dos vídeos
+          </label>
+          <div className="grid grid-cols-2 gap-1 rounded-lg border border-border2 bg-bg3 p-1">
+            {([
+              { id: "sequential", label: "Sequencial" },
+              { id: "random", label: "Aleatória" },
+            ] as const).map((opt) => {
+              const active = order === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  onClick={() => setOrder(opt.id)}
+                  className={[
+                    "rounded-md px-3 py-1.5 text-xs font-medium transition",
+                    active
+                      ? "bg-accent text-white shadow"
+                      : "text-text2 hover:text-foreground",
+                  ].join(" ")}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
           </div>
+          <p className="mt-1 text-[11px] text-muted2">
+            {order === "random"
+              ? "Cada conta recebe os vídeos em ordem embaralhada."
+              : "Todas as contas seguem a mesma ordem de seleção."}
+          </p>
+        </div>
+
         </div>
 
         <div>
