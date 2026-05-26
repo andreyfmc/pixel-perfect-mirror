@@ -622,6 +622,38 @@ function DistributeTab() {
     setTimeout(() => setCopied(false), 1500);
   };
 
+  const enqueueAll = async () => {
+    if (!selectedList.length || !selectedAccounts.length) return;
+    setEnqueueing(true);
+    setEnqueueMsg(null);
+    try {
+      const startMs = new Date(start).getTime();
+      let i = 0;
+      let ok = 0;
+      let fail = 0;
+      for (const v of selectedList) {
+        for (const accId of selectedAccounts) {
+          const scheduledAt = new Date(startMs + i * gap * 60_000).toISOString();
+          const res = await api.enqueue({
+            account_id: accId,
+            caption,
+            media_type: "REEL",
+            media_key: `drive:${v.id}`,
+            scheduled_at: scheduledAt,
+          });
+          if (res) ok++;
+          else fail++;
+          i++;
+        }
+      }
+      setEnqueueMsg(`✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""}`);
+    } catch (e) {
+      setEnqueueMsg(`Erro: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setEnqueueing(false);
+    }
+  };
+
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
