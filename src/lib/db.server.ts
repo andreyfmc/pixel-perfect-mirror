@@ -384,3 +384,16 @@ const rawDb = {
       .run();
   },
 };
+
+// Proxy que garante a auto-migração antes de cada chamada de método.
+type DbApi = typeof rawDb;
+export const db: DbApi = new Proxy(rawDb, {
+  get(target, prop: string | symbol) {
+    const value = (target as Record<string | symbol, unknown>)[prop];
+    if (typeof value !== "function") return value;
+    return async (...args: unknown[]) => {
+      await ensureSchema();
+      return (value as (...a: unknown[]) => unknown).apply(target, args);
+    };
+  },
+}) as DbApi;
