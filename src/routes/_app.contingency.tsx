@@ -256,6 +256,7 @@ function ContingencyPage() {
   const [list, update] = useContingency();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ContingencyStatus>("all");
+  const [sortBy, setSortBy] = useState<"updated_desc" | "username_asc" | "username_desc" | "status" | "quality">("updated_desc");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [addOpen, setAddOpen] = useState(false);
@@ -269,12 +270,25 @@ function ContingencyPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return list.filter((a) => {
+    const statusOrder: Record<ContingencyStatus, number> = { pronta: 0, em_uso: 1, em_edicao: 2, descartada: 3 };
+    const qualityOrder: Record<string, number> = { boa: 0, media: 1, ruim: 2 };
+    const out = list.filter((a) => {
       if (statusFilter !== "all" && a.status !== statusFilter) return false;
       if (q && !a.username.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [list, query, statusFilter]);
+    out.sort((a, b) => {
+      switch (sortBy) {
+        case "username_asc": return a.username.localeCompare(b.username);
+        case "username_desc": return b.username.localeCompare(a.username);
+        case "status": return statusOrder[a.status] - statusOrder[b.status];
+        case "quality": return qualityOrder[a.quality] - qualityOrder[b.quality];
+        case "updated_desc":
+        default: return b.updated_at.localeCompare(a.updated_at);
+      }
+    });
+    return out;
+  }, [list, query, statusFilter, sortBy]);
 
   const patch = (id: string, p: Partial<ContingencyAccount>) =>
     update((prev) => {
