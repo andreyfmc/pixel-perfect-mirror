@@ -59,6 +59,20 @@ async function ensureSchema(): Promise<void> {
       if (!queueCols.has("group_scheduled_at")) {
         await db.prepare("ALTER TABLE queue ADD COLUMN group_scheduled_at TEXT").run();
       }
+      // oauth_states — links únicos de conexão (Instagram OAuth Tester).
+      await db
+        .prepare(
+          `CREATE TABLE IF NOT EXISTS oauth_states (
+             state TEXT PRIMARY KEY,
+             status TEXT NOT NULL DEFAULT 'pending'
+               CHECK (status IN ('pending','consumed','expired')),
+             redirect_uri TEXT NOT NULL,
+             created_at TEXT NOT NULL DEFAULT (datetime('now')),
+             expires_at TEXT NOT NULL,
+             consumed_at TEXT
+           )`,
+        )
+        .run();
     } catch (err) {
       // Não bloqueia o app se o PRAGMA falhar — reseta a promise para tentar de novo
       // na próxima request.
