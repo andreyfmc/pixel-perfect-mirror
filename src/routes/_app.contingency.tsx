@@ -81,6 +81,25 @@ function TypeIcon({ type }: { type: ConnectionType }) {
   );
 }
 
+function TypeToggle({
+  type, onChange,
+}: { type: ConnectionType; onChange: (t: ConnectionType) => void }) {
+  const next: ConnectionType = type === "instagram" ? "facebook" : "instagram";
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onChange(next);
+      }}
+      title={`Alternar para ${next === "instagram" ? "Instagram" : "Facebook"}`}
+      className="shrink-0 rounded-[4px] outline-none ring-offset-1 transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      <TypeIcon type={type} />
+    </button>
+  );
+}
+
 function TotpInline({ secret, privateMode }: { secret: string; privateMode: boolean }) {
   const [code, setCode] = useState("------");
   const [left, setLeft] = useState(30);
