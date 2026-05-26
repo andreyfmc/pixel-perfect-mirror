@@ -1162,8 +1162,8 @@ function DistributeTab() {
               </span>{" "}
               → próxima postagem em{" "}
               <span className="font-medium text-foreground">{fmtPreview()}</span>, ciclo de{" "}
-              <span className="font-medium text-foreground">{gap}</span> ±{" "}
-              <span className="font-medium text-foreground">{jitter}</span> min
+              <span className="font-medium text-foreground">{gap}</span> +{" "}
+              <span className="font-medium text-foreground">0–{jitter}</span> min
             </div>
           )}
 
