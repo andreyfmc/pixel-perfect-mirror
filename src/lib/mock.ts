@@ -6,7 +6,7 @@ export type Account = {
   health_score: number;
   followers: number;
   last_post_at: string;
-  token_expires_at: string;
+  token_expires_at: string | null;
   token_status: "valid" | "expired";
   provider: "facebook" | "instagram";
 };
