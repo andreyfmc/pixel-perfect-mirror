@@ -16,7 +16,6 @@ import { Route as ApiHistoryRouteImport } from './routes/api/history'
 import { Route as ApiContingencyRouteImport } from './routes/api/contingency'
 import { Route as ApiAccountsRouteImport } from './routes/api/accounts'
 import { Route as AppWarmupRouteImport } from './routes/_app.warmup'
-import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppQueueRouteImport } from './routes/_app.queue'
 import { Route as AppHistoryRouteImport } from './routes/_app.history'
 import { Route as AppContingencyRouteImport } from './routes/_app.contingency'
@@ -65,11 +64,6 @@ const ApiAccountsRoute = ApiAccountsRouteImport.update({
 const AppWarmupRoute = AppWarmupRouteImport.update({
   id: '/warmup',
   path: '/warmup',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSettingsRoute = AppSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
 const AppQueueRoute = AppQueueRouteImport.update({
@@ -154,7 +148,6 @@ export interface FileRoutesByFullPath {
   '/contingency': typeof AppContingencyRoute
   '/history': typeof AppHistoryRoute
   '/queue': typeof AppQueueRoute
-  '/settings': typeof AppSettingsRoute
   '/warmup': typeof AppWarmupRoute
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
@@ -177,7 +170,6 @@ export interface FileRoutesByTo {
   '/contingency': typeof AppContingencyRoute
   '/history': typeof AppHistoryRoute
   '/queue': typeof AppQueueRoute
-  '/settings': typeof AppSettingsRoute
   '/warmup': typeof AppWarmupRoute
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
@@ -203,7 +195,6 @@ export interface FileRoutesById {
   '/_app/contingency': typeof AppContingencyRoute
   '/_app/history': typeof AppHistoryRoute
   '/_app/queue': typeof AppQueueRoute
-  '/_app/settings': typeof AppSettingsRoute
   '/_app/warmup': typeof AppWarmupRoute
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
@@ -230,7 +221,6 @@ export interface FileRouteTypes {
     | '/contingency'
     | '/history'
     | '/queue'
-    | '/settings'
     | '/warmup'
     | '/api/accounts'
     | '/api/contingency'
@@ -253,7 +243,6 @@ export interface FileRouteTypes {
     | '/contingency'
     | '/history'
     | '/queue'
-    | '/settings'
     | '/warmup'
     | '/api/accounts'
     | '/api/contingency'
@@ -278,7 +267,6 @@ export interface FileRouteTypes {
     | '/_app/contingency'
     | '/_app/history'
     | '/_app/queue'
-    | '/_app/settings'
     | '/_app/warmup'
     | '/api/accounts'
     | '/api/contingency'
@@ -361,13 +349,6 @@ declare module '@tanstack/react-router' {
       path: '/warmup'
       fullPath: '/warmup'
       preLoaderRoute: typeof AppWarmupRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/settings': {
-      id: '/_app/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/queue': {
@@ -483,7 +464,6 @@ interface AppRouteChildren {
   AppContingencyRoute: typeof AppContingencyRoute
   AppHistoryRoute: typeof AppHistoryRoute
   AppQueueRoute: typeof AppQueueRoute
-  AppSettingsRoute: typeof AppSettingsRoute
   AppWarmupRoute: typeof AppWarmupRoute
   AppIndexRoute: typeof AppIndexRoute
 }
@@ -493,7 +473,6 @@ const AppRouteChildren: AppRouteChildren = {
   AppContingencyRoute: AppContingencyRoute,
   AppHistoryRoute: AppHistoryRoute,
   AppQueueRoute: AppQueueRoute,
-  AppSettingsRoute: AppSettingsRoute,
   AppWarmupRoute: AppWarmupRoute,
   AppIndexRoute: AppIndexRoute,
 }

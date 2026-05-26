@@ -16,6 +16,11 @@ import {
 } from "@/lib/contingency-store";
 import { generateTOTP, totpSecondsRemaining } from "@/lib/totp";
 import { api } from "@/lib/api-client";
+import { useServerFn } from "@tanstack/react-start";
+import {
+  listContingencyCsvs, downloadDriveCsv, uploadContingencyCsv,
+  type DriveCsvFile,
+} from "@/lib/drive.functions";
 import type { Account } from "@/lib/mock";
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator,
@@ -78,6 +83,25 @@ function TypeIcon({ type }: { type: ConnectionType }) {
       className="inline-flex h-4 w-4 items-center justify-center rounded-[4px] text-[8px] font-bold text-white"
       style={{ background: "linear-gradient(135deg,#feda75,#fa7e1e 30%,#d62976 60%,#962fbf 80%,#4f5bd5)" }}
     >IG</span>
+  );
+}
+
+function TypeToggle({
+  type, onChange,
+}: { type: ConnectionType; onChange: (t: ConnectionType) => void }) {
+  const next: ConnectionType = type === "instagram" ? "facebook" : "instagram";
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onChange(next);
+      }}
+      title={`Alternar para ${next === "instagram" ? "Instagram" : "Facebook"}`}
+      className="shrink-0 rounded-[4px] outline-none ring-offset-1 transition-transform hover:scale-110 focus-visible:ring-2 focus-visible:ring-accent"
+    >
+      <TypeIcon type={type} />
+    </button>
   );
 }
 
@@ -455,7 +479,7 @@ function Row({
 
         {/* username */}
         <div className="flex w-48 min-w-0 shrink-0 items-center gap-1.5">
-          <TypeIcon type={ctype} />
+          <TypeToggle type={ctype} onChange={(t) => onPatch({ connection_type: t })} />
           <span className="truncate font-mono text-[13px]">@{a.username || <span className="text-muted2">sem nome</span>}</span>
           <button
             onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(a.username); toast.success("Copiado"); }}
@@ -608,7 +632,11 @@ function ContingencyPage() {
   const [activateAccount, setActivateAccount] = useState<ContingencyAccount | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [privateMode, setPrivateMode] = useState(false);
+  const [driveOpen, setDriveOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const uploadCsv = useServerFn(uploadContingencyCsv);
+  const listCsvs = useServerFn(listContingencyCsvs);
+  const downloadCsv = useServerFn(downloadDriveCsv);
 
   // private-mode persistence + title indicator
   useEffect(() => {
@@ -769,6 +797,28 @@ function ContingencyPage() {
           <Zap className="h-3.5 w-3.5" /> Ativar conta
         </button>
 
+        <button
+          onClick={() => setDriveOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs hover:border-border2"
+          title="Importar CSV do Google Drive (mesma conexão do app)"
+        >
+          <HardDrive className="h-3.5 w-3.5" /> Drive
+        </button>
+        <button
+          onClick={async () => {
+            const csv = toCSV(list);
+            const filename = `contingencia-${new Date().toISOString().slice(0, 10)}.csv`;
+            toast.loading("Enviando ao Drive...", { id: "drive-save" });
+            const res = await uploadCsv({ data: { filename, csv } });
+            if (res.error) toast.error(`Falha: ${res.error}`, { id: "drive-save" });
+            else toast.success(`Salvo no Drive: ${filename}`, { id: "drive-save" });
+          }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs hover:border-border2"
+          title="Salvar CSV no Google Drive (mesma conexão do app)"
+        >
+          <Save className="h-3.5 w-3.5" /> Salvar no Drive
+        </button>
+
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs hover:border-border2">
@@ -783,12 +833,6 @@ function ContingencyPage() {
             <DropdownMenuItem onClick={() => fileRef.current?.click()}>
               <FileUp className="mr-2 h-3.5 w-3.5" /> Importar CSV/XLSX
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info("Conecte o Google Drive em Configurações")}>
-              <HardDrive className="mr-2 h-3.5 w-3.5" /> Drive
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => toast.info("Em breve: salvar no Drive")}>
-              <Save className="mr-2 h-3.5 w-3.5" /> Salvar no Drive
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={handleExport}>
               <FileDown className="mr-2 h-3.5 w-3.5" /> Exportar CSV
             </DropdownMenuItem>
@@ -797,6 +841,7 @@ function ContingencyPage() {
 
         <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImport(f); e.target.value = ""; }} />
+
 
         {selectMode && selected.size > 0 && (
           <button
@@ -947,9 +992,94 @@ function ContingencyPage() {
         account={activateAccount}
         onConfirm={onConfirmActivation}
       />
+      <DriveImportDialog
+        open={driveOpen}
+        onOpenChange={setDriveOpen}
+        listCsvs={listCsvs}
+        downloadCsv={downloadCsv}
+        onImport={(text) => {
+          try {
+            const imported = fromCSV(text);
+            if (imported.length === 0) { toast.error("Nenhuma conta válida"); return; }
+            update((prev) => { const next = [...imported, ...prev]; replaceAllOnServer(next); return next; });
+            toast.success(`${imported.length} conta(s) importada(s) do Drive`);
+            setDriveOpen(false);
+          } catch (e) {
+            toast.error("Falha ao importar: " + (e as Error).message);
+          }
+        }}
+      />
     </div>
   );
 }
+
+function DriveImportDialog({
+  open, onOpenChange, listCsvs, downloadCsv, onImport,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  listCsvs: () => Promise<{ files: DriveCsvFile[]; error: string | null }>;
+  downloadCsv: (args: { data: { fileId: string } }) => Promise<{ content: string | null; error: string | null }>;
+  onImport: (text: string) => void;
+}) {
+  const [files, setFiles] = useState<DriveCsvFile[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true); setErr(null);
+    listCsvs()
+      .then((res) => { setFiles(res.files); setErr(res.error); })
+      .catch((e) => setErr(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  }, [open, listCsvs]);
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="bg-bg2 border-border max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <HardDrive className="h-4 w-4" /> Importar CSV do Drive
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-[11px] text-muted2">
+          Usa a mesma conexão Google Drive do app.
+        </p>
+        {loading && <p className="py-4 text-center text-sm text-muted2">Carregando...</p>}
+        {err && <p className="rounded-md border border-danger/40 bg-danger/10 p-2 text-xs text-danger">{err}</p>}
+        {!loading && !err && files.length === 0 && (
+          <p className="py-4 text-center text-sm text-muted2">Nenhum CSV encontrado no Drive.</p>
+        )}
+        <ul className="max-h-80 space-y-1 overflow-y-auto">
+          {files.map((f) => (
+            <li key={f.id}>
+              <button
+                onClick={async () => {
+                  toast.loading("Baixando...", { id: "drive-dl" });
+                  const res = await downloadCsv({ data: { fileId: f.id } });
+                  if (res.error || !res.content) {
+                    toast.error(`Falha: ${res.error ?? "vazio"}`, { id: "drive-dl" });
+                    return;
+                  }
+                  toast.dismiss("drive-dl");
+                  onImport(res.content);
+                }}
+                className="flex w-full items-center justify-between rounded-md border border-border bg-bg3 px-3 py-2 text-left text-sm hover:border-border2"
+              >
+                <span className="truncate">{f.name}</span>
+                {f.modifiedTime && (
+                  <span className="text-[10px] text-muted2">
+                    {new Date(f.modifiedTime).toLocaleDateString("pt-BR")}
+                  </span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 function StatCard({
   label, value, color, active, onClick, icon, warn, warnText, title,

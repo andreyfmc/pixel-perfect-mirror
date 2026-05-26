@@ -11,7 +11,7 @@ const items = [
   { to: "/warmup", label: "Warmup", emoji: "🔥" },
   { to: "/contingency", label: "Contin.", emoji: "🛡️" },
   { to: "/history", label: "Hist.", emoji: "📚" },
-  { to: "/settings", label: "Ajustes", emoji: "⚙️" },
+  
 ] as const;
 
 export function MobileBottomNav() {

@@ -165,3 +165,89 @@ export const listDriveVideos = createServerFn({ method: "GET" }).handler(async (
     return { videos: [] as DriveVideo[], error: err instanceof Error ? err.message : String(err) };
   }
 });
+
+// ===== Contingência: CSVs no Drive (mesma conexão) =====
+
+export type DriveCsvFile = {
+  id: string;
+  name: string;
+  modifiedTime?: string;
+  size?: string;
+};
+
+export const listContingencyCsvs = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ files: DriveCsvFile[]; error: string | null }> => {
+    const auth = await headers();
+    if (!auth.ok) return { files: [], error: auth.err };
+    const params = new URLSearchParams({
+      q: "(mimeType = 'text/csv' or name contains '.csv') and trashed = false",
+      fields: "files(id,name,modifiedTime,size)",
+      pageSize: "50",
+      orderBy: "modifiedTime desc",
+    });
+    try {
+      const res = await fetch(`${GATEWAY}/files?${params}`, { headers: auth.h });
+      const json = (await res.json()) as {
+        files?: DriveCsvFile[];
+        error?: { message?: string };
+      };
+      if (!res.ok) return { files: [], error: json.error?.message ?? `Drive ${res.status}` };
+      return { files: json.files ?? [], error: null };
+    } catch (err) {
+      return { files: [], error: err instanceof Error ? err.message : String(err) };
+    }
+  },
+);
+
+export const downloadDriveCsv = createServerFn({ method: "GET" })
+  .inputValidator((data: { fileId: string }) => ({ fileId: data.fileId }))
+  .handler(async ({ data }): Promise<{ content: string | null; error: string | null }> => {
+    const auth = await headers();
+    if (!auth.ok) return { content: null, error: auth.err };
+    try {
+      const res = await fetch(`${GATEWAY}/files/${data.fileId}?alt=media`, { headers: auth.h });
+      if (!res.ok) return { content: null, error: `Drive ${res.status}` };
+      const text = await res.text();
+      return { content: text, error: null };
+    } catch (err) {
+      return { content: null, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
+
+export const uploadContingencyCsv = createServerFn({ method: "POST" })
+  .inputValidator((data: { filename: string; csv: string }) => ({
+    filename: data.filename,
+    csv: data.csv,
+  }))
+  .handler(async ({ data }): Promise<{ id: string | null; error: string | null }> => {
+    const auth = await headers();
+    if (!auth.ok) return { id: null, error: auth.err };
+    const boundary = `----lov${Math.random().toString(36).slice(2)}`;
+    const metadata = { name: data.filename, mimeType: "text/csv" };
+    const body =
+      `--${boundary}\r\n` +
+      `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+      `${JSON.stringify(metadata)}\r\n` +
+      `--${boundary}\r\n` +
+      `Content-Type: text/csv\r\n\r\n` +
+      `${data.csv}\r\n` +
+      `--${boundary}--`;
+    try {
+      const res = await fetch(
+        `https://connector-gateway.lovable.dev/google_drive/upload/drive/v3/files?uploadType=multipart`,
+        {
+          method: "POST",
+          headers: {
+            ...auth.h,
+            "Content-Type": `multipart/related; boundary=${boundary}`,
+          },
+          body,
+        },
+      );
+      const json = (await res.json()) as { id?: string; error?: { message?: string } };
+      if (!res.ok) return { id: null, error: json.error?.message ?? `Drive ${res.status}` };
+      return { id: json.id ?? null, error: null };
+    } catch (err) {
+      return { id: null, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
