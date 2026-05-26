@@ -126,9 +126,48 @@ export async function runScheduler(
           errors++;
           continue;
         }
-        console.warn(
-          `[scheduler] queue=${item.id} validação de credencial falhou: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        if (isMismatchedCredentialsError(err)) {
+          // Linha tem (ig_user_id, access_token) que não batem entre si.
+          // Tenta puxar credenciais frescas de outra linha do mesmo @username
+          // (reconexão posterior) e re-valida uma vez. Sem isso o usuário
+          // fica preso reconectando sem efeito porque a linha antiga "parece"
+          // completa.
+          const healed = await db.healMismatchedCredentials(item.account_id);
+          if (healed?.ig_user_id && healed?.access_token) {
+            try {
+              const reValidated = await instagram.validateCredentials({
+                igUserId: healed.ig_user_id,
+                accessToken: healed.access_token,
+              });
+              igUserId = (typeof reValidated.ig?.id === "string" ? reValidated.ig.id : undefined) ?? healed.ig_user_id;
+              accessToken = (typeof reValidated.accessToken === "string" ? reValidated.accessToken : undefined) ?? healed.access_token;
+              await db.updateAccountCredentials(item.account_id, {
+                ig_user_id: igUserId,
+                access_token: accessToken,
+                token_status: "valid",
+                health_score: 95,
+              });
+            } catch (healErr) {
+              await db.markAccountNeedsReconnect(item.account_id);
+              await db.setQueueStatus(item.id, "canceled", {
+                last_error: `Credenciais incompatíveis e auto-recuperação falhou — reconecte a conta. (${healErr instanceof Error ? healErr.message : String(healErr)})`,
+              });
+              errors++;
+              continue;
+            }
+          } else {
+            await db.markAccountNeedsReconnect(item.account_id);
+            await db.setQueueStatus(item.id, "canceled", {
+              last_error: "Credenciais incompatíveis: o token salvo não acessa o ig_user_id desta conta. Reconecte a conta no Facebook para regenerar o Page token correto.",
+            });
+            errors++;
+            continue;
+          }
+        } else {
+          console.warn(
+            `[scheduler] queue=${item.id} validação de credencial falhou: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
       }
 
       let containerId = item.ig_container_id ?? undefined;
