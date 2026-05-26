@@ -100,6 +100,45 @@ async function facebookGet(path: string, params: Record<string, string>) {
 }
 
 export const instagram = {
+  async validateCredentials(input: { igUserId: string; accessToken: string }) {
+    let me: GraphJson | null = null;
+    let ig: GraphJson | null = null;
+    let host: GraphHostId = "facebook";
+
+    try {
+      me = await facebookGet("/me", {
+        access_token: input.accessToken,
+        fields: "id,name",
+      });
+    } catch {
+      me = await graphRequest("GET", "/me", {
+        access_token: input.accessToken,
+        fields: "id,username,name",
+      }, [GRAPH_HOSTS[1]]);
+      host = "instagram";
+    }
+
+    try {
+      ig = await graphRequest("GET", `/${input.igUserId}`, {
+        access_token: input.accessToken,
+        fields: "id,username,name",
+      });
+      host = "facebook";
+    } catch (err) {
+      if (err instanceof InstagramGraphError) {
+        ig = await graphRequest("GET", `/${input.igUserId}`, {
+          access_token: input.accessToken,
+          fields: "id,username,name",
+        }, [GRAPH_HOSTS[1]]);
+        host = "instagram";
+      } else {
+        throw err;
+      }
+    }
+
+    return { me, ig, host };
+  },
+
   async createContainer(input: PublishInput): Promise<string> {
     const body: Record<string, string> = {
       access_token: input.accessToken,
