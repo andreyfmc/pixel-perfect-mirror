@@ -4,10 +4,11 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api-client";
 import { listDriveEntries, type DriveVideo, type DriveFolder, type DriveCrumb } from "@/lib/drive.functions";
-import { Folder, ChevronRight, Home } from "lucide-react";
 import {
+  Folder,
+  ChevronRight,
+  Home,
   UploadCloud,
-  Settings2,
   Activity,
   Image as ImageIcon,
   HardDrive,
@@ -20,6 +21,17 @@ import {
   RefreshCw,
   Clock,
   Heart,
+  CalendarPlus,
+  Gauge,
+  CalendarDays,
+  Shuffle,
+  Trash2,
+  Search,
+  X,
+  Film,
+  AlertTriangle,
+  Users,
+  Settings2,
 } from "lucide-react";
 import { fmtDateTime } from "@/lib/format";
 
