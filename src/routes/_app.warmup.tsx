@@ -121,6 +121,12 @@ function WarmupPage() {
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
   });
+  const { data: queue = [] } = useQuery({
+    queryKey: ["queue"],
+    queryFn: () => api.listQueue(),
+    refetchInterval: 15_000,
+  });
+  const pendingCount = queue.filter((q: { status: string }) => q.status === "scheduled").length;
 
 
   async function handleFiles(files: File[] | FileList | null) {
