@@ -1034,9 +1034,9 @@ function DistributeTab() {
             <div>
               <label
                 className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted2"
-                title="Variação ± aplicada entre contas dentro do mesmo ciclo"
+                title="Atraso aleatório (0 a N min) somado ao intervalo de cada conta"
               >
-                <Shuffle className="h-3 w-3" /> Jitter (±min)
+                <Shuffle className="h-3 w-3" /> Jitter (+min)
               </label>
               <input
                 type="number"
