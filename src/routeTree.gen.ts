@@ -20,6 +20,7 @@ import { Route as AppQueueRouteImport } from './routes/_app.queue'
 import { Route as AppHistoryRouteImport } from './routes/_app.history'
 import { Route as AppContingencyRouteImport } from './routes/_app.contingency'
 import { Route as AppAccountsRouteImport } from './routes/_app.accounts'
+import { Route as ApiVariantsBuildRouteImport } from './routes/api/variants.build'
 import { Route as ApiQueueClearRouteImport } from './routes/api/queue.clear'
 import { Route as ApiQueueIdRouteImport } from './routes/api/queue.$id'
 import { Route as ApiMediaUploadRouteImport } from './routes/api/media.upload'
@@ -87,6 +88,11 @@ const AppAccountsRoute = AppAccountsRouteImport.update({
   id: '/accounts',
   path: '/accounts',
   getParentRoute: () => AppRoute,
+} as any)
+const ApiVariantsBuildRoute = ApiVariantsBuildRouteImport.update({
+  id: '/api/variants/build',
+  path: '/api/variants/build',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiQueueClearRoute = ApiQueueClearRouteImport.update({
   id: '/clear',
@@ -175,6 +181,7 @@ export interface FileRoutesByFullPath {
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
+  '/api/variants/build': typeof ApiVariantsBuildRoute
   '/api/accounts/$id/validate': typeof ApiAccountsIdValidateRoute
   '/api/auth/instagram/callback': typeof ApiAuthInstagramCallbackRoute
   '/api/auth/instagram/link': typeof ApiAuthInstagramLinkRoute
@@ -200,6 +207,7 @@ export interface FileRoutesByTo {
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
+  '/api/variants/build': typeof ApiVariantsBuildRoute
   '/api/accounts/$id/validate': typeof ApiAccountsIdValidateRoute
   '/api/auth/instagram/callback': typeof ApiAuthInstagramCallbackRoute
   '/api/auth/instagram/link': typeof ApiAuthInstagramLinkRoute
@@ -227,6 +235,7 @@ export interface FileRoutesById {
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
+  '/api/variants/build': typeof ApiVariantsBuildRoute
   '/api/accounts/$id/validate': typeof ApiAccountsIdValidateRoute
   '/api/auth/instagram/callback': typeof ApiAuthInstagramCallbackRoute
   '/api/auth/instagram/link': typeof ApiAuthInstagramLinkRoute
@@ -254,6 +263,7 @@ export interface FileRouteTypes {
     | '/api/media/upload'
     | '/api/queue/$id'
     | '/api/queue/clear'
+    | '/api/variants/build'
     | '/api/accounts/$id/validate'
     | '/api/auth/instagram/callback'
     | '/api/auth/instagram/link'
@@ -279,6 +289,7 @@ export interface FileRouteTypes {
     | '/api/media/upload'
     | '/api/queue/$id'
     | '/api/queue/clear'
+    | '/api/variants/build'
     | '/api/accounts/$id/validate'
     | '/api/auth/instagram/callback'
     | '/api/auth/instagram/link'
@@ -305,6 +316,7 @@ export interface FileRouteTypes {
     | '/api/media/upload'
     | '/api/queue/$id'
     | '/api/queue/clear'
+    | '/api/variants/build'
     | '/api/accounts/$id/validate'
     | '/api/auth/instagram/callback'
     | '/api/auth/instagram/link'
@@ -322,6 +334,7 @@ export interface RootRouteChildren {
   ApiAuthInstagramRoute: typeof ApiAuthInstagramRouteWithChildren
   ApiCronTickRoute: typeof ApiCronTickRoute
   ApiMediaUploadRoute: typeof ApiMediaUploadRoute
+  ApiVariantsBuildRoute: typeof ApiVariantsBuildRoute
   ApiPublicDriveIdRoute: typeof ApiPublicDriveIdRoute
 }
 
@@ -403,6 +416,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/accounts'
       preLoaderRoute: typeof AppAccountsRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/api/variants/build': {
+      id: '/api/variants/build'
+      path: '/api/variants/build'
+      fullPath: '/api/variants/build'
+      preLoaderRoute: typeof ApiVariantsBuildRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/queue/clear': {
       id: '/api/queue/clear'
@@ -592,6 +612,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthInstagramRoute: ApiAuthInstagramRouteWithChildren,
   ApiCronTickRoute: ApiCronTickRoute,
   ApiMediaUploadRoute: ApiMediaUploadRoute,
+  ApiVariantsBuildRoute: ApiVariantsBuildRoute,
   ApiPublicDriveIdRoute: ApiPublicDriveIdRoute,
 }
 export const routeTree = rootRouteImport
