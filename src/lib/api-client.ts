@@ -71,6 +71,7 @@ export const api = {
       likes: h.likes,
       comments: h.comments,
       thumb: h.thumb_url ?? "",
+      permalink: h.permalink ?? "",
     }));
   },
 
