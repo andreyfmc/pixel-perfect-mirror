@@ -49,7 +49,6 @@ export async function runScheduler(
 
   for (const item of due) {
     try {
-      await db.setQueueStatus(item.id, "processing");
       const account = await db.getAccount(item.account_id);
       if (!account?.ig_user_id || !account?.access_token) {
         throw new Error("Conta sem ig_user_id ou access_token");
@@ -90,6 +89,7 @@ export async function runScheduler(
           `[scheduler] queue=${item.id} renovação de token falhou: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
+      await db.setQueueStatus(item.id, "processing");
       try {
         const validated = await instagram.validateCredentials({
           igUserId,
