@@ -1248,6 +1248,7 @@ function ContingencyPage() {
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
           className="h-9 rounded-lg border border-border bg-bg2 px-2 text-xs">
+          <option value="order_asc">№ Número</option>
           <option value="updated_desc">↓ Recentes</option>
           <option value="username_asc">A → Z</option>
           <option value="username_desc">Z → A</option>
