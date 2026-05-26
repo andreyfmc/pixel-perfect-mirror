@@ -531,6 +531,7 @@ function DistributeTab() {
   };
   const [start, setStart] = useState(localNow);
   const [gap, setGap] = useState(15);
+  const [order, setOrder] = useState<"sequential" | "random">("sequential");
   const [copied, setCopied] = useState(false);
   const [enqueueing, setEnqueueing] = useState(false);
   const [enqueueMsg, setEnqueueMsg] = useState<string | null>(null);
