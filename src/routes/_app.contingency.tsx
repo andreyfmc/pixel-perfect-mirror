@@ -1025,17 +1025,27 @@ function ContingencyPage() {
         <button
           onClick={async () => {
             const csv = toCSV(list);
-            const filename = `contingencia-${new Date().toISOString().slice(0, 10)}.csv`;
-            toast.loading("Enviando ao Drive...", { id: "drive-save" });
-            const res = await uploadCsv({ data: { filename, csv } });
-            if (res.error) toast.error(`Falha: ${res.error}`, { id: "drive-save" });
-            else toast.success(`Salvo no Drive: ${filename}`, { id: "drive-save" });
+            const lastId = typeof window !== "undefined" ? localStorage.getItem("im_contingency_drive_file_id") : null;
+            const lastName = typeof window !== "undefined" ? localStorage.getItem("im_contingency_drive_file_name") : null;
+            const filename = lastName ?? `contingencia.csv`;
+            toast.loading(lastId ? "Atualizando no Drive..." : "Enviando ao Drive...", { id: "drive-save" });
+            const res = await uploadCsv({ data: { filename, csv, fileId: lastId ?? undefined } });
+            if (res.error) {
+              toast.error(`Falha: ${res.error}`, { id: "drive-save" });
+            } else {
+              if (res.id && typeof window !== "undefined") {
+                localStorage.setItem("im_contingency_drive_file_id", res.id);
+                localStorage.setItem("im_contingency_drive_file_name", filename);
+              }
+              toast.success(lastId ? `Sobrescrito: ${filename}` : `Salvo no Drive: ${filename}`, { id: "drive-save" });
+            }
           }}
           className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs hover:border-border2"
-          title="Salvar CSV no Google Drive (mesma conexão do app)"
+          title="Salvar/sobrescrever CSV no Google Drive"
         >
           <Save className="h-3.5 w-3.5" /> Salvar no Drive
         </button>
+
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -1120,7 +1130,7 @@ function ContingencyPage() {
 
       {/* stat cards */}
       <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-5">
-        <StatCard label="Total" value={counts.total} color="var(--accent2)" active={statusFilter === "all"} onClick={() => setStatusFilter("all")} />
+        <StatCard label="Total" value={counts.total} color="#ffffff" active={statusFilter === "all"} onClick={() => setStatusFilter("all")} />
         <StatCard
           label="Em Edição"
           value={counts.em_edicao}
@@ -1283,17 +1293,22 @@ function ContingencyPage() {
         onOpenChange={setDriveOpen}
         listCsvs={listCsvs}
         downloadCsv={downloadCsv}
-        onImport={(text) => {
+        onImport={(text, file) => {
           try {
             const imported = fromCSV(text);
             if (imported.length === 0) { toast.error("Nenhuma conta válida"); return; }
             update((prev) => { const next = [...imported, ...prev]; replaceAllOnServer(next); return next; });
+            if (file && typeof window !== "undefined") {
+              localStorage.setItem("im_contingency_drive_file_id", file.id);
+              localStorage.setItem("im_contingency_drive_file_name", file.name);
+            }
             toast.success(`${imported.length} conta(s) importada(s) do Drive`);
             setDriveOpen(false);
           } catch (e) {
             toast.error("Falha ao importar: " + (e as Error).message);
           }
         }}
+
       />
     </div>
   );
@@ -1306,7 +1321,7 @@ function DriveImportDialog({
   onOpenChange: (v: boolean) => void;
   listCsvs: () => Promise<{ files: DriveCsvFile[]; error: string | null }>;
   downloadCsv: (args: { data: { fileId: string } }) => Promise<{ content: string | null; error: string | null }>;
-  onImport: (text: string) => void;
+  onImport: (text: string, file: DriveCsvFile) => void;
 }) {
   const [files, setFiles] = useState<DriveCsvFile[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1347,7 +1362,7 @@ function DriveImportDialog({
                     return;
                   }
                   toast.dismiss("drive-dl");
-                  onImport(res.content);
+                  onImport(res.content, f);
                 }}
                 className="flex w-full items-center justify-between rounded-md border border-border bg-bg3 px-3 py-2 text-left text-sm hover:border-border2"
               >

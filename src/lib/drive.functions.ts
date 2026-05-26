@@ -215,24 +215,41 @@ export const downloadDriveCsv = createServerFn({ method: "GET" })
   });
 
 export const uploadContingencyCsv = createServerFn({ method: "POST" })
-  .inputValidator((data: { filename: string; csv: string }) => ({
+  .inputValidator((data: { filename: string; csv: string; fileId?: string }) => ({
     filename: data.filename,
     csv: data.csv,
+    fileId: data.fileId,
   }))
   .handler(async ({ data }): Promise<{ id: string | null; error: string | null }> => {
     const auth = await headers();
     if (!auth.ok) return { id: null, error: auth.err };
-    const boundary = `----lov${Math.random().toString(36).slice(2)}`;
-    const metadata = { name: data.filename, mimeType: "text/csv" };
-    const body =
-      `--${boundary}\r\n` +
-      `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
-      `${JSON.stringify(metadata)}\r\n` +
-      `--${boundary}\r\n` +
-      `Content-Type: text/csv\r\n\r\n` +
-      `${data.csv}\r\n` +
-      `--${boundary}--`;
     try {
+      // Se fileId fornecido, sobrescreve o conteúdo do arquivo existente (PATCH media).
+      if (data.fileId) {
+        const res = await fetch(
+          `https://connector-gateway.lovable.dev/google_drive/upload/drive/v3/files/${data.fileId}?uploadType=media`,
+          {
+            method: "PATCH",
+            headers: { ...auth.h, "Content-Type": "text/csv" },
+            body: data.csv,
+          },
+        );
+        if (!res.ok) {
+          const j = (await res.json().catch(() => ({}))) as { error?: { message?: string } };
+          return { id: null, error: j.error?.message ?? `Drive ${res.status}` };
+        }
+        return { id: data.fileId, error: null };
+      }
+      const boundary = `----lov${Math.random().toString(36).slice(2)}`;
+      const metadata = { name: data.filename, mimeType: "text/csv" };
+      const body =
+        `--${boundary}\r\n` +
+        `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+        `${JSON.stringify(metadata)}\r\n` +
+        `--${boundary}\r\n` +
+        `Content-Type: text/csv\r\n\r\n` +
+        `${data.csv}\r\n` +
+        `--${boundary}--`;
       const res = await fetch(
         `https://connector-gateway.lovable.dev/google_drive/upload/drive/v3/files?uploadType=multipart`,
         {
@@ -251,3 +268,4 @@ export const uploadContingencyCsv = createServerFn({ method: "POST" })
       return { id: null, error: err instanceof Error ? err.message : String(err) };
     }
   });
+
