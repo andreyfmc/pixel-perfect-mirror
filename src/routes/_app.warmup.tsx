@@ -502,6 +502,8 @@ function DistributeTab() {
   const [gap, setGap] = useState(persisted.gap ?? 60);
   const [jitter, setJitter] = useState(persisted.jitter ?? 20);
   const [order, setOrder] = useState<"sequential" | "random">(persisted.order ?? "sequential");
+  const [loopMode, setLoopMode] = useState<"once" | "snapshot" | "live_folder">("once");
+
   const [copied, setCopied] = useState(false);
   const [enqueueing, setEnqueueing] = useState(false);
   const [enqueueOk, setEnqueueOk] = useState(false);
