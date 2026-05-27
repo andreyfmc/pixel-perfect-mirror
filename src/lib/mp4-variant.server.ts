@@ -360,6 +360,8 @@ export async function variateMp4(
       timestampsUpdated,
       smhdBalanceUpdated,
       encoderRewritten,
+      xmpErased,
+      dayRewritten,
     },
   };
 }
