@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { Fragment as FragmentWithKey, useMemo, useState } from "react";
 import {
   Trophy,
   Search,
@@ -405,7 +405,7 @@ function RankingPage() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </FragmentWithKey>
                   ))}
                 </tbody>
               </table>
