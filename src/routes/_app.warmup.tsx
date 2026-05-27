@@ -597,11 +597,34 @@ function DistributeTab() {
   const canEnqueue = missing.length === 0 && !enqueueing;
   const disabledReason = missing.length ? `Faltando: ${missing.join(" · ")}` : "";
 
-  const filteredAccounts = accounts.filter((a) =>
-    accountFilter
-      ? (a.username + " " + (a.name ?? "")).toLowerCase().includes(accountFilter.toLowerCase())
-      : true,
-  );
+  const filteredAccounts = accounts
+    .filter((a) =>
+      accountFilter
+        ? (a.username + " " + (a.name ?? "")).toLowerCase().includes(accountFilter.toLowerCase())
+        : true,
+    )
+    .slice()
+    .sort((a, b) => {
+      switch (accountSort) {
+        case "followers_desc": return (b.followers ?? 0) - (a.followers ?? 0);
+        case "followers_asc": return (a.followers ?? 0) - (b.followers ?? 0);
+        case "health_desc": return (b.health_score ?? 0) - (a.health_score ?? 0);
+        case "health_asc": return (a.health_score ?? 0) - (b.health_score ?? 0);
+        case "alpha": return a.username.localeCompare(b.username);
+        case "last_activity": {
+          const at = a.last_post_at ? new Date(a.last_post_at).getTime() : 0;
+          const bt = b.last_post_at ? new Date(b.last_post_at).getTime() : 0;
+          return bt - at;
+        }
+      }
+    });
+
+  const selectHealthy = () =>
+    setSelectedAccounts(accounts.filter((a) => (a.health_score ?? 0) >= 80).map((a) => a.id));
+  const selectInUse = () =>
+    setSelectedAccounts(accounts.filter((a) => !a.paused).map((a) => a.id));
+  const clearAccounts = () => setSelectedAccounts([]);
+
 
   const command =
     selectedList.length && selectedAccounts.length
