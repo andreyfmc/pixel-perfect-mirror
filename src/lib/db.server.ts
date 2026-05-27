@@ -827,16 +827,43 @@ const rawDb = {
   },
   async updateHistoryInsights(
     id: string,
-    metrics: { reach: number; likes: number; comments: number },
+    metrics: { reach: number; plays: number; likes: number; comments: number },
   ) {
     await requireDb()
       .prepare(
         `UPDATE history
-         SET reach = ?, likes = ?, comments = ?, fetched_at = datetime('now')
+         SET reach = ?, plays = ?, likes = ?, comments = ?, fetched_at = datetime('now')
          WHERE id = ?`,
       )
-      .bind(metrics.reach, metrics.likes, metrics.comments, id)
+      .bind(metrics.reach, metrics.plays, metrics.likes, metrics.comments, id)
       .run();
+    // Atualiza/insere snapshot do dia (UTC) para crescimento diário.
+    const row = await requireDb()
+      .prepare("SELECT account_id, ig_media_id FROM history WHERE id = ?")
+      .bind(id)
+      .first<{ account_id: string; ig_media_id: string }>();
+    if (row) {
+      await requireDb()
+        .prepare(
+          `INSERT INTO history_snapshots (id, account_id, ig_media_id, snapshot_date, plays, reach, likes, comments)
+           VALUES (?, ?, ?, date('now'), ?, ?, ?, ?)
+           ON CONFLICT(ig_media_id, snapshot_date) DO UPDATE SET
+             plays = excluded.plays,
+             reach = excluded.reach,
+             likes = excluded.likes,
+             comments = excluded.comments`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          row.account_id,
+          row.ig_media_id,
+          metrics.plays,
+          metrics.reach,
+          metrics.likes,
+          metrics.comments,
+        )
+        .run();
+    }
   },
 
   // ============ oauth_states (links únicos de conexão) ============
