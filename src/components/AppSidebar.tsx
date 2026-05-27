@@ -10,6 +10,7 @@ import {
   Plus,
   Sparkles,
   Trophy,
+  LogOut,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 
@@ -116,9 +117,20 @@ export function AppSidebar() {
         ))}
       </ul>
 
-      <div className="border-t border-border p-3">
+      <div className="border-t border-border p-3 space-y-2">
         <button className="w-full rounded-lg im-grad-accent px-3 py-2 text-sm font-medium text-white hover:opacity-95">
           + Conectar Instagram
+        </button>
+        <button
+          type="button"
+          onClick={async () => {
+            await fetch("/api/auth/logout", { method: "POST" });
+            window.location.href = "/login";
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-bg3 px-3 py-2 text-sm text-text2 hover:text-foreground hover:border-border2"
+        >
+          <LogOut className="h-4 w-4" />
+          Sair
         </button>
       </div>
     </aside>
