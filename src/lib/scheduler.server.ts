@@ -53,7 +53,21 @@ export async function runScheduler(
 ): Promise<{ processed: number; errors: number }> {
   if (!hasDb()) return { processed: 0, errors: 0 };
 
+  // Materializa loops vencidos ANTES de buscar a fila — assim os itens
+  // recém-gerados (cujo scheduled_at pode estar no passado) já entram no tick.
+  try {
+    const lm = await runLoopMaterializer(now);
+    if (lm.loops) {
+      console.log(
+        `[scheduler] loops=${lm.loops} enqueued=${lm.enqueued} paused=${lm.paused} stopped=${lm.stopped}`,
+      );
+    }
+  } catch (err) {
+    console.warn("[scheduler] runLoopMaterializer falhou:", err);
+  }
+
   const due = await db.dueQueueItems(now.toISOString());
+
   let processed = 0;
   let errors = 0;
 
