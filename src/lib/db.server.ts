@@ -773,12 +773,12 @@ const rawDb = {
     return results ?? [];
   },
   async recordPublication(
-    h: Omit<HistoryRow, "fetched_at" | "reach" | "likes" | "comments"> & Partial<HistoryRow>,
+    h: Omit<HistoryRow, "fetched_at" | "reach" | "plays" | "likes" | "comments"> & Partial<HistoryRow>,
   ) {
     await requireDb()
       .prepare(
-        `INSERT INTO history (id, account_id, queue_id, ig_media_id, caption, media_type, permalink, thumb_url, published_at, reach, likes, comments)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO history (id, account_id, queue_id, ig_media_id, caption, media_type, permalink, thumb_url, published_at, reach, plays, likes, comments)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         h.id,
@@ -791,6 +791,7 @@ const rawDb = {
         h.thumb_url ?? null,
         h.published_at,
         h.reach ?? 0,
+        h.plays ?? 0,
         h.likes ?? 0,
         h.comments ?? 0,
       )
