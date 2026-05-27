@@ -2,7 +2,7 @@
 // (preview Lovable / dev local sem `wrangler dev --remote`), cai no mock.
 
 import { mockAccounts, mockQueue, mockHistory, type Account, type QueueItem } from "./mock";
-import type { AccountRow, QueueRow, HistoryRow } from "./db.server";
+import type { AccountRow, QueueRow, HistoryRow, LoopRow } from "./db.server";
 
 async function tryJson<T>(path: string, init?: RequestInit): Promise<T | null> {
   try {
