@@ -1,8 +1,5 @@
-// Single-user auth: HS256 JWT em cookie httpOnly + bcrypt para senha.
-// Credenciais em variáveis de ambiente (ADMIN_EMAIL / ADMIN_PASSWORD_HASH / JWT_SECRET).
-import bcrypt from "bcryptjs";
-import { env } from "./cf.server";
-
+// Single-user auth: HS256 JWT em cookie httpOnly.
+// Credenciais fixas no código (sem variáveis de ambiente, sem bcrypt).
 export const COOKIE_NAME = "im_session";
 export const COOKIE_MAX_AGE = 60 * 60 * 24; // 24h
 
