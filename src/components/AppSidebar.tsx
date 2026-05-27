@@ -9,6 +9,7 @@ import {
   ShieldAlert,
   Plus,
   Sparkles,
+  Trophy,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
 
@@ -17,6 +18,7 @@ const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, emoji: "📊" },
   { to: "/accounts", label: "Contas", icon: Users, emoji: "👥" },
   { to: "/queue", label: "Fila", icon: CalendarClock, emoji: "🗓️" },
+  { to: "/ranking", label: "Ranking", icon: Trophy, emoji: "🏆" },
   { to: "/history", label: "Histórico", icon: History, emoji: "📚" },
   { to: "/warmup", label: "Warmup", icon: Flame, emoji: "🔥" },
   { to: "/contingency", label: "Contingência", icon: ShieldAlert, emoji: "🛡️" },
