@@ -593,9 +593,10 @@ function DistributeTab() {
 
   // Validação
   const missing: string[] = [];
-  if (!selectedList.length) missing.push("selecione vídeos");
+  if (loopMode !== "live_folder" && !selectedList.length) missing.push("selecione vídeos");
   if (!selectedAccounts.length) missing.push("selecione contas");
   if (startInPast) missing.push("data de início no passado");
+
   const canEnqueue = missing.length === 0 && !enqueueing;
   const disabledReason = missing.length ? `Faltando: ${missing.join(" · ")}` : "";
 
