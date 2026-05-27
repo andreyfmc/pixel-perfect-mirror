@@ -90,22 +90,27 @@ export function clearSessionCookie(): string {
 }
 
 // ---------- senha ----------
-export async function verifyPassword(plain: string, hash: string): Promise<boolean> {
-  try {
-    return await bcrypt.compare(plain, hash);
-  } catch {
-    return false;
-  }
+// Credenciais fixas (login single-user). Comparação em texto puro — simples
+// e direto, sem dependência de variáveis de ambiente ou bcrypt.
+const ADMIN_EMAIL = "andreyfmc@gmail.com";
+const ADMIN_PASSWORD = "@G6tvjbgw";
+const FIXED_JWT_SECRET = "im-fixed-jwt-secret-v1-andreyfmc";
+
+export async function verifyPassword(plain: string, expected: string): Promise<boolean> {
+  // Mantém a assinatura assíncrona por compatibilidade.
+  if (!plain || !expected) return false;
+  if (plain.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < plain.length; i++) diff |= plain.charCodeAt(i) ^ expected.charCodeAt(i);
+  return diff === 0;
 }
 
 // ---------- env helpers ----------
 export function getAuthEnv() {
-  const e = env as Record<string, string | undefined>;
-  const p = (typeof process !== "undefined" ? process.env : {}) as Record<string, string | undefined>;
   return {
-    email: ((e.ADMIN_EMAIL ?? p.ADMIN_EMAIL) ?? "").trim().toLowerCase(),
-    hash: e.ADMIN_PASSWORD_HASH ?? p.ADMIN_PASSWORD_HASH ?? "",
-    secret: e.JWT_SECRET ?? p.JWT_SECRET ?? "",
+    email: ADMIN_EMAIL.trim().toLowerCase(),
+    hash: ADMIN_PASSWORD,
+    secret: FIXED_JWT_SECRET,
   };
 }
 
