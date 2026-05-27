@@ -33,6 +33,7 @@ import { Route as ApiAuthCallbackIgRouteImport } from './routes/api/auth.callbac
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth.callback'
 import { Route as ApiAccountsIdRouteImport } from './routes/api/accounts.$id'
 import { Route as ApiPublicDriveIdRouteImport } from './routes/api/public/drive.$id'
+import { Route as ApiDriveFolderIdRouteImport } from './routes/api/drive.folder.$id'
 import { Route as ApiAuthInstagramLinkRouteImport } from './routes/api/auth.instagram.link'
 import { Route as ApiAuthInstagramCallbackRouteImport } from './routes/api/auth.instagram.callback'
 import { Route as ApiAccountsIdValidateRouteImport } from './routes/api/accounts.$id.validate'
@@ -156,6 +157,11 @@ const ApiPublicDriveIdRoute = ApiPublicDriveIdRouteImport.update({
   path: '/api/public/drive/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDriveFolderIdRoute = ApiDriveFolderIdRouteImport.update({
+  id: '/api/drive/folder/$id',
+  path: '/api/drive/folder/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthInstagramLinkRoute = ApiAuthInstagramLinkRouteImport.update({
   id: '/link',
   path: '/link',
@@ -199,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/api/accounts/$id/validate': typeof ApiAccountsIdValidateRoute
   '/api/auth/instagram/callback': typeof ApiAuthInstagramCallbackRoute
   '/api/auth/instagram/link': typeof ApiAuthInstagramLinkRoute
+  '/api/drive/folder/$id': typeof ApiDriveFolderIdRoute
   '/api/public/drive/$id': typeof ApiPublicDriveIdRoute
 }
 export interface FileRoutesByTo {
@@ -227,6 +234,7 @@ export interface FileRoutesByTo {
   '/api/accounts/$id/validate': typeof ApiAccountsIdValidateRoute
   '/api/auth/instagram/callback': typeof ApiAuthInstagramCallbackRoute
   '/api/auth/instagram/link': typeof ApiAuthInstagramLinkRoute
+  '/api/drive/folder/$id': typeof ApiDriveFolderIdRoute
   '/api/public/drive/$id': typeof ApiPublicDriveIdRoute
 }
 export interface FileRoutesById {
@@ -257,6 +265,7 @@ export interface FileRoutesById {
   '/api/accounts/$id/validate': typeof ApiAccountsIdValidateRoute
   '/api/auth/instagram/callback': typeof ApiAuthInstagramCallbackRoute
   '/api/auth/instagram/link': typeof ApiAuthInstagramLinkRoute
+  '/api/drive/folder/$id': typeof ApiDriveFolderIdRoute
   '/api/public/drive/$id': typeof ApiPublicDriveIdRoute
 }
 export interface FileRouteTypes {
@@ -287,6 +296,7 @@ export interface FileRouteTypes {
     | '/api/accounts/$id/validate'
     | '/api/auth/instagram/callback'
     | '/api/auth/instagram/link'
+    | '/api/drive/folder/$id'
     | '/api/public/drive/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -315,6 +325,7 @@ export interface FileRouteTypes {
     | '/api/accounts/$id/validate'
     | '/api/auth/instagram/callback'
     | '/api/auth/instagram/link'
+    | '/api/drive/folder/$id'
     | '/api/public/drive/$id'
   id:
     | '__root__'
@@ -344,6 +355,7 @@ export interface FileRouteTypes {
     | '/api/accounts/$id/validate'
     | '/api/auth/instagram/callback'
     | '/api/auth/instagram/link'
+    | '/api/drive/folder/$id'
     | '/api/public/drive/$id'
   fileRoutesById: FileRoutesById
 }
@@ -360,6 +372,7 @@ export interface RootRouteChildren {
   ApiCronTickRoute: typeof ApiCronTickRoute
   ApiMediaUploadRoute: typeof ApiMediaUploadRoute
   ApiVariantsBuildRoute: typeof ApiVariantsBuildRoute
+  ApiDriveFolderIdRoute: typeof ApiDriveFolderIdRoute
   ApiPublicDriveIdRoute: typeof ApiPublicDriveIdRoute
 }
 
@@ -533,6 +546,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicDriveIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/drive/folder/$id': {
+      id: '/api/drive/folder/$id'
+      path: '/api/drive/folder/$id'
+      fullPath: '/api/drive/folder/$id'
+      preLoaderRoute: typeof ApiDriveFolderIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/instagram/link': {
       id: '/api/auth/instagram/link'
       path: '/link'
@@ -665,6 +685,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronTickRoute: ApiCronTickRoute,
   ApiMediaUploadRoute: ApiMediaUploadRoute,
   ApiVariantsBuildRoute: ApiVariantsBuildRoute,
+  ApiDriveFolderIdRoute: ApiDriveFolderIdRoute,
   ApiPublicDriveIdRoute: ApiPublicDriveIdRoute,
 }
 export const routeTree = rootRouteImport
