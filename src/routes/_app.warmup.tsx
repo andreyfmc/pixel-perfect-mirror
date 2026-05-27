@@ -656,6 +656,38 @@ function DistributeTab() {
     setEnqueueOk(false);
     setEnqueueMsg(null);
     try {
+      // ============ Modo LOOP (snapshot ou live_folder) ============
+      if (loopMode !== "once") {
+        const currentFolder = breadcrumbs[breadcrumbs.length - 1];
+        if (loopMode === "live_folder" && (!currentFolder || folderId === "root")) {
+          setEnqueueMsg("Loop live_folder: entre numa pasta do Drive antes de criar.");
+          setEnqueueing(false);
+          return;
+        }
+        const startIso = new Date(start).toISOString();
+        const res = await api.createLoop({
+          source_type: loopMode,
+          folder_id: currentFolder?.id ?? null,
+          folder_name: currentFolder?.name ?? null,
+          video_ids: loopMode === "snapshot" ? selectedList.map((v) => v.id) : undefined,
+          account_ids: selectedAccounts,
+          caption,
+          gap_min: Math.max(1, gap),
+          jitter_min: Math.max(0, jitter),
+          order_mode: order,
+          next_cycle_at: startIso,
+        });
+        if (res && "id" in res) {
+          setEnqueueOk(true);
+          setEnqueueMsg(
+            `✓ Loop criado (${loopMode === "live_folder" ? "pasta ao vivo" : "snapshot"}) — próximo ciclo em ${fmtPreview()} · gap ${gap}min · jitter +0–${jitter}min`,
+          );
+        } else {
+          setEnqueueMsg(`Erro ao criar loop${res && "error" in res ? `: ${res.error}` : ""}`);
+        }
+        return;
+      }
+
       const startMs = new Date(start).getTime();
       let ok = 0;
       let fail = 0;
