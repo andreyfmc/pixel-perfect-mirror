@@ -622,7 +622,7 @@ function DistributeTab() {
   const selectHealthy = () =>
     setSelectedAccounts(accounts.filter((a) => (a.health_score ?? 0) >= 80).map((a) => a.id));
   const selectInUse = () =>
-    setSelectedAccounts(accounts.filter((a) => !a.paused).map((a) => a.id));
+    setSelectedAccounts(accounts.filter((a) => !a.paused && a.token_status === "valid").map((a) => a.id));
   const clearAccounts = () => setSelectedAccounts([]);
 
 
