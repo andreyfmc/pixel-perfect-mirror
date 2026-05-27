@@ -342,7 +342,7 @@ function RankingPage() {
                 </thead>
                 <tbody>
                   {filtered.map((r) => (
-                    <FragmentWithKey key={r.id}>
+                    <Fragment key={r.id}>
                       <tr
                         onClick={() => setExpanded(expanded === r.id ? null : r.id)}
                         className="border-t border-border hover:bg-bg3 cursor-pointer"
@@ -405,7 +405,7 @@ function RankingPage() {
                           </td>
                         </tr>
                       )}
-                    </FragmentWithKey>
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
