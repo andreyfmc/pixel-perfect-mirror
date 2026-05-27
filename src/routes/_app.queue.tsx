@@ -127,7 +127,8 @@ const STATUS_META: Record<StatusKey, { bg: string; fg: string; label: string; sh
 const TYPE_BADGE: Record<string, { bg: string; fg: string }> = {
   REEL: { bg: "color-mix(in oklab, var(--accent2) 22%, transparent)", fg: "var(--accent2)" },
   IMAGE: { bg: "color-mix(in oklab, #3b82f6 22%, transparent)", fg: "#7aa8ff" },
-  STORY: { bg: "color-mix(in oklab, #f97316 22%, transparent)", fg: "#ffb072" },
+  STORY: { bg: "color-mix(in oklab, #ec4899 22%, transparent)", fg: "#f9a8d4" },
+  CAROUSEL: { bg: "color-mix(in oklab, #f97316 22%, transparent)", fg: "#ffb072" },
 };
 
 const FILTERS: { id: FilterKey; label: string; key: string }[] = [
