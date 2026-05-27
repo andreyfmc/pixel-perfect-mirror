@@ -1119,16 +1119,15 @@ function QueuePage() {
                     <button
                       type="button"
                       onClick={() => toggleExpand(group.id)}
-                      className="flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left"
+                      className="flex min-h-12 w-full cursor-pointer items-center gap-2 px-3 py-2 text-left"
                     >
                       <ChevronRight
-                        className={`h-4 w-4 shrink-0 text-muted2 transition-transform duration-200 ${
+                        className={`h-3.5 w-3.5 shrink-0 text-muted2 transition-transform duration-200 ${
                           isOpen ? "rotate-90" : ""
                         }`}
                       />
-                      <Thumb src={group.thumb} type={group.mediaType} size="sm" />
                       <TypeBadge type={group.mediaType} />
-                      <span className="min-w-0 flex-1 truncate text-sm">
+                      <span className="min-w-0 flex-1 truncate text-xs">
                         {group.caption || "Sem legenda"}
                       </span>
                       <CountPill done={group.counts.published} total={group.items.length} />
@@ -1137,7 +1136,7 @@ function QueuePage() {
                         scheduledAt={group.scheduledAt}
                         now={now}
                       />
-                      <span className="hidden whitespace-nowrap text-xs text-muted2 sm:inline tabular-nums">
+                      <span className="hidden whitespace-nowrap text-[11px] text-muted2 sm:inline tabular-nums">
                         {timeHHmm(group.scheduledAt)}
                       </span>
                     </button>
