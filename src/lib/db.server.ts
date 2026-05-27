@@ -76,6 +76,38 @@ async function ensureSchema(): Promise<void> {
       if (!queueCols.has("original_media_key")) {
         await db.prepare("ALTER TABLE queue ADD COLUMN original_media_key TEXT").run();
       }
+      if (!queueCols.has("loop_id")) {
+        await db.prepare("ALTER TABLE queue ADD COLUMN loop_id TEXT").run();
+      }
+      if (!queueCols.has("cycle_number")) {
+        await db.prepare("ALTER TABLE queue ADD COLUMN cycle_number INTEGER").run();
+      }
+      // loops — agendamentos recorrentes
+      await db
+        .prepare(
+          `CREATE TABLE IF NOT EXISTS loops (
+             id TEXT PRIMARY KEY,
+             source_type TEXT NOT NULL CHECK (source_type IN ('snapshot','live_folder')),
+             folder_id TEXT,
+             folder_name TEXT,
+             video_ids_json TEXT,
+             account_ids_json TEXT NOT NULL,
+             caption TEXT NOT NULL DEFAULT '',
+             gap_min INTEGER NOT NULL DEFAULT 60,
+             jitter_min INTEGER NOT NULL DEFAULT 20,
+             order_mode TEXT NOT NULL DEFAULT 'random' CHECK (order_mode IN ('sequential','random')),
+             status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','paused','stopped')),
+             cycle_number INTEGER NOT NULL DEFAULT 0,
+             next_cycle_at TEXT NOT NULL,
+             last_error TEXT,
+             created_at TEXT NOT NULL DEFAULT (datetime('now')),
+             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+           )`,
+        )
+        .run();
+      await db
+        .prepare("CREATE INDEX IF NOT EXISTS idx_loops_active ON loops(status, next_cycle_at)")
+        .run();
       // oauth_states — links únicos de conexão (Instagram OAuth Tester).
       await db
         .prepare(
