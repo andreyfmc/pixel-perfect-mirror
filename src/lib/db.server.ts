@@ -160,6 +160,24 @@ async function ensureSchema(): Promise<void> {
           "CREATE INDEX IF NOT EXISTS idx_snapshots_media ON history_snapshots(ig_media_id, snapshot_date DESC)",
         )
         .run();
+      // followers_snapshots — snapshot diário de seguidores por conta.
+      await db
+        .prepare(
+          `CREATE TABLE IF NOT EXISTS followers_snapshots (
+             id TEXT PRIMARY KEY,
+             account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+             snapshot_date TEXT NOT NULL,
+             followers INTEGER NOT NULL,
+             created_at TEXT NOT NULL DEFAULT (datetime('now')),
+             UNIQUE(account_id, snapshot_date)
+           )`,
+        )
+        .run();
+      await db
+        .prepare(
+          "CREATE INDEX IF NOT EXISTS idx_followers_snap_account_date ON followers_snapshots(account_id, snapshot_date DESC)",
+        )
+        .run();
     } catch (err) {
       // Não bloqueia o app se o PRAGMA falhar — reseta a promise para tentar de novo
       // na próxima request.
