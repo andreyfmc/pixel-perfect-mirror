@@ -65,7 +65,7 @@ export function MobileBottomNav() {
         {items.map(({ to, label, Icon }) => {
           const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
           const badge = badgeFor(to);
-          const isWarn = to === "/accounts" || to === "/contingency";
+          const isWarn = to === "/accounts";
           return (
             <li key={to} className="flex">
               <Link
