@@ -805,9 +805,12 @@ const rawDb = {
     return (result.meta as { changes?: number } | undefined)?.changes ?? 0;
   },
   async clearPublishedBeforeToday(): Promise<number> {
+    // Usa fuso de Brasília (UTC-3) para definir "hoje" — workers rodam em UTC.
     const result = await requireDb()
       .prepare(
-        `DELETE FROM queue WHERE status = 'published' AND date(scheduled_at) < date('now')`,
+        `DELETE FROM queue
+         WHERE status = 'published'
+           AND date(scheduled_at, '-3 hours') < date('now', '-3 hours')`,
       )
       .run();
     return (result.meta as { changes?: number } | undefined)?.changes ?? 0;
