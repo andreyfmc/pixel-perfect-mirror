@@ -727,10 +727,23 @@ function DistributeTab() {
     }
   };
 
+  const healthBadge = (score: number) => {
+    const color = score >= 80 ? "var(--success)" : score >= 60 ? "var(--warning)" : "var(--danger)";
+    return (
+      <span
+        className="inline-flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold tabular-nums text-white"
+        style={{ background: color }}
+        title={`Saúde: ${score}`}
+      >
+        {score}
+      </span>
+    );
+  };
+
   return (
-    <div className="grid gap-6 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
-      {/* ===================== ESQUERDA: Drive ===================== */}
-      <div className="min-w-0">
+    <div className="space-y-6 pb-24 md:pb-0">
+      {/* ===================== BLOCO 1: Drive ===================== */}
+      <section className="min-w-0">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h3 className="flex items-center gap-2 text-sm font-semibold">
             <HardDrive className="h-4 w-4" /> Google Drive
@@ -767,20 +780,10 @@ function DistributeTab() {
           ))}
         </div>
 
-        {/* Estado */}
         {loading && (
-          <ul className="grid gap-2 sm:grid-cols-2">
+          <ul className="grid grid-cols-2 gap-2 md:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <li
-                key={i}
-                className="flex items-center gap-3 rounded-[10px] border border-border bg-bg3/40 p-2"
-              >
-                <div className="h-14 w-20 flex-shrink-0 animate-pulse rounded-md bg-bg4" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 w-3/4 animate-pulse rounded bg-bg4" />
-                  <div className="h-2.5 w-1/3 animate-pulse rounded bg-bg4" />
-                </div>
-              </li>
+              <li key={i} className="h-[52px] animate-pulse rounded-[10px] border border-border bg-bg3/40" />
             ))}
           </ul>
         )}
@@ -831,33 +834,30 @@ function DistributeTab() {
                   </button>
                 ))}
             </div>
-            <ul className="grid max-h-[460px] gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+            <ul className="grid grid-cols-2 gap-2 md:grid-cols-3">
               {folders.map((f) => (
                 <li key={f.id}>
-                  <div className="group flex items-center gap-2 rounded-[10px] border border-border bg-bg3/60 p-2 transition hover:-translate-y-[1px] hover:border-[var(--accent2)] hover:shadow-md">
+                  <div className="group flex h-[52px] items-center gap-2 rounded-[10px] border border-border bg-bg3/60 px-2 transition hover:-translate-y-[1px] hover:border-[var(--accent2)] hover:shadow-md">
                     <button
                       onClick={() => setFolderId(f.id)}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left"
                     >
                       <div
-                        className="flex h-14 w-20 flex-shrink-0 items-center justify-center rounded-md"
+                        className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md"
                         style={{
                           background:
                             "linear-gradient(135deg, color-mix(in oklch, var(--accent2) 20%, #1a1a1a), #111)",
                         }}
                       >
-                        <Folder className="h-5 w-5 text-white/80" />
+                        <Folder className="h-4 w-4 text-white/80" />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{f.name}</div>
-                        <div className="text-xs text-muted2">pasta</div>
-                      </div>
+                      <div className="truncate text-sm font-medium">{f.name}</div>
                     </button>
                     <button
                       onClick={() => selectEntireFolder(f)}
                       disabled={loadingFolder === f.id}
                       title="Selecionar todos os vídeos desta pasta (recursivo)"
-                      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-border2 text-text2 transition hover:bg-bg4 hover:text-foreground disabled:opacity-50"
+                      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border border-border2 text-text2 transition hover:bg-bg4 hover:text-foreground disabled:opacity-50"
                     >
                       {loadingFolder === f.id ? (
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -875,18 +875,18 @@ function DistributeTab() {
                     <button
                       onClick={() => toggleVideo(v)}
                       className={[
-                        "group flex w-full items-center gap-3 rounded-[10px] border p-2 text-left transition hover:-translate-y-[1px]",
+                        "group flex h-[52px] w-full items-center gap-2 rounded-[10px] border px-2 text-left transition hover:-translate-y-[1px]",
                         active
                           ? "border-[var(--accent2)] bg-bg3 shadow-md"
                           : "border-border bg-bg3/60 hover:border-border2",
                       ].join(" ")}
                     >
-                      <div className="h-14 w-20 flex-shrink-0 overflow-hidden rounded-md bg-bg4">
+                      <div className="h-9 w-12 flex-shrink-0 overflow-hidden rounded-md bg-bg4">
                         <VideoThumb v={v} />
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{v.name}</div>
-                        <div className="text-xs text-muted2">
+                        <div className="truncate text-[10px] text-muted2">
                           {v.size ? `${(Number(v.size) / 1024 / 1024).toFixed(1)} MB` : ""}
                           {v.durationMillis
                             ? ` · ${Math.round(Number(v.durationMillis) / 1000)}s`
@@ -910,334 +910,310 @@ function DistributeTab() {
             </ul>
           </>
         )}
-      </div>
+      </section>
 
-      {/* ===================== DIREITA: Configurações ===================== */}
-      <div className="min-w-0 space-y-6 rounded-[10px] border border-border bg-bg3/30 p-5">
-        {/* --- Contas que recebem --- */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
-              <Users className="h-3.5 w-3.5" /> Contas que recebem
-            </h3>
-            <span
-              className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
-              style={{ background: "var(--accent2)" }}
-            >
-              {selectedAccounts.length} de {accounts.length} selecionada{accounts.length === 1 ? "" : "s"}
-            </span>
-          </div>
-
-          {/* Chips de selecionadas */}
-          {selectedAccounts.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {selectedAccounts.slice(0, 12).map((id) => {
-                const a = accounts.find((x) => x.id === id);
-                if (!a) return null;
-                return (
-                  <button
-                    key={id}
-                    onClick={() => toggleAccount(id)}
-                    className="group inline-flex items-center gap-1.5 rounded-full border border-border2 bg-bg3 py-0.5 pl-0.5 pr-2 text-[11px] transition hover:border-[var(--accent2)]"
-                  >
-                    <img src={a.profile_picture} alt="" className="h-4 w-4 rounded-full" />
-                    <span>@{a.username}</span>
-                    <X className="h-3 w-3 text-muted2 group-hover:text-red-300" />
-                  </button>
-                );
-              })}
-              {selectedAccounts.length > 12 && (
-                <span className="inline-flex items-center rounded-full bg-bg4 px-2 py-0.5 text-[11px] text-muted2">
-                  +{selectedAccounts.length - 12}
-                </span>
-              )}
-            </div>
-          )}
-
-          {/* Busca + toggle all */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted2" />
-              <input
-                value={accountFilter}
-                onChange={(e) => setAccountFilter(e.target.value)}
-                placeholder="Buscar conta…"
-                className="w-full rounded-[8px] border border-border2 bg-bg3 py-1.5 pl-7 pr-2 text-xs outline-none focus:border-[var(--accent2)]"
-              />
-            </div>
-            <button
-              onClick={toggleAllAccounts}
-              className="rounded-[8px] border border-border2 bg-bg3 px-2 py-1.5 text-[11px] text-text2 transition hover:text-foreground"
-            >
-              {allAccountsSelected ? "Desmarcar todas" : "Selecionar todas"}
-            </button>
-          </div>
-
-          <ul className="max-h-[220px] space-y-1.5 overflow-y-auto pr-1">
-            {filteredAccounts.map((a) => {
-              const checked = selectedAccounts.includes(a.id);
-              const lowHealth = (a.health_score ?? 100) < 60;
-              return (
-                <li key={a.id}>
-                  <label
-                    className={[
-                      "flex items-center gap-2 rounded-[8px] border bg-bg3 p-2 text-sm transition cursor-pointer hover:-translate-y-[1px]",
-                      checked ? "border-[var(--accent2)]" : "border-border hover:border-border2",
-                    ].join(" ")}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => toggleAccount(a.id)}
-                      className="h-3.5 w-3.5 accent-[var(--accent2)] transition-transform checked:scale-110"
-                    />
-                    <div className="relative">
-                      <img
-                        src={a.profile_picture}
-                        alt=""
-                        className={[
-                          "h-7 w-7 rounded-full ring-2",
-                          lowHealth ? "ring-red-500/70" : "ring-transparent",
-                        ].join(" ")}
-                      />
-                      {lowHealth && (
-                        <span
-                          title={`Saúde baixa: ${a.health_score}`}
-                          className="absolute -bottom-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-red-500 ring-2 ring-bg3"
-                        >
-                          <AlertTriangle className="h-2 w-2 text-white" />
-                        </span>
-                      )}
-                    </div>
-                    <span className="flex-1 truncate">@{a.username}</span>
-                    <span className="text-[10px] tabular-nums text-muted2">{a.health_score}</span>
-                  </label>
-                </li>
-              );
-            })}
-            {filteredAccounts.length === 0 && (
-              <li className="rounded-[8px] border border-border bg-bg3 p-3 text-center text-xs text-muted2">
-                Nenhuma conta corresponde a "{accountFilter}"
-              </li>
-            )}
-          </ul>
-        </section>
-
-        <div className="border-t border-border/60" />
-
-        {/* --- Configuração de tempo --- */}
-        <section className="space-y-3">
+      {/* ===================== BLOCO 2: Contas ===================== */}
+      <section className="space-y-3 rounded-[10px] border border-border bg-bg3/30 p-4">
+        <div className="flex items-center justify-between">
           <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
-            <Clock className="h-3.5 w-3.5" /> Configuração de tempo
+            <Users className="h-3.5 w-3.5" /> Contas que recebem
           </h3>
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted2">
-                <CalendarDays className="h-3 w-3" /> Início
-              </label>
-              <input
-                type="datetime-local"
-                value={start}
-                onChange={(e) => setStart(e.target.value)}
-                className={[
-                  "w-full rounded-[8px] border bg-bg3 px-2 py-1.5 text-xs outline-none focus:border-[var(--accent2)]",
-                  startInPast ? "border-red-500/60" : "border-border2",
-                ].join(" ")}
-              />
-              {startInPast && (
-                <p className="mt-1 text-[10px] text-red-400">data no passado</p>
-              )}
-            </div>
-            <div>
-              <label
-                className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted2"
-                title="Intervalo entre ciclos (cada vídeo)"
-              >
-                <Clock className="h-3 w-3" /> Ciclo (min)
-              </label>
-              <input
-                type="number"
-                min={1}
-                value={gap}
-                onChange={(e) => setGap(Number(e.target.value))}
-                className="w-full rounded-[8px] border border-border2 bg-bg3 px-2 py-1.5 text-xs outline-none focus:border-[var(--accent2)]"
-              />
-            </div>
-            <div>
-              <label
-                className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted2"
-                title="Atraso aleatório (0 a N min) somado ao intervalo de cada conta"
-              >
-                <Shuffle className="h-3 w-3" /> Jitter (+min)
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={jitter}
-                onChange={(e) => setJitter(Number(e.target.value))}
-                className="w-full rounded-[8px] border border-border2 bg-bg3 px-2 py-1.5 text-xs outline-none focus:border-[var(--accent2)]"
-              />
-            </div>
+          <span
+            className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold text-white"
+            style={{ background: "var(--accent2)" }}
+          >
+            {selectedAccounts.length} de {accounts.length} selecionada{accounts.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        {/* Controles: busca + sort + select all */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[180px] flex-1">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted2" />
+            <input
+              value={accountFilter}
+              onChange={(e) => setAccountFilter(e.target.value)}
+              placeholder="Buscar conta…"
+              className="w-full rounded-[8px] border border-border2 bg-bg3 py-1.5 pl-7 pr-2 text-xs outline-none focus:border-[var(--accent2)]"
+            />
           </div>
-        </section>
+          <select
+            value={accountSort}
+            onChange={(e) => setAccountSort(e.target.value as typeof accountSort)}
+            className="rounded-[8px] border border-border2 bg-bg3 px-2 py-1.5 text-xs text-text2 outline-none focus:border-[var(--accent2)]"
+          >
+            <option value="followers_desc">Mais seguidores</option>
+            <option value="followers_asc">Menos seguidores</option>
+            <option value="health_desc">Maior saúde</option>
+            <option value="health_asc">Menor saúde</option>
+            <option value="alpha">Alfabético</option>
+            <option value="last_activity">Última atividade</option>
+          </select>
+          <button
+            onClick={toggleAllAccounts}
+            className="rounded-[8px] border border-border2 bg-bg3 px-2 py-1.5 text-[11px] text-text2 transition hover:text-foreground"
+          >
+            {allAccountsSelected ? "Desmarcar todas" : "Selecionar todas"}
+          </button>
+        </div>
 
-        <div className="border-t border-border/60" />
+        {/* Seleções rápidas */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted2">
+          <button onClick={selectHealthy} className="hover:text-foreground">Selecionar saudáveis</button>
+          <span>·</span>
+          <button onClick={selectInUse} className="hover:text-foreground">Selecionar em uso</button>
+          <span>·</span>
+          <button onClick={clearAccounts} className="hover:text-red-300">Limpar</button>
+        </div>
 
-        {/* --- Ordem dos vídeos --- */}
-        <section className="space-y-2">
-          <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
-            <Shuffle className="h-3.5 w-3.5" /> Ordem dos vídeos
-          </h3>
-          <div className="grid grid-cols-2 gap-1 rounded-full border border-border2 bg-bg3 p-1">
-            {([
-              { id: "sequential", label: "Sequencial" },
-              { id: "random", label: "Aleatória" },
-            ] as const).map((opt) => {
-              const active = order === opt.id;
+        {/* Chips de selecionadas — máx 2 linhas + "+X mais" */}
+        {selectedAccounts.length > 0 && (
+          <div className="flex max-h-[58px] flex-wrap gap-1.5 overflow-hidden">
+            {selectedAccounts.slice(0, 10).map((id) => {
+              const a = accounts.find((x) => x.id === id);
+              if (!a) return null;
               return (
                 <button
-                  key={opt.id}
-                  onClick={() => setOrder(opt.id)}
-                  className={[
-                    "rounded-full px-3 py-1.5 text-xs font-medium transition",
-                    active ? "text-white shadow" : "text-text2 hover:text-foreground",
-                  ].join(" ")}
-                  style={active ? { background: "var(--accent2)" } : undefined}
+                  key={id}
+                  onClick={() => toggleAccount(id)}
+                  className="group inline-flex items-center gap-1.5 rounded-full border border-border2 bg-bg3 py-0.5 pl-0.5 pr-2 text-[11px] transition hover:border-[var(--accent2)]"
                 >
-                  {opt.label}
+                  <img src={a.profile_picture} alt="" className="h-4 w-4 rounded-full" />
+                  <span>@{a.username}</span>
+                  <X className="h-3 w-3 text-muted2 group-hover:text-red-300" />
                 </button>
               );
             })}
-          </div>
-          <p className="text-[11px] text-muted2">
-            {order === "random"
-              ? "Cada conta recebe os vídeos em ordem embaralhada."
-              : "Todas as contas seguem a mesma ordem de seleção."}
-          </p>
-        </section>
-
-        <div className="border-t border-border/60" />
-
-        {/* --- Legenda base --- */}
-        <section className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
-              <Wand2 className="h-3.5 w-3.5" /> Legenda base
-            </h3>
-            <span
-              className={[
-                "text-[10px] tabular-nums",
-                caption.length > CAPTION_MAX ? "text-red-400" : "text-muted2",
-              ].join(" ")}
-            >
-              {caption.length}/{CAPTION_MAX}
-            </span>
-          </div>
-          <textarea
-            rows={3}
-            value={caption}
-            maxLength={CAPTION_MAX}
-            onChange={(e) => setCaption(e.target.value)}
-            placeholder="novo drop ✦ #reels"
-            className="w-full resize-y rounded-[8px] border border-border2 bg-bg3 p-2 text-sm outline-none focus:border-[var(--accent2)]"
-          />
-          <div className="flex flex-wrap gap-1">
-            {["✨", "🔥", "💫", "🎯", "🚀", "❤️", "👀", "✦"].map((e) => (
-              <button
-                key={e}
-                type="button"
-                onClick={() => setCaption((c) => (c + " " + e).trim().slice(0, CAPTION_MAX))}
-                className="rounded-md border border-border2 bg-bg3 px-2 py-0.5 text-sm transition hover:-translate-y-[1px] hover:border-[var(--accent2)]"
-              >
-                {e}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <div className="border-t border-border/60" />
-
-        {/* --- Ação principal --- */}
-        <section className="im-sticky-bottom space-y-2 -mx-4 px-4 py-3 sm:mx-0 sm:px-0 sm:py-0 md:static md:!border-t-0 md:!bg-transparent md:!backdrop-blur-none">
-          <button
-            onClick={enqueueAll}
-            disabled={!canEnqueue}
-            title={disabledReason || undefined}
-            className={[
-              "inline-flex w-full min-h-[44px] items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-semibold text-white shadow transition",
-              enqueueOk
-                ? "bg-emerald-500 hover:bg-emerald-500/90"
-                : "bg-[var(--accent2)] hover:opacity-90",
-              !canEnqueue ? "cursor-not-allowed opacity-50" : "",
-            ].join(" ")}
-          >
-            {enqueueing ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" /> Agendando…
-              </>
-            ) : enqueueOk ? (
-              <>
-                <CheckCircle2 className="h-4 w-4" /> Agendado com sucesso!
-              </>
-            ) : (
-              <>
-                <CalendarPlus className="h-4 w-4" /> Agendar nas contas selecionadas
-              </>
+            {selectedAccounts.length > 10 && (
+              <span className="inline-flex items-center rounded-full bg-bg4 px-2 py-0.5 text-[11px] text-muted2">
+                +{selectedAccounts.length - 10} mais
+              </span>
             )}
-          </button>
+          </div>
+        )}
 
-          {/* Preview inline */}
-          {previewVideos > 0 && previewAccounts > 0 && (
-            <div className="rounded-[8px] border border-dashed border-border bg-bg3/40 px-3 py-2 text-[11px] text-text2">
-              <span className="font-semibold text-foreground">
-                {previewAccounts} conta{previewAccounts === 1 ? "" : "s"} × {previewVideos} vídeo{previewVideos === 1 ? "" : "s"}
-              </span>{" "}
-              → próxima postagem em{" "}
-              <span className="font-medium text-foreground">{fmtPreview()}</span>, ciclo de{" "}
-              <span className="font-medium text-foreground">{gap}</span> +{" "}
-              <span className="font-medium text-foreground">0–{jitter}</span> min
-            </div>
+        {/* Lista — 2 cols desktop, 1 mobile, scroll interno max 400px */}
+        <ul className="grid max-h-[400px] grid-cols-1 gap-1.5 overflow-y-auto pr-1 md:grid-cols-2">
+          {filteredAccounts.map((a) => {
+            const checked = selectedAccounts.includes(a.id);
+            return (
+              <li key={a.id}>
+                <label
+                  className={[
+                    "flex h-12 cursor-pointer items-center gap-2 rounded-[8px] border bg-bg3 px-2 text-sm transition hover:-translate-y-[1px]",
+                    checked ? "border-[var(--accent2)]" : "border-border hover:border-border2",
+                  ].join(" ")}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleAccount(a.id)}
+                    className="h-3.5 w-3.5 accent-[var(--accent2)]"
+                  />
+                  <img src={a.profile_picture} alt="" className="h-7 w-7 flex-shrink-0 rounded-full" />
+                  <span className="min-w-0 flex-1 truncate">@{a.username}</span>
+                  <span className="text-[10px] tabular-nums text-muted2">
+                    {a.followers != null
+                      ? a.followers >= 1000
+                        ? `${(a.followers / 1000).toFixed(1)}k`
+                        : a.followers
+                      : "—"}
+                  </span>
+                  {healthBadge(a.health_score ?? 0)}
+                </label>
+              </li>
+            );
+          })}
+          {filteredAccounts.length === 0 && (
+            <li className="col-span-full rounded-[8px] border border-border bg-bg3 p-3 text-center text-xs text-muted2">
+              Nenhuma conta corresponde a "{accountFilter}"
+            </li>
           )}
+        </ul>
+      </section>
 
-          {enqueueMsg && (
-            <div
+      {/* ===================== BLOCO 3: Configuração de tempo ===================== */}
+      <section className="space-y-3 rounded-[10px] border border-border bg-bg3/30 p-4">
+        <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
+          <Clock className="h-3.5 w-3.5" /> Configuração de tempo
+        </h3>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted2">
+              <CalendarDays className="h-3 w-3" /> Início
+            </label>
+            <input
+              type="datetime-local"
+              value={start}
+              onChange={(e) => setStart(e.target.value)}
               className={[
-                "rounded-[8px] border px-3 py-2 text-xs",
-                enqueueOk
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                  : "border-border bg-bg3 text-text2",
+                "w-full rounded-[8px] border bg-bg3 px-2 py-1.5 text-xs outline-none focus:border-[var(--accent2)]",
+                startInPast ? "border-red-500/60" : "border-border2",
               ].join(" ")}
+            />
+            {startInPast && <p className="mt-1 text-[10px] text-red-400">data no passado</p>}
+          </div>
+          <div>
+            <label className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted2" title="Intervalo entre ciclos (cada vídeo)">
+              <Clock className="h-3 w-3" /> Ciclo (min)
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={gap}
+              onChange={(e) => setGap(Number(e.target.value))}
+              className="w-full rounded-[8px] border border-border2 bg-bg3 px-2 py-1.5 text-xs outline-none focus:border-[var(--accent2)]"
+            />
+          </div>
+          <div>
+            <label className="mb-1 flex items-center gap-1 text-[10px] uppercase tracking-wider text-muted2" title="Atraso aleatório (0 a N min) somado ao intervalo de cada conta">
+              <Shuffle className="h-3 w-3" /> Jitter (+min)
+            </label>
+            <input
+              type="number"
+              min={0}
+              value={jitter}
+              onChange={(e) => setJitter(Number(e.target.value))}
+              className="w-full rounded-[8px] border border-border2 bg-bg3 px-2 py-1.5 text-xs outline-none focus:border-[var(--accent2)]"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ===================== BLOCO 4: Ordem dos vídeos ===================== */}
+      <section className="space-y-2 rounded-[10px] border border-border bg-bg3/30 p-4">
+        <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
+          <Shuffle className="h-3.5 w-3.5" /> Ordem dos vídeos
+        </h3>
+        <div className="inline-grid grid-cols-2 gap-1 rounded-full border border-border2 bg-bg3 p-1">
+          {([
+            { id: "sequential", label: "Sequencial" },
+            { id: "random", label: "Aleatória" },
+          ] as const).map((opt) => {
+            const active = order === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => setOrder(opt.id)}
+                className={[
+                  "rounded-full px-4 py-1.5 text-xs font-medium transition",
+                  active ? "text-white shadow" : "text-text2 hover:text-foreground",
+                ].join(" ")}
+                style={active ? { background: "var(--accent2)" } : undefined}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-muted2">
+          {order === "random"
+            ? "Cada conta recebe os vídeos em ordem embaralhada."
+            : "Todas as contas seguem a mesma ordem de seleção."}
+        </p>
+      </section>
+
+      {/* ===================== BLOCO 5: Legenda base ===================== */}
+      <section className="space-y-2 rounded-[10px] border border-border bg-bg3/30 p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
+            <Wand2 className="h-3.5 w-3.5" /> Legenda base
+          </h3>
+          <span className={["text-[10px] tabular-nums", caption.length > CAPTION_MAX ? "text-red-400" : "text-muted2"].join(" ")}>
+            {caption.length}/{CAPTION_MAX}
+          </span>
+        </div>
+        <textarea
+          rows={3}
+          value={caption}
+          maxLength={CAPTION_MAX}
+          onChange={(e) => setCaption(e.target.value)}
+          placeholder="novo drop ✦ #reels"
+          className="w-full resize-y rounded-[8px] border border-border2 bg-bg3 p-2 text-sm outline-none focus:border-[var(--accent2)]"
+        />
+        <div className="flex flex-wrap gap-1">
+          {["✨", "🔥", "💫", "🎯", "🚀", "❤️", "👀", "✦"].map((e) => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => setCaption((c) => (c + " " + e).trim().slice(0, CAPTION_MAX))}
+              className="rounded-md border border-border2 bg-bg3 px-2 py-0.5 text-sm transition hover:-translate-y-[1px] hover:border-[var(--accent2)]"
             >
-              {enqueueMsg}
-            </div>
-          )}
+              {e}
+            </button>
+          ))}
+        </div>
+      </section>
 
-          {!canEnqueue && missing.length > 0 && (
-            <p className="text-[11px] text-amber-400/80">{disabledReason}</p>
-          )}
+      {/* Preview + mensagens */}
+      {previewVideos > 0 && previewAccounts > 0 && (
+        <div className="rounded-[8px] border border-dashed border-border bg-bg3/40 px-3 py-2 text-[11px] text-text2">
+          <span className="font-semibold text-foreground">
+            {previewAccounts} conta{previewAccounts === 1 ? "" : "s"} × {previewVideos} vídeo{previewVideos === 1 ? "" : "s"}
+          </span>{" "}
+          → próxima postagem em <span className="font-medium text-foreground">{fmtPreview()}</span>, ciclo de{" "}
+          <span className="font-medium text-foreground">{gap}</span> +{" "}
+          <span className="font-medium text-foreground">0–{jitter}</span> min
+        </div>
+      )}
+      {enqueueMsg && (
+        <div className={["rounded-[8px] border px-3 py-2 text-xs", enqueueOk ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" : "border-border bg-bg3 text-text2"].join(" ")}>
+          {enqueueMsg}
+        </div>
+      )}
+      {!canEnqueue && missing.length > 0 && (
+        <p className="text-[11px] text-amber-400/80">{disabledReason}</p>
+      )}
+      <p className="text-[11px] text-muted2">
+        Cada vídeo vira um ciclo: todas as contas selecionadas postam o mesmo vídeo com
+        um atraso aleatório de 0 a {jitter}min, e o próximo ciclo começa {gap}min depois.
+        ✓ Variantes únicas por conta são geradas automaticamente no servidor.
+      </p>
 
-          <p className="text-[11px] text-muted2">
-            Cada vídeo vira um ciclo: todas as contas selecionadas postam o mesmo vídeo com
-            um atraso aleatório de 0 a {jitter}min, e o próximo ciclo começa {gap}min depois.
-          </p>
-        </section>
+      {/* ===================== BLOCO 6: Botão Agendar ===================== */}
+      {/* Desktop: inline */}
+      <div className="hidden md:block">
+        <button
+          onClick={enqueueAll}
+          disabled={!canEnqueue}
+          title={disabledReason || undefined}
+          className={[
+            "inline-flex w-full min-h-[44px] items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-sm font-semibold text-white shadow transition",
+            enqueueOk ? "bg-emerald-500 hover:bg-emerald-500/90" : "bg-[var(--accent2)] hover:opacity-90",
+            !canEnqueue ? "cursor-not-allowed opacity-50" : "",
+          ].join(" ")}
+        >
+          {enqueueing ? (<><Loader2 className="h-4 w-4 animate-spin" /> Agendando…</>) :
+           enqueueOk ? (<><CheckCircle2 className="h-4 w-4" /> Agendado com sucesso!</>) :
+           (<><CalendarPlus className="h-4 w-4" /> Agendar nas contas selecionadas</>)}
+        </button>
+      </div>
 
-        <div className="border-t border-border/60" />
-
-        <section>
-          <p className="text-[11px] text-muted2">
-            ✓ Variantes únicas por conta são geradas automaticamente no servidor
-            (Cloudflare Workers) ao agendar — sem ffmpeg, sem comando local.
-            Cada conta recebe um MP4 binariamente único: uuid box exclusivo,
-            timestamps falsos, balance de áudio ±0.5% e legenda com espaços
-            invisíveis Unicode.
-          </p>
-        </section>
-
+      {/* Mobile: sticky bottom */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg/95 px-3 py-3 backdrop-blur md:hidden"
+        style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
+      >
+        <button
+          onClick={enqueueAll}
+          disabled={!canEnqueue}
+          title={disabledReason || undefined}
+          className={[
+            "inline-flex w-full items-center justify-center gap-2 rounded-[10px] px-4 text-sm font-semibold text-white shadow transition",
+            "h-14",
+            enqueueOk ? "bg-emerald-500 hover:bg-emerald-500/90" : "bg-[var(--accent2)] hover:opacity-90",
+            !canEnqueue ? "cursor-not-allowed opacity-50" : "",
+          ].join(" ")}
+        >
+          {enqueueing ? (<><Loader2 className="h-4 w-4 animate-spin" /> Agendando…</>) :
+           enqueueOk ? (<><CheckCircle2 className="h-4 w-4" /> Agendado!</>) :
+           (<><CalendarPlus className="h-4 w-4" /> Agendar nas contas selecionadas</>)}
+        </button>
       </div>
     </div>
   );
 }
+
 
 
 // =====================================================================
