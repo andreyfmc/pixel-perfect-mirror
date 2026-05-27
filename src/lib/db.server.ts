@@ -804,6 +804,14 @@ const rawDb = {
       .run();
     return (result.meta as { changes?: number } | undefined)?.changes ?? 0;
   },
+  async clearPublishedBeforeToday(): Promise<number> {
+    const result = await requireDb()
+      .prepare(
+        `DELETE FROM queue WHERE status = 'published' AND date(scheduled_at) < date('now')`,
+      )
+      .run();
+    return (result.meta as { changes?: number } | undefined)?.changes ?? 0;
+  },
 
   // ============ history ============
   async listHistory(): Promise<HistoryRow[]> {

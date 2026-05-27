@@ -127,7 +127,8 @@ const STATUS_META: Record<StatusKey, { bg: string; fg: string; label: string; sh
 const TYPE_BADGE: Record<string, { bg: string; fg: string }> = {
   REEL: { bg: "color-mix(in oklab, var(--accent2) 22%, transparent)", fg: "var(--accent2)" },
   IMAGE: { bg: "color-mix(in oklab, #3b82f6 22%, transparent)", fg: "#7aa8ff" },
-  STORY: { bg: "color-mix(in oklab, #f97316 22%, transparent)", fg: "#ffb072" },
+  STORY: { bg: "color-mix(in oklab, #ec4899 22%, transparent)", fg: "#f9a8d4" },
+  CAROUSEL: { bg: "color-mix(in oklab, #f97316 22%, transparent)", fg: "#ffb072" },
 };
 
 const FILTERS: { id: FilterKey; label: string; key: string }[] = [
@@ -494,6 +495,8 @@ function QueuePage() {
     label: string;
     count: number;
   }>(null);
+  const [confirmCleanOld, setConfirmCleanOld] = useState(false);
+  const [cleaningOld, setCleaningOld] = useState(false);
 
   // Live clock and refresh countdown
   const [now, setNow] = useState(() => Date.now());
@@ -841,6 +844,13 @@ function QueuePage() {
             >
               <CheckCircle2 className="h-4 w-4" /> {allSelected ? "Desmarcar" : "Selecionar"}
             </button>
+            <button
+              onClick={() => setConfirmCleanOld(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-danger/35 bg-danger/10 px-3 py-2 text-sm text-danger hover:border-danger"
+              title="Remover posts publicados antes de hoje"
+            >
+              <Trash2 className="h-4 w-4" /> Limpar posts anteriores
+            </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground">
@@ -1109,16 +1119,15 @@ function QueuePage() {
                     <button
                       type="button"
                       onClick={() => toggleExpand(group.id)}
-                      className="flex w-full cursor-pointer items-center gap-3 px-3 py-2 text-left"
+                      className="flex min-h-12 w-full cursor-pointer items-center gap-2 px-3 py-2 text-left"
                     >
                       <ChevronRight
-                        className={`h-4 w-4 shrink-0 text-muted2 transition-transform duration-200 ${
+                        className={`h-3.5 w-3.5 shrink-0 text-muted2 transition-transform duration-200 ${
                           isOpen ? "rotate-90" : ""
                         }`}
                       />
-                      <Thumb src={group.thumb} type={group.mediaType} size="sm" />
                       <TypeBadge type={group.mediaType} />
-                      <span className="min-w-0 flex-1 truncate text-sm">
+                      <span className="min-w-0 flex-1 truncate text-xs">
                         {group.caption || "Sem legenda"}
                       </span>
                       <CountPill done={group.counts.published} total={group.items.length} />
@@ -1127,7 +1136,7 @@ function QueuePage() {
                         scheduledAt={group.scheduledAt}
                         now={now}
                       />
-                      <span className="hidden whitespace-nowrap text-xs text-muted2 sm:inline tabular-nums">
+                      <span className="hidden whitespace-nowrap text-[11px] text-muted2 sm:inline tabular-nums">
                         {timeHHmm(group.scheduledAt)}
                       </span>
                     </button>
@@ -1159,7 +1168,7 @@ function QueuePage() {
                           className="mt-1 accent-accent"
                           aria-label="Selecionar grupo"
                         />
-                        <Thumb src={group.thumb} type={group.mediaType} />
+                        
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <TypeBadge type={group.mediaType} />
@@ -1391,6 +1400,46 @@ function QueuePage() {
               }}
             >
               Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmCleanOld} onOpenChange={(o) => !o && setConfirmCleanOld(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limpar posts anteriores?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso vai remover permanentemente todos os posts publicados antes de hoje. Essa ação
+              não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={cleaningOld}
+              className="bg-danger text-white hover:bg-danger/90"
+              onClick={async (e) => {
+                e.preventDefault();
+                setCleaningOld(true);
+                try {
+                  const res = await fetch("/api/queue/clear", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ mode: "published_before_today" }),
+                  });
+                  const data = (await res.json().catch(() => ({}))) as { removed?: number };
+                  toast.success(`${data.removed ?? 0} posts removidos`);
+                  qc.invalidateQueries({ queryKey: ["queue"] });
+                  setConfirmCleanOld(false);
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Falha ao limpar");
+                } finally {
+                  setCleaningOld(false);
+                }
+              }}
+            >
+              {cleaningOld ? "Limpando…" : "Confirmar limpeza"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
