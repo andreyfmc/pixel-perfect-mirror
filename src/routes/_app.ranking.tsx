@@ -28,13 +28,15 @@ export const Route = createFileRoute("/_app/ranking")({
 });
 
 type Tab = "geral" | "alcance" | "metrica" | "diario";
-type StatusFilter = "all" | "good" | "warn" | "restricted";
+type StatusFilter = "all" | "saudavel" | "atencao" | "restrita" | "critica";
 type MetricKey = "views" | "reach" | "followers" | "likes" | "reels" | "eng" | "nfi";
 type SortKey = "score" | "views" | "followers" | "eng" | "nfi";
+type AnyStatus = AccountRankingData["reach_status"] | DailyAccountData["reach_status"];
 
 const PERIODS: { id: Period; label: string }[] = [
-  { id: "24h", label: "24h" },
-  { id: "7d", label: "7d" },
+  { id: "1d", label: "1d" },
+  { id: "3d", label: "3d" },
+  { id: "5d", label: "5d" },
   { id: "30d", label: "30d" },
 ];
 
@@ -47,22 +49,25 @@ const fmt = (n: number) =>
 
 const fmtPct = (n: number | null) => (n === null ? "—" : `${n.toFixed(1)}%`);
 
-function statusColor(s: AccountRankingData["reach_status"]): string {
-  if (s === "good") return "var(--success)";
-  if (s === "warn") return "var(--warning)";
-  if (s === "restricted") return "var(--danger)";
+function statusColor(s: AnyStatus): string {
+  if (s === "saudavel" || s === "good") return "var(--success)";
+  if (s === "atencao" || s === "warn") return "var(--warning)";
+  if (s === "restrita" || s === "restricted") return "var(--danger)";
+  if (s === "critica") return "var(--danger)";
   return "var(--muted2)";
 }
-function statusLabel(s: AccountRankingData["reach_status"]): string {
-  if (s === "good") return "🟢 Saudável";
-  if (s === "warn") return "🟡 Atenção";
-  if (s === "restricted") return "🔴 Restrita";
+function statusLabel(s: AnyStatus): string {
+  if (s === "saudavel" || s === "good") return "🟢 Saudável";
+  if (s === "atencao" || s === "warn") return "🟡 Atenção";
+  if (s === "restrita" || s === "restricted") return "🔴 Restrita";
+  if (s === "critica") return "⚠️ Crítica";
   return "⚪ Sem dados";
 }
-function statusBgCell(s: AccountRankingData["reach_status"]): string {
-  if (s === "good") return "color-mix(in oklab, var(--success) 25%, transparent)";
-  if (s === "warn") return "color-mix(in oklab, var(--warning) 25%, transparent)";
-  if (s === "restricted") return "color-mix(in oklab, var(--danger) 25%, transparent)";
+function statusBgCell(s: AnyStatus): string {
+  if (s === "saudavel" || s === "good") return "color-mix(in oklab, var(--success) 25%, transparent)";
+  if (s === "atencao" || s === "warn") return "color-mix(in oklab, var(--warning) 25%, transparent)";
+  if (s === "restrita" || s === "restricted" || s === "critica")
+    return "color-mix(in oklab, var(--danger) 25%, transparent)";
   return "var(--bg3)";
 }
 
