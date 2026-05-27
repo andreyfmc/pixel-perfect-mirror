@@ -1,10 +1,11 @@
-// GET /api/ranking?period=24h|7d|30d
-// Ranking acumulado por janela, com score composto normalizado (0-100).
+// GET /api/ranking?period=1d|3d|5d|30d
+// Ranking acumulado por janela. Score composto sem NF-Index (NF-Index é só diagnóstico).
 
 import { createFileRoute } from "@tanstack/react-router";
 import { requireDb, hasDb } from "@/lib/cf.server";
 
-type Period = "24h" | "7d" | "30d";
+type Period = "1d" | "3d" | "5d" | "30d";
+type Status = "saudavel" | "atencao" | "restrita" | "critica" | "sem_dados";
 
 export type AccountRankingData = {
   id: string;
@@ -13,9 +14,11 @@ export type AccountRankingData = {
   profile_picture: string | null;
   followers: number;
   health_score: number;
+  token_status: "valid" | "expired";
 
   period_reels: number;
-  period_views: number;
+  period_views: number;       // plays (com fallback para reach)
+  period_reach: number;       // pessoas únicas (insights.reach)
   period_likes: number;
   period_comments: number;
   period_avg_views: number;
@@ -24,14 +27,16 @@ export type AccountRankingData = {
   total_views: number;
   total_likes: number;
 
-  reach_ratio: number | null;          // % avg_views/followers
-  non_follower_index: number | null;   // avg_views/followers (raw, 1.0 = bate seguidores)
-  engagement_rate: number | null;      // (likes+comments)/views * 100
-  reach_status: "good" | "warn" | "restricted" | null;
+  reach_ratio: number | null;          // % avg_plays/followers
+  non_follower_index: number | null;   // avg_plays/followers (raw, 1.0 = bate seguidores)
+  engagement_rate: number | null;      // (likes+comments)/plays * 100
+  reach_status: Status;
+  // Alias para compat com UI antiga ('good'|'warn'|'restricted'|null)
+  reach_status_legacy: "good" | "warn" | "restricted" | null;
 
   hourly_views_24h: { hour: string; views: number }[];
 
-  // Score 0–100 ponderado (NFI 40 / Eng 30 / Reach 20 / Consistência 10)
+  // Score 0–100 ponderado: avg_plays 35 / engajamento 30 / likes 20 / consistência 15
   score: number;
   composite_score: number; // alias legado
   rank: number;
@@ -40,20 +45,41 @@ export type AccountRankingData = {
   pending_in_queue: number;
 };
 
-function reachStatusFor(
-  nfi: number | null,
-  eng: number | null,
-): AccountRankingData["reach_status"] {
-  if (nfi === null) return null;
-  if (nfi >= 0.8 && (eng ?? 0) >= 2) return "good";
-  if (nfi < 0.3) return "restricted";
-  return "warn";
+function periodHours(p: Period): number {
+  if (p === "1d") return 24;
+  if (p === "3d") return 72;
+  if (p === "5d") return 120;
+  return 720; // 30d
 }
 
-function periodHours(p: Period): number {
-  if (p === "24h") return 24;
-  if (p === "30d") return 720;
-  return 168; // 7d
+function statusFor(input: {
+  reels: number;
+  plays: number;
+  likes: number;
+  nfi: number | null;
+  eng: number | null;
+}): Status {
+  if (input.reels === 0) return "sem_dados";
+  // 0 views mas tem likes → problema de permissão/insight do token
+  if (input.plays === 0 && input.likes > 0) return "critica";
+  if (input.nfi === null) return "sem_dados";
+  if (input.nfi >= 0.8 && (input.eng ?? 0) >= 2) return "saudavel";
+  if (input.nfi >= 0.3) return "atencao";
+  return "restrita";
+}
+
+function legacyStatus(s: Status): "good" | "warn" | "restricted" | null {
+  if (s === "saudavel") return "good";
+  if (s === "atencao") return "warn";
+  if (s === "restrita" || s === "critica") return "restricted";
+  return null;
+}
+
+function normalize(values: number[]): number[] {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  if (max === min) return values.map(() => 50);
+  return values.map((v) => ((v - min) / (max - min)) * 100);
 }
 
 export const Route = createFileRoute("/api/ranking")({
@@ -66,9 +92,9 @@ export const Route = createFileRoute("/api/ranking")({
           });
         }
         const url = new URL(request.url);
-        const periodParam = (url.searchParams.get("period") ?? "7d") as Period;
+        const raw = url.searchParams.get("period") ?? "1d";
         const period: Period =
-          periodParam === "24h" || periodParam === "30d" ? periodParam : "7d";
+          raw === "1d" || raw === "3d" || raw === "5d" || raw === "30d" ? raw : "1d";
         const hours = periodHours(period);
 
         const db = requireDb();
@@ -77,7 +103,7 @@ export const Route = createFileRoute("/api/ranking")({
 
         const accountsRes = await db
           .prepare(
-            `SELECT id, username, name, profile_picture, followers, health_score, last_post_at
+            `SELECT id, username, name, profile_picture, followers, health_score, token_status, last_post_at
              FROM accounts`,
           )
           .all<{
@@ -87,15 +113,18 @@ export const Route = createFileRoute("/api/ranking")({
             profile_picture: string | null;
             followers: number;
             health_score: number;
+            token_status: "valid" | "expired";
             last_post_at: string | null;
           }>();
         const accounts = accountsRes.results ?? [];
 
+        // Usa COALESCE(plays, reach) — fallback para contas que ainda não têm plays gravado.
         const periodAggRes = await db
           .prepare(
             `SELECT account_id,
                     COUNT(*) AS reels,
-                    COALESCE(SUM(reach), 0) AS views,
+                    COALESCE(SUM(COALESCE(NULLIF(plays,0), reach)), 0) AS views,
+                    COALESCE(SUM(reach), 0) AS reach,
                     COALESCE(SUM(likes), 0) AS likes,
                     COALESCE(SUM(comments), 0) AS comments
              FROM history
@@ -103,7 +132,14 @@ export const Route = createFileRoute("/api/ranking")({
              GROUP BY account_id`,
           )
           .bind(periodCutoff)
-          .all<{ account_id: string; reels: number; views: number; likes: number; comments: number }>();
+          .all<{
+            account_id: string;
+            reels: number;
+            views: number;
+            reach: number;
+            likes: number;
+            comments: number;
+          }>();
         const periodAgg = new Map(
           (periodAggRes.results ?? []).map((r) => [r.account_id, r]),
         );
@@ -112,7 +148,7 @@ export const Route = createFileRoute("/api/ranking")({
           .prepare(
             `SELECT account_id,
                     COUNT(*) AS reels,
-                    COALESCE(SUM(reach), 0) AS views,
+                    COALESCE(SUM(COALESCE(NULLIF(plays,0), reach)), 0) AS views,
                     COALESCE(SUM(likes), 0) AS likes
              FROM history
              GROUP BY account_id`,
@@ -124,7 +160,7 @@ export const Route = createFileRoute("/api/ranking")({
           .prepare(
             `SELECT account_id,
                     strftime('%Y-%m-%dT%H:00:00Z', published_at) AS hour,
-                    COALESCE(SUM(reach), 0) AS views
+                    COALESCE(SUM(COALESCE(NULLIF(plays,0), reach)), 0) AS views
              FROM history
              WHERE published_at >= ?
              GROUP BY account_id, hour`,
@@ -161,6 +197,7 @@ export const Route = createFileRoute("/api/ranking")({
           const ta = totalAgg.get(a.id);
           const period_reels = pa?.reels ?? 0;
           const period_views = pa?.views ?? 0;
+          const period_reach = pa?.reach ?? 0;
           const period_likes = pa?.likes ?? 0;
           const period_comments = pa?.comments ?? 0;
           const period_avg_views = period_reels > 0 ? period_views / period_reels : 0;
@@ -176,6 +213,7 @@ export const Route = createFileRoute("/api/ranking")({
             ta,
             period_reels,
             period_views,
+            period_reach,
             period_likes,
             period_comments,
             period_avg_views,
@@ -185,30 +223,33 @@ export const Route = createFileRoute("/api/ranking")({
           };
         });
 
-        // Normalização min-max para score 0-100
-        const nfiVals = pre.map((p) => p.non_follower_index ?? 0);
-        const engVals = pre.map((p) => p.engagement_rate ?? 0);
-        const reachVals = pre.map((p) => p.reach_ratio ?? 0);
-        const reelVals = pre.map((p) => p.period_reels);
-        const maxNfi = Math.max(0.01, ...nfiVals);
-        const maxEng = Math.max(0.01, ...engVals);
-        const maxReach = Math.max(0.01, ...reachVals);
-        const maxReels = Math.max(1, ...reelVals);
+        // Score sem NF-Index (avg_plays 35 / eng 30 / likes 20 / reels 15).
+        const avgPlaysNorm = normalize(pre.map((p) => p.period_avg_views));
+        const engagementNorm = normalize(pre.map((p) => p.engagement_rate ?? 0));
+        const likesNorm = normalize(pre.map((p) => p.period_likes));
+        const reelsNorm = normalize(pre.map((p) => p.period_reels));
 
-        const rows: AccountRankingData[] = pre.map((p) => {
+        const rows: AccountRankingData[] = pre.map((p, i) => {
           const { a, ta } = p;
-          const nNfi = ((p.non_follower_index ?? 0) / maxNfi) * 100;
-          const nEng = ((p.engagement_rate ?? 0) / maxEng) * 100;
-          const nReach = ((p.reach_ratio ?? 0) / maxReach) * 100;
-          const nReels = (p.period_reels / maxReels) * 100;
           const score =
-            p.non_follower_index === null
+            p.period_reels === 0
               ? 0
-              : nNfi * 0.4 + nEng * 0.3 + nReach * 0.2 + nReels * 0.1;
+              : avgPlaysNorm[i] * 0.35 +
+                engagementNorm[i] * 0.3 +
+                likesNorm[i] * 0.2 +
+                reelsNorm[i] * 0.15;
 
           const sparkRaw = hourlyByAcc.get(a.id) ?? [];
           const sparkMap = new Map(sparkRaw.map((r) => [r.hour, r.views]));
           const hourly_views_24h = buckets.map((h) => ({ hour: h, views: sparkMap.get(h) ?? 0 }));
+
+          const status = statusFor({
+            reels: p.period_reels,
+            plays: p.period_views,
+            likes: p.period_likes,
+            nfi: p.non_follower_index,
+            eng: p.engagement_rate,
+          });
 
           return {
             id: a.id,
@@ -217,8 +258,10 @@ export const Route = createFileRoute("/api/ranking")({
             profile_picture: a.profile_picture,
             followers: a.followers ?? 0,
             health_score: a.health_score ?? 100,
+            token_status: a.token_status ?? "valid",
             period_reels: p.period_reels,
             period_views: p.period_views,
+            period_reach: p.period_reach,
             period_likes: p.period_likes,
             period_comments: p.period_comments,
             period_avg_views: p.period_avg_views,
@@ -228,7 +271,8 @@ export const Route = createFileRoute("/api/ranking")({
             reach_ratio: p.reach_ratio,
             non_follower_index: p.non_follower_index,
             engagement_rate: p.engagement_rate,
-            reach_status: reachStatusFor(p.non_follower_index, p.engagement_rate),
+            reach_status: status,
+            reach_status_legacy: legacyStatus(status),
             hourly_views_24h,
             score: Math.round(score * 10) / 10,
             composite_score: Math.round(score * 10) / 10,
