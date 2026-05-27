@@ -476,6 +476,9 @@ function DistributeTab() {
     persisted.selectedAccounts ?? [],
   );
   const [accountFilter, setAccountFilter] = useState("");
+  const [accountSort, setAccountSort] = useState<
+    "followers_desc" | "followers_asc" | "health_desc" | "health_asc" | "alpha" | "last_activity"
+  >("followers_desc");
   const [confirmClear, setConfirmClear] = useState(false);
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
