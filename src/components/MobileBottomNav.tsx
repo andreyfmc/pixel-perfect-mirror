@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Flame, CalendarClock, Users, ShieldAlert } from "lucide-react";
+import { LayoutDashboard, Flame, CalendarClock, Users, Trophy } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { loadContingency } from "@/lib/contingency-store";
 
@@ -9,8 +9,8 @@ const items = [
   { to: "/", label: "Dashboard", Icon: LayoutDashboard },
   { to: "/warmup", label: "Postagem", Icon: Flame },
   { to: "/queue", label: "Fila", Icon: CalendarClock },
+  { to: "/ranking", label: "Ranking", Icon: Trophy },
   { to: "/accounts", label: "Contas", Icon: Users },
-  { to: "/contingency", label: "Contin.", Icon: ShieldAlert },
 ] as const;
 
 export function MobileBottomNav() {
