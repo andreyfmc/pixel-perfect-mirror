@@ -1135,7 +1135,44 @@ function DistributeTab() {
         </div>
       </section>
 
-      {/* ===================== BLOCO 4: Ordem dos vídeos ===================== */}
+      {/* ===================== BLOCO 3.5: Modo de execução (Loop) ===================== */}
+      <section className="space-y-2 rounded-[10px] border border-border bg-bg3/30 p-4">
+        <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
+          <RefreshCw className="h-3.5 w-3.5" /> Modo de execução
+        </h3>
+        <div className="flex flex-wrap gap-1 rounded-full border border-border2 bg-bg3 p-1">
+          {([
+            { id: "once", label: "Postagem única" },
+            { id: "snapshot", label: "Loop (snapshot)" },
+            { id: "live_folder", label: "Loop (pasta ao vivo)" },
+          ] as const).map((opt) => {
+            const active = loopMode === opt.id;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => setLoopMode(opt.id)}
+                className={[
+                  "rounded-full px-3 py-1.5 text-xs font-medium transition",
+                  active ? "text-white shadow" : "text-text2 hover:text-foreground",
+                ].join(" ")}
+                style={active ? { background: "var(--accent2)" } : undefined}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-muted2">
+          {loopMode === "once" && "Agenda os ciclos uma vez (todos os vídeos selecionados)."}
+          {loopMode === "snapshot" && "Loop infinito sobre a lista de vídeos atualmente selecionados (lista fixa)."}
+          {loopMode === "live_folder" && "Loop infinito que relê a pasta atual do Drive antes de cada ciclo — novos vídeos entram, deletados saem. Pausa se a pasta ficar vazia."}
+        </p>
+      </section>
+
+      {/* Painel de loops ativos */}
+      <ActiveLoopsPanel />
+
+
       <section className="space-y-2 rounded-[10px] border border-border bg-bg3/30 p-4">
         <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
           <Shuffle className="h-3.5 w-3.5" /> Ordem dos vídeos
