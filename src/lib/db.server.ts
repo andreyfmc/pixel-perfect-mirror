@@ -183,6 +183,9 @@ async function ensureSchema(): Promise<void> {
       // na próxima request.
       ensureSchemaPromise = undefined;
       console.warn("[db] ensureSchema falhou:", err);
+    }
+  })();
+  return ensureSchemaPromise;
 }
 
 async function recordFollowersSnapshot(accountId: string, followers: number) {
@@ -199,9 +202,6 @@ async function recordFollowersSnapshot(accountId: string, followers: number) {
   } catch (err) {
     console.warn("[db] recordFollowersSnapshot falhou:", err);
   }
-}
-  })();
-  return ensureSchemaPromise;
 }
 
 
