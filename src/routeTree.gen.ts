@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as ApiRankingRouteImport } from './routes/api/ranking'
@@ -44,6 +45,11 @@ import { Route as ApiAuthInstagramLinkRouteImport } from './routes/api/auth.inst
 import { Route as ApiAuthInstagramCallbackRouteImport } from './routes/api/auth.instagram.callback'
 import { Route as ApiAccountsIdValidateRouteImport } from './routes/api/accounts.$id.validate'
 
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
@@ -217,6 +223,7 @@ const ApiAccountsIdValidateRoute = ApiAccountsIdValidateRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/login': typeof LoginRoute
   '/accounts': typeof AppAccountsRoute
   '/contingency': typeof AppContingencyRoute
   '/history': typeof AppHistoryRoute
@@ -251,6 +258,7 @@ export interface FileRoutesByFullPath {
   '/api/public/drive/$id': typeof ApiPublicDriveIdRoute
 }
 export interface FileRoutesByTo {
+  '/login': typeof LoginRoute
   '/accounts': typeof AppAccountsRoute
   '/contingency': typeof AppContingencyRoute
   '/history': typeof AppHistoryRoute
@@ -288,6 +296,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
   '/_app/accounts': typeof AppAccountsRoute
   '/_app/contingency': typeof AppContingencyRoute
   '/_app/history': typeof AppHistoryRoute
@@ -326,6 +335,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/login'
     | '/accounts'
     | '/contingency'
     | '/history'
@@ -360,6 +370,7 @@ export interface FileRouteTypes {
     | '/api/public/drive/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/login'
     | '/accounts'
     | '/contingency'
     | '/history'
@@ -396,6 +407,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_app'
+    | '/login'
     | '/_app/accounts'
     | '/_app/contingency'
     | '/_app/history'
@@ -433,6 +445,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
+  LoginRoute: typeof LoginRoute
   ApiAccountsRoute: typeof ApiAccountsRouteWithChildren
   ApiContingencyRoute: typeof ApiContingencyRouteWithChildren
   ApiHistoryRoute: typeof ApiHistoryRouteWithChildren
@@ -453,6 +466,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app': {
       id: '/_app'
       path: ''
@@ -817,6 +837,7 @@ const ApiAuthInstagramRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
+  LoginRoute: LoginRoute,
   ApiAccountsRoute: ApiAccountsRouteWithChildren,
   ApiContingencyRoute: ApiContingencyRouteWithChildren,
   ApiHistoryRoute: ApiHistoryRouteWithChildren,
@@ -837,3 +858,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
