@@ -189,6 +189,8 @@ export type QueueRow = {
   variant_method: string | null;
   variant_error: string | null;
   original_media_key: string | null;
+  loop_id: string | null;
+  cycle_number: number | null;
   created_at: string;
 };
 
