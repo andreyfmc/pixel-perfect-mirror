@@ -1128,7 +1128,7 @@ function DistributeTab() {
         </div>
         <p className="text-[11px] text-muted2">
           {order === "random"
-            ? "Cada conta recebe os vídeos em ordem embaralhada."
+            ? "Ordem: aleatória e independente por conta (seed = accountId)."
             : "Todas as contas seguem a mesma ordem de seleção."}
         </p>
       </section>
