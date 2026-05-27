@@ -62,7 +62,7 @@ export function MobileBottomNav() {
       className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-bg2/95 backdrop-blur"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="grid grid-cols-5" style={{ height: 60 }}>
+      <ul className="grid grid-cols-6" style={{ height: 60 }}>
         {items.map(({ to, label, Icon }) => {
           const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
           const badge = badgeFor(to);
