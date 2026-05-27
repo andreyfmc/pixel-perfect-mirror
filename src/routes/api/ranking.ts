@@ -335,6 +335,15 @@ export const Route = createFileRoute("/api/ranking")({
             rank: 0,
             last_post_at: a.last_post_at,
             pending_in_queue: pendingMap.get(a.id) ?? 0,
+            delta_views_24h:
+              (todayMap.get(a.id)?.views ?? 0) - (yestMap.get(a.id)?.views ?? 0),
+            delta_likes_24h:
+              (todayMap.get(a.id)?.likes ?? 0) - (yestMap.get(a.id)?.likes ?? 0),
+            delta_comments_24h:
+              (todayMap.get(a.id)?.comments ?? 0) - (yestMap.get(a.id)?.comments ?? 0),
+            delta_followers_24h: followersSnapMap.has(a.id)
+              ? (a.followers ?? 0) - (followersSnapMap.get(a.id) ?? 0)
+              : null,
           };
         });
 
