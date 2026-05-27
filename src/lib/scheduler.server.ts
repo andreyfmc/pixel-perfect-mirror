@@ -383,5 +383,55 @@ export async function runScheduler(
     console.warn("[scheduler] build de variantes falhou:", err);
   }
 
+  // Refresh de insights (reach/likes/comments) dos posts recentes.
+  // Limitado a poucos por tick — chamadas /insights pesam no rate-limit.
+  try {
+    const r = await refreshHistoryInsights(8);
+    if (r.updated || r.failed) {
+      console.log(`[scheduler] insights updated=${r.updated} failed=${r.failed}`);
+    }
+  } catch (err) {
+    console.warn("[scheduler] refresh de insights falhou:", err);
+  }
+
   return { processed, errors };
+}
+
+/**
+ * Atualiza reach/likes/comments de até `limit` posts publicados nos últimos 7 dias.
+ * Usado pelo tick do scheduler e pelo endpoint manual /api/history/refresh.
+ */
+export async function refreshHistoryInsights(
+  limit = 8,
+): Promise<{ updated: number; failed: number }> {
+  if (!hasDb()) return { updated: 0, failed: 0 };
+  const rows = await db.listHistoryNeedingInsightsRefresh({ days: 7, limit, minAgeMinutes: 30 });
+  let updated = 0;
+  let failed = 0;
+  for (const row of rows) {
+    try {
+      const account = await db.resolveAccountForPublishing(row.account_id);
+      if (!account?.access_token) {
+        failed++;
+        continue;
+      }
+      const provider = inferGraphProviderFromToken(account.access_token, account.provider);
+      const metrics = await instagram.fetchMediaMetrics(
+        row.ig_media_id,
+        account.access_token,
+        provider,
+      );
+      await db.updateHistoryInsights(row.id, metrics);
+      updated++;
+    } catch (err) {
+      failed++;
+      if (isInvalidAccessTokenError(err)) {
+        await db.markAccountNeedsReconnect(row.account_id);
+      }
+      console.warn(
+        `[insights] history=${row.id} falhou: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+  return { updated, failed };
 }

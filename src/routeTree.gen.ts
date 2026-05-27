@@ -29,6 +29,7 @@ import { Route as ApiQueueClearRouteImport } from './routes/api/queue.clear'
 import { Route as ApiQueueIdRouteImport } from './routes/api/queue.$id'
 import { Route as ApiMediaUploadRouteImport } from './routes/api/media.upload'
 import { Route as ApiLoopsIdRouteImport } from './routes/api/loops.$id'
+import { Route as ApiHistoryRefreshRouteImport } from './routes/api/history.refresh'
 import { Route as ApiCronTickRouteImport } from './routes/api/cron.tick'
 import { Route as ApiContingencyIdRouteImport } from './routes/api/contingency.$id'
 import { Route as ApiAuthInstagramRouteImport } from './routes/api/auth.instagram'
@@ -140,6 +141,11 @@ const ApiLoopsIdRoute = ApiLoopsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiLoopsRoute,
 } as any)
+const ApiHistoryRefreshRoute = ApiHistoryRefreshRouteImport.update({
+  id: '/refresh',
+  path: '/refresh',
+  getParentRoute: () => ApiHistoryRoute,
+} as any)
 const ApiCronTickRoute = ApiCronTickRouteImport.update({
   id: '/api/cron/tick',
   path: '/api/cron/tick',
@@ -207,7 +213,7 @@ export interface FileRoutesByFullPath {
   '/warmup': typeof AppWarmupRoute
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
-  '/api/history': typeof ApiHistoryRoute
+  '/api/history': typeof ApiHistoryRouteWithChildren
   '/api/loops': typeof ApiLoopsRouteWithChildren
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/ranking': typeof ApiRankingRouteWithChildren
@@ -217,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
   '/api/contingency/$id': typeof ApiContingencyIdRoute
   '/api/cron/tick': typeof ApiCronTickRoute
+  '/api/history/refresh': typeof ApiHistoryRefreshRoute
   '/api/loops/$id': typeof ApiLoopsIdRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
@@ -238,7 +245,7 @@ export interface FileRoutesByTo {
   '/warmup': typeof AppWarmupRoute
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
-  '/api/history': typeof ApiHistoryRoute
+  '/api/history': typeof ApiHistoryRouteWithChildren
   '/api/loops': typeof ApiLoopsRouteWithChildren
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/ranking': typeof ApiRankingRouteWithChildren
@@ -249,6 +256,7 @@ export interface FileRoutesByTo {
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
   '/api/contingency/$id': typeof ApiContingencyIdRoute
   '/api/cron/tick': typeof ApiCronTickRoute
+  '/api/history/refresh': typeof ApiHistoryRefreshRoute
   '/api/loops/$id': typeof ApiLoopsIdRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
@@ -272,7 +280,7 @@ export interface FileRoutesById {
   '/_app/warmup': typeof AppWarmupRoute
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
-  '/api/history': typeof ApiHistoryRoute
+  '/api/history': typeof ApiHistoryRouteWithChildren
   '/api/loops': typeof ApiLoopsRouteWithChildren
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/ranking': typeof ApiRankingRouteWithChildren
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
   '/api/contingency/$id': typeof ApiContingencyIdRoute
   '/api/cron/tick': typeof ApiCronTickRoute
+  '/api/history/refresh': typeof ApiHistoryRefreshRoute
   '/api/loops/$id': typeof ApiLoopsIdRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/api/auth/instagram'
     | '/api/contingency/$id'
     | '/api/cron/tick'
+    | '/api/history/refresh'
     | '/api/loops/$id'
     | '/api/media/upload'
     | '/api/queue/$id'
@@ -349,6 +359,7 @@ export interface FileRouteTypes {
     | '/api/auth/instagram'
     | '/api/contingency/$id'
     | '/api/cron/tick'
+    | '/api/history/refresh'
     | '/api/loops/$id'
     | '/api/media/upload'
     | '/api/queue/$id'
@@ -382,6 +393,7 @@ export interface FileRouteTypes {
     | '/api/auth/instagram'
     | '/api/contingency/$id'
     | '/api/cron/tick'
+    | '/api/history/refresh'
     | '/api/loops/$id'
     | '/api/media/upload'
     | '/api/queue/$id'
@@ -399,7 +411,7 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   ApiAccountsRoute: typeof ApiAccountsRouteWithChildren
   ApiContingencyRoute: typeof ApiContingencyRouteWithChildren
-  ApiHistoryRoute: typeof ApiHistoryRoute
+  ApiHistoryRoute: typeof ApiHistoryRouteWithChildren
   ApiLoopsRoute: typeof ApiLoopsRouteWithChildren
   ApiQueueRoute: typeof ApiQueueRouteWithChildren
   ApiRankingRoute: typeof ApiRankingRouteWithChildren
@@ -555,6 +567,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLoopsIdRouteImport
       parentRoute: typeof ApiLoopsRoute
     }
+    '/api/history/refresh': {
+      id: '/api/history/refresh'
+      path: '/refresh'
+      fullPath: '/api/history/refresh'
+      preLoaderRoute: typeof ApiHistoryRefreshRouteImport
+      parentRoute: typeof ApiHistoryRoute
+    }
     '/api/cron/tick': {
       id: '/api/cron/tick'
       path: '/api/cron/tick'
@@ -693,6 +712,18 @@ const ApiContingencyRouteWithChildren = ApiContingencyRoute._addFileChildren(
   ApiContingencyRouteChildren,
 )
 
+interface ApiHistoryRouteChildren {
+  ApiHistoryRefreshRoute: typeof ApiHistoryRefreshRoute
+}
+
+const ApiHistoryRouteChildren: ApiHistoryRouteChildren = {
+  ApiHistoryRefreshRoute: ApiHistoryRefreshRoute,
+}
+
+const ApiHistoryRouteWithChildren = ApiHistoryRoute._addFileChildren(
+  ApiHistoryRouteChildren,
+)
+
 interface ApiLoopsRouteChildren {
   ApiLoopsIdRoute: typeof ApiLoopsIdRoute
 }
@@ -748,7 +779,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   ApiAccountsRoute: ApiAccountsRouteWithChildren,
   ApiContingencyRoute: ApiContingencyRouteWithChildren,
-  ApiHistoryRoute: ApiHistoryRoute,
+  ApiHistoryRoute: ApiHistoryRouteWithChildren,
   ApiLoopsRoute: ApiLoopsRouteWithChildren,
   ApiQueueRoute: ApiQueueRouteWithChildren,
   ApiRankingRoute: ApiRankingRouteWithChildren,

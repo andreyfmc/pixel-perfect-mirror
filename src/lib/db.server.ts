@@ -758,6 +758,47 @@ const rawDb = {
       .run();
   },
 
+  /**
+   * Lista posts dos últimos N dias que precisam de refresh de insights.
+   * Prioriza linhas nunca buscadas (fetched_at IS NULL) e depois as mais antigas.
+   * Limita por tick para não estourar rate-limit da Graph API.
+   */
+  async listHistoryNeedingInsightsRefresh(opts: {
+    days?: number;
+    limit?: number;
+    minAgeMinutes?: number;
+  } = {}): Promise<HistoryRow[]> {
+    const days = opts.days ?? 7;
+    const limit = opts.limit ?? 8;
+    const minAge = opts.minAgeMinutes ?? 30;
+    const sinceIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const staleBefore = new Date(Date.now() - minAge * 60_000).toISOString();
+    const { results } = await requireDb()
+      .prepare(
+        `SELECT * FROM history
+         WHERE published_at >= ?
+           AND (fetched_at IS NULL OR datetime(fetched_at) <= datetime(?))
+         ORDER BY (fetched_at IS NULL) DESC, fetched_at ASC NULLS FIRST, published_at DESC
+         LIMIT ?`,
+      )
+      .bind(sinceIso, staleBefore, limit)
+      .all<HistoryRow>();
+    return results ?? [];
+  },
+  async updateHistoryInsights(
+    id: string,
+    metrics: { reach: number; likes: number; comments: number },
+  ) {
+    await requireDb()
+      .prepare(
+        `UPDATE history
+         SET reach = ?, likes = ?, comments = ?, fetched_at = datetime('now')
+         WHERE id = ?`,
+      )
+      .bind(metrics.reach, metrics.likes, metrics.comments, id)
+      .run();
+  },
+
   // ============ oauth_states (links únicos de conexão) ============
   async createOAuthState(input: { state: string; redirectUri: string; ttlMinutes?: number }) {
     const ttl = Math.max(1, input.ttlMinutes ?? 30);
