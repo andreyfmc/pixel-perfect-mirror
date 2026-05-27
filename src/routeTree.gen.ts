@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as ApiQueueRouteImport } from './routes/api/queue'
+import { Route as ApiLoopsRouteImport } from './routes/api/loops'
 import { Route as ApiHistoryRouteImport } from './routes/api/history'
 import { Route as ApiContingencyRouteImport } from './routes/api/contingency'
 import { Route as ApiAccountsRouteImport } from './routes/api/accounts'
@@ -47,6 +48,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const ApiQueueRoute = ApiQueueRouteImport.update({
   id: '/api/queue',
   path: '/api/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLoopsRoute = ApiLoopsRouteImport.update({
+  id: '/api/loops',
+  path: '/api/loops',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHistoryRoute = ApiHistoryRouteImport.update({
@@ -171,6 +177,7 @@ export interface FileRoutesByFullPath {
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
+  '/api/loops': typeof ApiLoopsRoute
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -196,6 +203,7 @@ export interface FileRoutesByTo {
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
+  '/api/loops': typeof ApiLoopsRoute
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
@@ -224,6 +232,7 @@ export interface FileRoutesById {
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
+  '/api/loops': typeof ApiLoopsRoute
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/_app/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
@@ -253,6 +262,7 @@ export interface FileRouteTypes {
     | '/api/accounts'
     | '/api/contingency'
     | '/api/history'
+    | '/api/loops'
     | '/api/queue'
     | '/api/accounts/$id'
     | '/api/auth/callback'
@@ -278,6 +288,7 @@ export interface FileRouteTypes {
     | '/api/accounts'
     | '/api/contingency'
     | '/api/history'
+    | '/api/loops'
     | '/api/queue'
     | '/'
     | '/api/accounts/$id'
@@ -305,6 +316,7 @@ export interface FileRouteTypes {
     | '/api/accounts'
     | '/api/contingency'
     | '/api/history'
+    | '/api/loops'
     | '/api/queue'
     | '/_app/'
     | '/api/accounts/$id'
@@ -328,6 +340,7 @@ export interface RootRouteChildren {
   ApiAccountsRoute: typeof ApiAccountsRouteWithChildren
   ApiContingencyRoute: typeof ApiContingencyRouteWithChildren
   ApiHistoryRoute: typeof ApiHistoryRoute
+  ApiLoopsRoute: typeof ApiLoopsRoute
   ApiQueueRoute: typeof ApiQueueRouteWithChildren
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthCallbackIgRoute: typeof ApiAuthCallbackIgRoute
@@ -359,6 +372,13 @@ declare module '@tanstack/react-router' {
       path: '/api/queue'
       fullPath: '/api/queue'
       preLoaderRoute: typeof ApiQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/loops': {
+      id: '/api/loops'
+      path: '/api/loops'
+      fullPath: '/api/loops'
+      preLoaderRoute: typeof ApiLoopsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/history': {
@@ -606,6 +626,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAccountsRoute: ApiAccountsRouteWithChildren,
   ApiContingencyRoute: ApiContingencyRouteWithChildren,
   ApiHistoryRoute: ApiHistoryRoute,
+  ApiLoopsRoute: ApiLoopsRoute,
   ApiQueueRoute: ApiQueueRouteWithChildren,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthCallbackIgRoute: ApiAuthCallbackIgRoute,
@@ -618,3 +639,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
