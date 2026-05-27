@@ -844,6 +844,13 @@ function QueuePage() {
             >
               <CheckCircle2 className="h-4 w-4" /> {allSelected ? "Desmarcar" : "Selecionar"}
             </button>
+            <button
+              onClick={() => setConfirmCleanOld(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-danger/35 bg-danger/10 px-3 py-2 text-sm text-danger hover:border-danger"
+              title="Remover posts publicados antes de hoje"
+            >
+              <Trash2 className="h-4 w-4" /> Limpar posts anteriores
+            </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground">
