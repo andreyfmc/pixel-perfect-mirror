@@ -27,6 +27,12 @@ export type AccountRankingData = {
   total_views: number;
   total_likes: number;
 
+  // Ganho hoje (0–24h) comparado a 24–48h atrás (e snapshot de seguidores).
+  delta_views_24h: number;
+  delta_likes_24h: number;
+  delta_comments_24h: number;
+  delta_followers_24h: number | null;
+
   reach_ratio: number | null;          // % avg_plays/followers
   non_follower_index: number | null;   // avg_plays/followers (raw, 1.0 = bate seguidores)
   engagement_rate: number | null;      // (likes+comments)/plays * 100
