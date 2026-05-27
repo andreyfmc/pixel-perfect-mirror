@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { AccountRankingData } from "@/routes/api/ranking";
 import type { DailyRankingResponse } from "@/routes/api/ranking.daily";
 
-export type Period = "24h" | "48h" | "72h";
+export type Period = "24h" | "7d" | "30d";
 
 export function useRanking(period: Period) {
   return useQuery({
