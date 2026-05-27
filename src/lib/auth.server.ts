@@ -101,10 +101,11 @@ export async function verifyPassword(plain: string, hash: string): Promise<boole
 // ---------- env helpers ----------
 export function getAuthEnv() {
   const e = env as Record<string, string | undefined>;
+  const p = (typeof process !== "undefined" ? process.env : {}) as Record<string, string | undefined>;
   return {
-    email: (e.ADMIN_EMAIL ?? "").trim().toLowerCase(),
-    hash: e.ADMIN_PASSWORD_HASH ?? "",
-    secret: e.JWT_SECRET ?? "",
+    email: ((e.ADMIN_EMAIL ?? p.ADMIN_EMAIL) ?? "").trim().toLowerCase(),
+    hash: e.ADMIN_PASSWORD_HASH ?? p.ADMIN_PASSWORD_HASH ?? "",
+    secret: e.JWT_SECRET ?? p.JWT_SECRET ?? "",
   };
 }
 
