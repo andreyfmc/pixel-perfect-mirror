@@ -1405,6 +1405,46 @@ function QueuePage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={confirmCleanOld} onOpenChange={(o) => !o && setConfirmCleanOld(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Limpar posts anteriores?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Isso vai remover permanentemente todos os posts publicados antes de hoje. Essa ação
+              não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={cleaningOld}
+              className="bg-danger text-white hover:bg-danger/90"
+              onClick={async (e) => {
+                e.preventDefault();
+                setCleaningOld(true);
+                try {
+                  const res = await fetch("/api/queue/clear", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ mode: "published_before_today" }),
+                  });
+                  const data = (await res.json().catch(() => ({}))) as { removed?: number };
+                  toast.success(`${data.removed ?? 0} posts removidos`);
+                  qc.invalidateQueries({ queryKey: ["queue"] });
+                  setConfirmCleanOld(false);
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Falha ao limpar");
+                } finally {
+                  setCleaningOld(false);
+                }
+              }}
+            >
+              {cleaningOld ? "Limpando…" : "Confirmar limpeza"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
