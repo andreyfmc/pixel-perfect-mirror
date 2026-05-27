@@ -14,6 +14,9 @@ import {
   Film,
   Activity,
   AlertTriangle,
+  Radio,
+  ExternalLink,
+  X,
 } from "lucide-react";
 import { useRanking, useDailyRanking, type Period } from "@/hooks/use-ranking";
 import type { AccountRankingData } from "@/routes/api/ranking";
@@ -26,12 +29,13 @@ export const Route = createFileRoute("/_app/ranking")({
 
 type Tab = "geral" | "alcance" | "metrica" | "diario";
 type StatusFilter = "all" | "good" | "warn" | "restricted";
-type MetricKey = "views" | "reach" | "followers" | "likes" | "reels" | "eng";
+type MetricKey = "views" | "reach" | "followers" | "likes" | "reels" | "eng" | "nfi";
+type SortKey = "score" | "views" | "followers" | "eng" | "nfi";
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: "24h", label: "24h" },
-  { id: "48h", label: "48h" },
-  { id: "72h", label: "72h" },
+  { id: "7d", label: "7d" },
+  { id: "30d", label: "30d" },
 ];
 
 const fmt = (n: number) =>
@@ -50,16 +54,40 @@ function statusColor(s: AccountRankingData["reach_status"]): string {
   return "var(--muted2)";
 }
 function statusLabel(s: AccountRankingData["reach_status"]): string {
-  if (s === "good") return "🟢 Entregando para não-seguidores";
-  if (s === "warn") return "🟡 Alcance moderado";
-  if (s === "restricted") return "🔴 Possível restrição";
-  return "— sem dados no período";
+  if (s === "good") return "🟢 Saudável";
+  if (s === "warn") return "🟡 Atenção";
+  if (s === "restricted") return "🔴 Restrita";
+  return "⚪ Sem dados";
 }
 function statusBgCell(s: AccountRankingData["reach_status"]): string {
   if (s === "good") return "color-mix(in oklab, var(--success) 25%, transparent)";
   if (s === "warn") return "color-mix(in oklab, var(--warning) 25%, transparent)";
   if (s === "restricted") return "color-mix(in oklab, var(--danger) 25%, transparent)";
   return "var(--bg3)";
+}
+
+function nfiColor(nfi: number | null): string {
+  if (nfi === null) return "var(--muted2)";
+  if (nfi >= 1) return "var(--success)";
+  if (nfi >= 0.3) return "var(--warning)";
+  return "var(--danger)";
+}
+function nfiLabel(nfi: number | null): string {
+  if (nfi === null) return "—";
+  return `${nfi.toFixed(1)}x`;
+}
+
+function scoreColor(score: number): string {
+  if (score >= 70) return "var(--success)";
+  if (score >= 40) return "var(--warning)";
+  return "var(--danger)";
+}
+
+function engColor(eng: number | null): string {
+  if (eng === null) return "var(--muted2)";
+  if (eng >= 5) return "var(--success)";
+  if (eng >= 2) return "var(--warning)";
+  return "var(--danger)";
 }
 
 function Sparkline({ data }: { data: { hour: string; views: number }[] }) {
@@ -84,8 +112,7 @@ function Sparkline({ data }: { data: { hour: string; views: number }[] }) {
 }
 
 function RankDelta({ delta }: { delta: number | null }) {
-  if (delta === null)
-    return <span className="text-muted2 text-xs">—</span>;
+  if (delta === null) return <span className="text-muted2 text-xs">—</span>;
   if (delta === 0)
     return (
       <span className="inline-flex items-center gap-1 text-muted2 text-xs">
@@ -106,83 +133,326 @@ function RankDelta({ delta }: { delta: number | null }) {
   );
 }
 
-function Avatar({ src, alt, size = 36 }: { src: string | null; alt: string; size?: number }) {
+function Avatar({
+  src,
+  alt,
+  size = 36,
+  ring,
+}: {
+  src: string | null;
+  alt: string;
+  size?: number;
+  ring?: string;
+}) {
+  const style: React.CSSProperties = { width: size, height: size };
+  if (ring) {
+    style.boxShadow = `0 0 0 3px ${ring}, 0 0 0 5px var(--bg2)`;
+  }
   return src ? (
     <img
       src={src}
       alt={alt}
-      style={{ width: size, height: size }}
-      className="rounded-full bg-bg3 ring-1 ring-border object-cover"
+      style={style}
+      className="rounded-full bg-bg3 object-cover"
     />
   ) : (
     <div
-      style={{ width: size, height: size }}
-      className="rounded-full bg-bg3 ring-1 ring-border flex items-center justify-center text-xs text-muted2"
+      style={style}
+      className="rounded-full bg-bg3 flex items-center justify-center text-xs text-muted2"
     >
       {alt.slice(0, 2).toUpperCase()}
     </div>
   );
 }
 
-function MedalBadge({ rank }: { rank: number }) {
-  const colors = ["#facc15", "#cbd5e1", "#d97706"];
-  if (rank > 3) return null;
+const RING_COLORS = ["#FFD700", "#C0C0C0", "#CD7F32"];
+const MEDAL_EMOJI = ["🥇", "🥈", "🥉"];
+
+function PodiumCard({
+  acc,
+  position,
+  big,
+  onClick,
+}: {
+  acc: AccountRankingData;
+  position: 1 | 2 | 3;
+  big?: boolean;
+  onClick: () => void;
+}) {
+  const size = big ? 80 : 56;
   return (
-    <span
-      className="inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-black"
-      style={{ background: colors[rank - 1] }}
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex flex-col items-center gap-2 rounded-2xl border border-border bg-bg3/60 px-4 pt-5 pb-4 transition hover:bg-bg3 hover:border-border2"
+      style={{
+        minWidth: big ? 180 : 140,
+        boxShadow: big
+          ? "0 12px 40px -12px color-mix(in oklab, #FFD700 30%, transparent)"
+          : "0 6px 20px -8px rgba(0,0,0,0.4)",
+      }}
     >
-      {rank === 1 ? "🥇" : rank === 2 ? "🥈" : "🥉"}
-    </span>
+      <div className="relative">
+        <Avatar src={acc.profile_picture} alt={acc.username} size={size} ring={RING_COLORS[position - 1]} />
+        <span
+          className="absolute -bottom-1 -right-1 text-lg drop-shadow"
+          aria-hidden
+        >
+          {MEDAL_EMOJI[position - 1]}
+        </span>
+      </div>
+      <div className="text-center min-w-0 w-full">
+        <div className={`font-semibold truncate ${big ? "text-base" : "text-sm"}`}>
+          @{acc.username}
+        </div>
+        <div className="text-[11px] text-muted2 truncate">{fmt(acc.followers)} seguidores</div>
+      </div>
+      <div
+        className={`tabular-nums font-bold ${big ? "text-3xl" : "text-2xl"}`}
+        style={{ color: scoreColor(acc.score) }}
+      >
+        {acc.score.toFixed(1)}
+      </div>
+      <div
+        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+        style={{
+          color: nfiColor(acc.non_follower_index),
+          background: `color-mix(in oklab, ${nfiColor(acc.non_follower_index)} 14%, transparent)`,
+        }}
+      >
+        <Radio className="h-3 w-3" />
+        {nfiLabel(acc.non_follower_index)}
+      </div>
+    </button>
   );
 }
 
-function Podium({ top: top3 }: { top: AccountRankingData[] }) {
-  if (top3.length === 0) return null;
-  const positions = [top3[1], top3[0], top3[2]].filter(Boolean);
-  const heights = [120, 160, 100];
+function Podium({ top, onPick }: { top: AccountRankingData[]; onPick: (id: string) => void }) {
+  if (top.length === 0) return null;
+  const [first, second, third] = top;
   return (
-    <div className="flex items-end justify-center gap-4 py-6">
-      {positions.map((acc, idx) => {
-        const realRank = acc === top3[0] ? 1 : acc === top3[1] ? 2 : 3;
-        return (
-          <div key={acc.id} className="flex flex-col items-center gap-2">
-            <Avatar src={acc.profile_picture} alt={acc.username} size={realRank === 1 ? 64 : 48} />
-            <div className="text-center">
-              <div className="text-sm font-semibold truncate max-w-[120px]">@{acc.username}</div>
-              <div className="text-xs" style={{ color: statusColor(acc.reach_status) }}>
-                {fmtPct(acc.reach_ratio)}
-              </div>
-            </div>
-            <div
-              className="w-20 rounded-t-lg flex items-start justify-center pt-2 text-2xl font-bold"
-              style={{
-                height: heights[idx],
-                background:
-                  realRank === 1
-                    ? "linear-gradient(180deg, #facc15, #ca8a04)"
-                    : realRank === 2
-                      ? "linear-gradient(180deg, #e2e8f0, #94a3b8)"
-                      : "linear-gradient(180deg, #fb923c, #c2410c)",
-                color: "#000",
-              }}
-            >
-              {realRank}
-            </div>
-          </div>
-        );
-      })}
+    <div className="flex flex-wrap items-end justify-center gap-3 sm:gap-6 py-6 px-3">
+      {second && <PodiumCard acc={second} position={2} onClick={() => onPick(second.id)} />}
+      {first && <PodiumCard acc={first} position={1} big onClick={() => onPick(first.id)} />}
+      {third && <PodiumCard acc={third} position={3} onClick={() => onPick(third.id)} />}
     </div>
   );
 }
 
+function NfiBadge({ nfi }: { nfi: number | null }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold tabular-nums"
+      style={{
+        color: nfiColor(nfi),
+        background: `color-mix(in oklab, ${nfiColor(nfi)} 14%, transparent)`,
+      }}
+      title="Views médias por reel ÷ seguidores. >1x = entregando além dos seguidores."
+    >
+      <Radio className="h-3 w-3" />
+      {nfiLabel(nfi)}
+    </span>
+  );
+}
+
+function ScoreBadge({ score }: { score: number }) {
+  return (
+    <span
+      className="inline-flex items-center justify-center rounded-md px-2 py-0.5 text-xs font-bold tabular-nums min-w-[44px]"
+      style={{
+        color: scoreColor(score),
+        background: `color-mix(in oklab, ${scoreColor(score)} 14%, transparent)`,
+      }}
+    >
+      {score.toFixed(1)}
+    </span>
+  );
+}
+
+function EngBar({ eng }: { eng: number | null }) {
+  const v = eng ?? 0;
+  const pct = Math.min(100, (v / 10) * 100);
+  const color = engColor(eng);
+  return (
+    <div className="flex items-center gap-2 min-w-[90px]">
+      <div className="flex-1 h-1.5 rounded-full bg-bg3 overflow-hidden">
+        <div
+          className="h-full transition-all"
+          style={{ width: `${pct}%`, background: color }}
+        />
+      </div>
+      <span className="text-[11px] tabular-nums w-10 text-right" style={{ color }}>
+        {eng === null ? "—" : `${eng.toFixed(1)}%`}
+      </span>
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: AccountRankingData["reach_status"] }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap"
+      style={{
+        color: statusColor(status),
+        background: `color-mix(in oklab, ${statusColor(status)} 12%, transparent)`,
+      }}
+    >
+      {statusLabel(status)}
+    </span>
+  );
+}
+
+function AccountDrawer({
+  acc,
+  onClose,
+}: {
+  acc: AccountRankingData | null;
+  onClose: () => void;
+}) {
+  if (!acc) return null;
+  const reels = acc.hourly_views_24h;
+  const maxView = Math.max(1, ...reels.map((r) => r.views));
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40 bg-black/60 animate-in fade-in"
+        onClick={onClose}
+      />
+      <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[440px] bg-bg2 border-l border-border shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
+        <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-bg2 z-10">
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar src={acc.profile_picture} alt={acc.username} size={44} ring={scoreColor(acc.score)} />
+            <div className="min-w-0">
+              <div className="font-semibold truncate">@{acc.username}</div>
+              <div className="text-xs text-muted2 truncate">{acc.name}</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1.5 hover:bg-bg3"
+            aria-label="Fechar"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div className="flex justify-center">
+            <StatusPill status={acc.reach_status} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg border border-border bg-bg3/40 p-3">
+              <div className="text-[11px] text-muted2 uppercase">Seguidores</div>
+              <div className="text-xl font-bold tabular-nums">{fmt(acc.followers)}</div>
+            </div>
+            <div className="rounded-lg border border-border bg-bg3/40 p-3">
+              <div className="text-[11px] text-muted2 uppercase">Score</div>
+              <div
+                className="text-xl font-bold tabular-nums"
+                style={{ color: scoreColor(acc.score) }}
+              >
+                {acc.score.toFixed(1)}
+              </div>
+            </div>
+            <div className="rounded-lg border border-border bg-bg3/40 p-3">
+              <div className="text-[11px] text-muted2 uppercase flex items-center gap-1">
+                <Radio className="h-3 w-3" /> NF-Index
+              </div>
+              <div
+                className="text-xl font-bold tabular-nums"
+                style={{ color: nfiColor(acc.non_follower_index) }}
+              >
+                {nfiLabel(acc.non_follower_index)}
+              </div>
+            </div>
+            <div className="rounded-lg border border-border bg-bg3/40 p-3">
+              <div className="text-[11px] text-muted2 uppercase">Engajamento</div>
+              <div
+                className="text-xl font-bold tabular-nums"
+                style={{ color: engColor(acc.engagement_rate) }}
+              >
+                {acc.engagement_rate === null ? "—" : `${acc.engagement_rate.toFixed(1)}%`}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-bg3/40 p-3">
+            <div className="text-xs text-muted2 mb-2">📈 Views por hora (24h)</div>
+            <div className="flex items-end gap-[3px] h-20">
+              {reels.map((r, i) => (
+                <div
+                  key={i}
+                  className="flex-1 rounded-sm"
+                  style={{
+                    height: `${(r.views / maxView) * 100}%`,
+                    minHeight: 2,
+                    background: r.views > 0 ? "var(--accent2)" : "var(--bg2)",
+                    opacity: r.views > 0 ? 0.9 : 0.3,
+                  }}
+                  title={`${r.hour}: ${fmt(r.views)}`}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-bg3/40 p-3 space-y-1 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted2">Reels no período</span>
+              <span className="tabular-nums font-medium">{acc.period_reels}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted2">Views totais</span>
+              <span className="tabular-nums font-medium">{fmt(acc.period_views)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted2">Avg/reel</span>
+              <span className="tabular-nums font-medium">{fmt(acc.period_avg_views)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted2">Curtidas</span>
+              <span className="tabular-nums font-medium">{fmt(acc.period_likes)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted2">Comentários</span>
+              <span className="tabular-nums font-medium">{fmt(acc.period_comments)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted2">Fila pendente</span>
+              <span className="tabular-nums font-medium">{acc.pending_in_queue}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted2">Total histórico</span>
+              <span className="tabular-nums font-medium">
+                {acc.total_reels} reels · {fmt(acc.total_views)} views
+              </span>
+            </div>
+          </div>
+
+          <a
+            href={`https://instagram.com/${acc.username}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-center gap-2 rounded-lg im-grad-accent px-3 py-2 text-sm font-medium text-white hover:opacity-95"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Ver conta no Instagram
+          </a>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function RankingPage() {
-  const [period, setPeriod] = useState<Period>("48h");
+  const [period, setPeriod] = useState<Period>("7d");
   const [tab, setTab] = useState<Tab>("geral");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [sortBy, setSortBy] = useState<SortKey>("score");
   const [metric, setMetric] = useState<MetricKey>("views");
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
   const { data: ranking = [], isLoading, refetch, isFetching } = useRanking(period);
@@ -190,19 +460,30 @@ function RankingPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return ranking.filter((r) => {
+    const list = ranking.filter((r) => {
       if (q && !r.username.toLowerCase().includes(q) && !r.name.toLowerCase().includes(q))
         return false;
       if (statusFilter !== "all" && r.reach_status !== statusFilter) return false;
       return true;
     });
-  }, [ranking, search, statusFilter]);
+    const get = (r: AccountRankingData) => {
+      switch (sortBy) {
+        case "views": return r.period_views;
+        case "followers": return r.followers;
+        case "eng": return r.engagement_rate ?? 0;
+        case "nfi": return r.non_follower_index ?? 0;
+        default: return r.score;
+      }
+    };
+    return [...list].sort((a, b) => get(b) - get(a));
+  }, [ranking, search, statusFilter, sortBy]);
 
   const top3 = ranking.slice(0, 3);
   const restricted = ranking.filter((r) => r.reach_status === "restricted");
+  const opened = openId ? ranking.find((r) => r.id === openId) ?? null : null;
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 p-4 sm:p-6 pb-24">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -215,7 +496,6 @@ function RankingPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* Seletor janela */}
           <div className="inline-flex rounded-lg border border-border bg-bg2 p-1">
             {PERIODS.map((p) => (
               <button
@@ -242,10 +522,10 @@ function RankingPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border overflow-x-auto">
+      <div className="flex gap-1 border-b border-border overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         {(
           [
-            { id: "geral", label: "Ranking Geral" },
+            { id: "geral", label: "Geral" },
             { id: "alcance", label: "Alcance & Restrição" },
             { id: "metrica", label: "Por Métrica" },
             { id: "diario", label: "Histórico Diário" },
@@ -265,7 +545,7 @@ function RankingPage() {
         ))}
       </div>
 
-      {/* Filtros secundários (não na aba diário) */}
+      {/* Filtros secundários */}
       {tab !== "diario" && (
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative flex-1 min-w-[200px]">
@@ -282,9 +562,9 @@ function RankingPage() {
             {(
               [
                 { id: "all", label: "Todos" },
-                { id: "good", label: "Saudáveis" },
-                { id: "warn", label: "Atenção" },
-                { id: "restricted", label: "Restritas" },
+                { id: "good", label: "🟢" },
+                { id: "warn", label: "🟡" },
+                { id: "restricted", label: "🔴" },
               ] as { id: StatusFilter; label: string }[]
             ).map((f) => (
               <button
@@ -300,17 +580,28 @@ function RankingPage() {
               </button>
             ))}
           </div>
+          {tab === "geral" && (
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortKey)}
+              className="rounded-lg border border-border bg-bg2 px-3 py-2 text-xs hover:bg-bg3"
+            >
+              <option value="score">Ordenar: Score</option>
+              <option value="views">Views</option>
+              <option value="followers">Seguidores</option>
+              <option value="eng">Engajamento</option>
+              <option value="nfi">NF-Index</option>
+            </select>
+          )}
         </div>
       )}
 
-      {/* Empty */}
+      {/* Empty / Loading */}
       {!isLoading && ranking.length === 0 && (
         <div className="rounded-xl border border-border bg-bg2 p-10 text-center text-muted2">
           Nenhum post publicado ainda — os dados aparecerão após o primeiro reel.
         </div>
       )}
-
-      {/* Loading */}
       {isLoading && (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
@@ -322,10 +613,12 @@ function RankingPage() {
       {/* TAB 1 — Geral */}
       {tab === "geral" && !isLoading && ranking.length > 0 && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-border bg-bg2">
-            <Podium top={top3} />
+          <div className="rounded-2xl border border-border bg-gradient-to-b from-bg2 to-bg3/30 overflow-hidden">
+            <Podium top={top3} onPick={setOpenId} />
           </div>
-          <div className="rounded-xl border border-border bg-bg2 overflow-hidden">
+
+          {/* Desktop table */}
+          <div className="hidden md:block rounded-xl border border-border bg-bg2 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-bg3 text-text2 text-xs uppercase">
@@ -336,80 +629,105 @@ function RankingPage() {
                     <th className="px-3 py-2 text-right">Views</th>
                     <th className="px-3 py-2 text-right">Avg/Reel</th>
                     <th className="px-3 py-2 text-right">Curtidas</th>
-                    <th className="px-3 py-2 text-right">Reach</th>
-                    <th className="px-3 py-2 text-right">Status</th>
+                    <th className="px-3 py-2 text-left">Engajamento</th>
+                    <th className="px-3 py-2 text-right">NF-Index</th>
+                    <th className="px-3 py-2 text-right">Score</th>
+                    <th className="px-3 py-2 text-left">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((r) => (
-                    <Fragment key={r.id}>
-                      <tr
-                        onClick={() => setExpanded(expanded === r.id ? null : r.id)}
-                        className="border-t border-border hover:bg-bg3 cursor-pointer"
-                      >
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm font-semibold">{r.rank}</span>
-                            <MedalBadge rank={r.rank} />
+                    <tr
+                      key={r.id}
+                      onClick={() => setOpenId(r.id)}
+                      className="border-t border-border hover:bg-bg3 cursor-pointer"
+                      style={
+                        r.reach_status === "restricted"
+                          ? { background: "color-mix(in oklab, var(--danger) 5%, transparent)" }
+                          : undefined
+                      }
+                    >
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-semibold tabular-nums w-6">{r.rank}</span>
+                          {r.rank <= 3 && (
+                            <span className="text-sm">{MEDAL_EMOJI[r.rank - 1]}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <Avatar src={r.profile_picture} alt={r.username} size={28} />
+                          <div className="min-w-0">
+                            <div className="truncate text-sm">@{r.username}</div>
+                            <div className="truncate text-[11px] text-muted2">{r.name}</div>
                           </div>
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            <Avatar src={r.profile_picture} alt={r.username} size={28} />
-                            <div className="min-w-0">
-                              <div className="truncate text-sm">@{r.username}</div>
-                              <div className="truncate text-[11px] text-muted2">{r.name}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">{fmt(r.followers)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">{fmt(r.period_views)}</td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          {fmt(r.period_avg_views)}
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">{fmt(r.period_likes)}</td>
-                        <td
-                          className="px-3 py-2 text-right tabular-nums font-medium"
-                          style={{ color: statusColor(r.reach_status) }}
-                        >
-                          {fmtPct(r.reach_ratio)}
-                        </td>
-                        <td className="px-3 py-2 text-right">
-                          <span
-                            className="inline-block h-2 w-2 rounded-full"
-                            style={{ background: statusColor(r.reach_status) }}
-                          />
-                        </td>
-                      </tr>
-                      {expanded === r.id && (
-                        <tr className="bg-bg3/40">
-                          <td colSpan={8} className="px-4 py-3">
-                            <div className="flex items-center gap-4">
-                              <Sparkline data={r.hourly_views_24h} />
-                              <div className="text-xs text-muted2 space-y-0.5">
-                                <div>📈 Últimas 24h por hora</div>
-                                <div>
-                                  Reels no período: <b>{r.period_reels}</b> ·
-                                  Comentários: <b>{fmt(r.period_comments)}</b>
-                                </div>
-                                <div>
-                                  Total histórico: <b>{r.total_reels}</b> reels ·{" "}
-                                  <b>{fmt(r.total_views)}</b> views
-                                </div>
-                                <div>
-                                  Score composto: <b>{fmt(r.composite_score)}</b> · Fila:{" "}
-                                  <b>{r.pending_in_queue}</b>
-                                </div>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmt(r.followers)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmt(r.period_views)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {fmt(r.period_avg_views)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmt(r.period_likes)}</td>
+                      <td className="px-3 py-2">
+                        <EngBar eng={r.engagement_rate} />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <NfiBadge nfi={r.non_follower_index} />
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <ScoreBadge score={r.score} />
+                      </td>
+                      <td className="px-3 py-2">
+                        <StatusPill status={r.reach_status} />
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="md:hidden space-y-2">
+            {filtered.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => setOpenId(r.id)}
+                className="w-full rounded-xl border border-border bg-bg2 p-3 text-left active:bg-bg3"
+                style={
+                  r.reach_status === "restricted"
+                    ? { borderLeft: "3px solid var(--danger)" }
+                    : undefined
+                }
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-center w-8">
+                    <span className="text-sm font-bold tabular-nums">{r.rank}</span>
+                    {r.rank <= 3 && <span className="text-xs">{MEDAL_EMOJI[r.rank - 1]}</span>}
+                  </div>
+                  <Avatar src={r.profile_picture} alt={r.username} size={36} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold truncate text-sm">@{r.username}</span>
+                      <ScoreBadge score={r.score} />
+                    </div>
+                    <div className="text-[11px] text-muted2 truncate">
+                      {fmt(r.followers)} seg · {fmt(r.period_views)} views
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <NfiBadge nfi={r.non_follower_index} />
+                  <div className="flex-1 max-w-[140px]">
+                    <EngBar eng={r.engagement_rate} />
+                  </div>
+                  <StatusPill status={r.reach_status} />
+                </div>
+              </button>
+            ))}
           </div>
         </div>
       )}
@@ -427,24 +745,21 @@ function RankingPage() {
             >
               <AlertTriangle className="h-4 w-4 mt-0.5" style={{ color: "var(--danger)" }} />
               <div className="text-sm">
-                <b>🚨 {restricted.length}</b> conta(s) com possível restrição de alcance. Views
-                médias muito abaixo do esperado para o número de seguidores.
+                <b>⚠️ {restricted.length}</b> conta(s) com possível restrição de alcance —
+                views médias muito abaixo do número de seguidores.
               </div>
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {[...filtered]
-              .sort((a, b) => {
-                const order = { restricted: 0, warn: 1, good: 2, null: 3 };
-                const ka = order[(a.reach_status ?? "null") as keyof typeof order];
-                const kb = order[(b.reach_status ?? "null") as keyof typeof order];
-                if (ka !== kb) return ka - kb;
-                return (a.reach_ratio ?? 0) - (b.reach_ratio ?? 0);
-              })
+              .filter((r) => r.reach_status === "warn" || r.reach_status === "restricted")
+              .sort((a, b) => (a.non_follower_index ?? 0) - (b.non_follower_index ?? 0))
               .map((r) => (
-                <div
+                <button
                   key={r.id}
-                  className="rounded-xl border border-border bg-bg2 p-4 space-y-3"
+                  type="button"
+                  onClick={() => setOpenId(r.id)}
+                  className="text-left rounded-xl border border-border bg-bg2 p-4 space-y-3 hover:border-border2"
                   style={{ borderLeftColor: statusColor(r.reach_status), borderLeftWidth: 4 }}
                 >
                   <div className="flex items-center gap-2">
@@ -453,22 +768,24 @@ function RankingPage() {
                       <div className="text-sm font-semibold truncate">@{r.username}</div>
                       <div className="text-[11px] text-muted2">{fmt(r.followers)} seguidores</div>
                     </div>
+                    <StatusPill status={r.reach_status} />
                   </div>
-                  <div
-                    className="text-3xl font-bold tabular-nums"
-                    style={{ color: statusColor(r.reach_status) }}
-                  >
-                    {fmtPct(r.reach_ratio)}
-                  </div>
-                  <div className="text-xs" style={{ color: statusColor(r.reach_status) }}>
-                    {statusLabel(r.reach_status)}
+                  <div className="flex items-baseline gap-2">
+                    <span
+                      className="text-3xl font-bold tabular-nums"
+                      style={{ color: nfiColor(r.non_follower_index) }}
+                    >
+                      {nfiLabel(r.non_follower_index)}
+                    </span>
+                    <span className="text-xs text-muted2">NF-Index</span>
                   </div>
                   <Sparkline data={r.hourly_views_24h} />
                   <div className="text-[11px] text-muted2">
-                    Média período: <b>{fmt(r.period_avg_views)}</b> views/reel · Reels:{" "}
-                    <b>{r.period_reels}</b>
+                    Avg: <b>{fmt(r.period_avg_views)}</b> v/reel · Reels:{" "}
+                    <b>{r.period_reels}</b> · Eng:{" "}
+                    <b>{r.engagement_rate === null ? "—" : `${r.engagement_rate.toFixed(1)}%`}</b>
                   </div>
-                </div>
+                </button>
               ))}
           </div>
         </div>
@@ -476,7 +793,7 @@ function RankingPage() {
 
       {/* TAB 3 — Por Métrica */}
       {tab === "metrica" && !isLoading && ranking.length > 0 && (
-        <MetricTab metric={metric} setMetric={setMetric} accounts={filtered} />
+        <MetricTab metric={metric} setMetric={setMetric} accounts={filtered} onPick={setOpenId} />
       )}
 
       {/* TAB 4 — Diário */}
@@ -489,6 +806,8 @@ function RankingPage() {
           setSearch={setSearch}
         />
       )}
+
+      <AccountDrawer acc={opened} onClose={() => setOpenId(null)} />
     </div>
   );
 }
@@ -497,14 +816,17 @@ function MetricTab({
   metric,
   setMetric,
   accounts,
+  onPick,
 }: {
   metric: MetricKey;
   setMetric: (m: MetricKey) => void;
   accounts: AccountRankingData[];
+  onPick: (id: string) => void;
 }) {
   const metricOptions: { id: MetricKey; label: string; Icon: typeof Eye }[] = [
     { id: "views", label: "Mais views", Icon: Eye },
-    { id: "reach", label: "Melhor reach", Icon: Activity },
+    { id: "nfi", label: "Maior NF-Index", Icon: Radio },
+    { id: "reach", label: "Melhor reach %", Icon: Activity },
     { id: "followers", label: "Mais seguidores", Icon: UsersIcon },
     { id: "likes", label: "Mais curtidas", Icon: Heart },
     { id: "reels", label: "Mais reels", Icon: Film },
@@ -513,27 +835,24 @@ function MetricTab({
 
   const valueFor = (a: AccountRankingData): number => {
     switch (metric) {
-      case "views":
-        return a.period_views;
-      case "reach":
-        return a.reach_ratio ?? 0;
-      case "followers":
-        return a.followers;
-      case "likes":
-        return a.period_likes;
-      case "reels":
-        return a.period_reels;
-      case "eng":
-        return a.period_views > 0
-          ? ((a.period_likes + a.period_comments) / a.period_views) * 100
-          : 0;
+      case "views": return a.period_views;
+      case "reach": return a.reach_ratio ?? 0;
+      case "followers": return a.followers;
+      case "likes": return a.period_likes;
+      case "reels": return a.period_reels;
+      case "eng": return a.engagement_rate ?? 0;
+      case "nfi": return a.non_follower_index ?? 0;
     }
   };
   const fmtMetric = (n: number) =>
-    metric === "reach" || metric === "eng" ? n.toFixed(2) + "%" : fmt(n);
+    metric === "reach" || metric === "eng"
+      ? n.toFixed(2) + "%"
+      : metric === "nfi"
+        ? n.toFixed(2) + "x"
+        : fmt(n);
 
   const sorted = [...accounts].sort((a, b) => valueFor(b) - valueFor(a));
-  const max = Math.max(1, ...sorted.map(valueFor));
+  const max = Math.max(0.01, ...sorted.map(valueFor));
 
   return (
     <div className="space-y-4">
@@ -558,14 +877,17 @@ function MetricTab({
           const v = valueFor(a);
           const pct = (v / max) * 100;
           return (
-            <div
+            <button
               key={a.id}
-              className="flex items-center gap-3 transition-all duration-300"
-              style={{ order: idx }}
+              type="button"
+              onClick={() => onPick(a.id)}
+              className="w-full flex items-center gap-3 hover:bg-bg3 rounded-md px-1 py-1 -mx-1"
             >
               <div className="w-6 text-right text-xs text-muted2 tabular-nums">{idx + 1}</div>
               <Avatar src={a.profile_picture} alt={a.username} size={28} />
-              <div className="min-w-[120px] text-sm truncate">@{a.username}</div>
+              <div className="min-w-[100px] sm:min-w-[120px] text-sm truncate text-left">
+                @{a.username}
+              </div>
               <div className="flex-1 h-2 rounded-full bg-bg3 overflow-hidden">
                 <div
                   className="h-full transition-all duration-500"
@@ -576,7 +898,7 @@ function MetricTab({
                 />
               </div>
               <div className="w-20 text-right text-sm tabular-nums">{fmtMetric(v)}</div>
-            </div>
+            </button>
           );
         })}
       </div>
@@ -614,25 +936,19 @@ function DailyTab({
       </div>
     );
   }
-  const current = selectedDay
-    ? (data[selectedDay] ?? days[0])
-    : days[0];
+  const current = selectedDay ? (data[selectedDay] ?? days[0]) : days[0];
 
-  // todas as contas únicas para o heatmap
   const allAccountIds = new Map<string, DailyAccountData>();
   for (const d of days)
-    for (const a of d.accounts)
-      if (!allAccountIds.has(a.id)) allAccountIds.set(a.id, a);
+    for (const a of d.accounts) if (!allAccountIds.has(a.id)) allAccountIds.set(a.id, a);
 
   const q = search.trim().toLowerCase();
   const filteredAccounts = current.accounts.filter(
     (a) => !q || a.username.toLowerCase().includes(q),
   );
-  const top3 = current.accounts.slice(0, 3);
 
   return (
     <div className="space-y-4">
-      {/* Day selector */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {days.map((d) => (
           <button
@@ -660,31 +976,6 @@ function DailyTab({
         />
       </div>
 
-      {/* Podium do dia */}
-      {top3.length > 0 && (
-        <div className="rounded-xl border border-border bg-bg2">
-          <Podium
-            top={top3.map((a) => ({
-              ...a,
-              period_views: a.daily_views,
-              period_avg_views: a.daily_avg_views,
-              period_likes: a.daily_likes,
-              period_reels: a.daily_reels,
-              period_comments: a.daily_comments,
-              total_reels: 0,
-              total_views: 0,
-              total_likes: 0,
-              composite_score: a.daily_composite_score,
-              hourly_views_24h: [],
-              health_score: 100,
-              last_post_at: null,
-              pending_in_queue: 0,
-            })) as unknown as AccountRankingData[]}
-          />
-        </div>
-      )}
-
-      {/* Tabela do dia */}
       <div className="rounded-xl border border-border bg-bg2 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -706,7 +997,7 @@ function DailyTab({
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1.5">
                       <span className="text-sm font-semibold">{a.rank}</span>
-                      <MedalBadge rank={a.rank} />
+                      {a.rank <= 3 && <span>{MEDAL_EMOJI[a.rank - 1]}</span>}
                     </div>
                   </td>
                   <td className="px-3 py-2">
@@ -735,7 +1026,6 @@ function DailyTab({
         </div>
       </div>
 
-      {/* Heatmap semanal */}
       <div className="rounded-xl border border-border bg-bg2 p-3 overflow-x-auto">
         <div className="text-xs text-muted2 mb-2">Heatmap semanal · reach por dia</div>
         <table className="text-xs">
@@ -747,7 +1037,7 @@ function DailyTab({
                   key={d.date}
                   className="px-1 py-1 text-center text-muted2 font-normal whitespace-nowrap"
                 >
-                  {d.label.replace("Hoje", "Hoje").split(" ")[0]}
+                  {d.label.split(" ")[0]}
                 </th>
               ))}
             </tr>
@@ -784,3 +1074,5 @@ function DailyTab({
     </div>
   );
 }
+// Fragment kept for legacy parser
+export const _legacy = Fragment;
