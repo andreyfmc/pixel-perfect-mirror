@@ -495,6 +495,8 @@ function QueuePage() {
     label: string;
     count: number;
   }>(null);
+  const [confirmCleanOld, setConfirmCleanOld] = useState(false);
+  const [cleaningOld, setCleaningOld] = useState(false);
 
   // Live clock and refresh countdown
   const [now, setNow] = useState(() => Date.now());
