@@ -1,10 +1,10 @@
-// GET /api/ranking?period=24h|48h|72h
-// Ranking acumulado por janela.
+// GET /api/ranking?period=24h|7d|30d
+// Ranking acumulado por janela, com score composto normalizado (0-100).
 
 import { createFileRoute } from "@tanstack/react-router";
 import { requireDb, hasDb } from "@/lib/cf.server";
 
-type Period = "24h" | "48h" | "72h";
+type Period = "24h" | "7d" | "30d";
 
 export type AccountRankingData = {
   id: string;
@@ -24,29 +24,36 @@ export type AccountRankingData = {
   total_views: number;
   total_likes: number;
 
-  reach_ratio: number | null;
+  reach_ratio: number | null;          // % avg_views/followers
+  non_follower_index: number | null;   // avg_views/followers (raw, 1.0 = bate seguidores)
+  engagement_rate: number | null;      // (likes+comments)/views * 100
   reach_status: "good" | "warn" | "restricted" | null;
 
   hourly_views_24h: { hour: string; views: number }[];
 
-  composite_score: number;
+  // Score 0–100 ponderado (NFI 40 / Eng 30 / Reach 20 / Consistência 10)
+  score: number;
+  composite_score: number; // alias legado
   rank: number;
 
   last_post_at: string | null;
   pending_in_queue: number;
 };
 
-function reachStatusFor(ratio: number | null): AccountRankingData["reach_status"] {
-  if (ratio === null) return null;
-  if (ratio >= 30) return "good";
-  if (ratio >= 10) return "warn";
-  return "restricted";
+function reachStatusFor(
+  nfi: number | null,
+  eng: number | null,
+): AccountRankingData["reach_status"] {
+  if (nfi === null) return null;
+  if (nfi >= 0.8 && (eng ?? 0) >= 2) return "good";
+  if (nfi < 0.3) return "restricted";
+  return "warn";
 }
 
 function periodHours(p: Period): number {
   if (p === "24h") return 24;
-  if (p === "72h") return 72;
-  return 48;
+  if (p === "30d") return 720;
+  return 168; // 7d
 }
 
 export const Route = createFileRoute("/api/ranking")({
@@ -59,8 +66,9 @@ export const Route = createFileRoute("/api/ranking")({
           });
         }
         const url = new URL(request.url);
-        const periodParam = (url.searchParams.get("period") ?? "48h") as Period;
-        const period: Period = periodParam === "24h" || periodParam === "72h" ? periodParam : "48h";
+        const periodParam = (url.searchParams.get("period") ?? "7d") as Period;
+        const period: Period =
+          periodParam === "24h" || periodParam === "30d" ? periodParam : "7d";
         const hours = periodHours(period);
 
         const db = requireDb();
@@ -129,7 +137,6 @@ export const Route = createFileRoute("/api/ranking")({
           arr.push({ hour: row.hour, views: row.views });
           hourlyByAcc.set(row.account_id, arr);
         }
-        // Preencher 24 buckets contínuos por conta
         const now = new Date();
         const buckets: string[] = [];
         for (let i = 23; i >= 0; i--) {
@@ -148,7 +155,8 @@ export const Route = createFileRoute("/api/ranking")({
           .all<{ account_id: string; c: number }>();
         const pendingMap = new Map((pendingRes.results ?? []).map((r) => [r.account_id, r.c]));
 
-        const rows: AccountRankingData[] = accounts.map((a) => {
+        // Pré-cálculo bruto
+        const pre = accounts.map((a) => {
           const pa = periodAgg.get(a.id);
           const ta = totalAgg.get(a.id);
           const period_reels = pa?.reels ?? 0;
@@ -156,16 +164,47 @@ export const Route = createFileRoute("/api/ranking")({
           const period_likes = pa?.likes ?? 0;
           const period_comments = pa?.comments ?? 0;
           const period_avg_views = period_reels > 0 ? period_views / period_reels : 0;
-          const reach_ratio =
-            period_reels > 0 && a.followers > 0
-              ? (period_avg_views / a.followers) * 100
-              : null;
-          const reach_status = reachStatusFor(reach_ratio);
-          const composite_score =
-            period_avg_views * 0.5 +
-            (a.followers ?? 0) * 0.2 +
-            period_likes * 0.15 +
-            (reach_ratio ?? 0) * 1000 * 0.15;
+
+          const has_data = period_reels > 0 && a.followers > 0;
+          const non_follower_index = has_data ? period_avg_views / a.followers : null;
+          const reach_ratio = non_follower_index !== null ? non_follower_index * 100 : null;
+          const engagement_rate =
+            period_views > 0 ? ((period_likes + period_comments) / period_views) * 100 : null;
+
+          return {
+            a,
+            ta,
+            period_reels,
+            period_views,
+            period_likes,
+            period_comments,
+            period_avg_views,
+            non_follower_index,
+            reach_ratio,
+            engagement_rate,
+          };
+        });
+
+        // Normalização min-max para score 0-100
+        const nfiVals = pre.map((p) => p.non_follower_index ?? 0);
+        const engVals = pre.map((p) => p.engagement_rate ?? 0);
+        const reachVals = pre.map((p) => p.reach_ratio ?? 0);
+        const reelVals = pre.map((p) => p.period_reels);
+        const maxNfi = Math.max(0.01, ...nfiVals);
+        const maxEng = Math.max(0.01, ...engVals);
+        const maxReach = Math.max(0.01, ...reachVals);
+        const maxReels = Math.max(1, ...reelVals);
+
+        const rows: AccountRankingData[] = pre.map((p) => {
+          const { a, ta } = p;
+          const nNfi = ((p.non_follower_index ?? 0) / maxNfi) * 100;
+          const nEng = ((p.engagement_rate ?? 0) / maxEng) * 100;
+          const nReach = ((p.reach_ratio ?? 0) / maxReach) * 100;
+          const nReels = (p.period_reels / maxReels) * 100;
+          const score =
+            p.non_follower_index === null
+              ? 0
+              : nNfi * 0.4 + nEng * 0.3 + nReach * 0.2 + nReels * 0.1;
 
           const sparkRaw = hourlyByAcc.get(a.id) ?? [];
           const sparkMap = new Map(sparkRaw.map((r) => [r.hour, r.views]));
@@ -178,25 +217,28 @@ export const Route = createFileRoute("/api/ranking")({
             profile_picture: a.profile_picture,
             followers: a.followers ?? 0,
             health_score: a.health_score ?? 100,
-            period_reels,
-            period_views,
-            period_likes,
-            period_comments,
-            period_avg_views,
+            period_reels: p.period_reels,
+            period_views: p.period_views,
+            period_likes: p.period_likes,
+            period_comments: p.period_comments,
+            period_avg_views: p.period_avg_views,
             total_reels: ta?.reels ?? 0,
             total_views: ta?.views ?? 0,
             total_likes: ta?.likes ?? 0,
-            reach_ratio,
-            reach_status,
+            reach_ratio: p.reach_ratio,
+            non_follower_index: p.non_follower_index,
+            engagement_rate: p.engagement_rate,
+            reach_status: reachStatusFor(p.non_follower_index, p.engagement_rate),
             hourly_views_24h,
-            composite_score,
+            score: Math.round(score * 10) / 10,
+            composite_score: Math.round(score * 10) / 10,
             rank: 0,
             last_post_at: a.last_post_at,
             pending_in_queue: pendingMap.get(a.id) ?? 0,
           };
         });
 
-        rows.sort((a, b) => b.composite_score - a.composite_score);
+        rows.sort((a, b) => b.score - a.score);
         rows.forEach((r, i) => {
           r.rank = i + 1;
         });
