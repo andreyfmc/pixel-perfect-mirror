@@ -567,9 +567,10 @@ function RankingPage() {
             {(
               [
                 { id: "all", label: "Todos" },
-                { id: "good", label: "🟢" },
-                { id: "warn", label: "🟡" },
-                { id: "restricted", label: "🔴" },
+                { id: "saudavel", label: "🟢" },
+                { id: "atencao", label: "🟡" },
+                { id: "restrita", label: "🔴" },
+                { id: "critica", label: "⚠️" },
               ] as { id: StatusFilter; label: string }[]
             ).map((f) => (
               <button
