@@ -25,6 +25,7 @@ import { Route as ApiVariantsBuildRouteImport } from './routes/api/variants.buil
 import { Route as ApiQueueClearRouteImport } from './routes/api/queue.clear'
 import { Route as ApiQueueIdRouteImport } from './routes/api/queue.$id'
 import { Route as ApiMediaUploadRouteImport } from './routes/api/media.upload'
+import { Route as ApiLoopsIdRouteImport } from './routes/api/loops.$id'
 import { Route as ApiCronTickRouteImport } from './routes/api/cron.tick'
 import { Route as ApiContingencyIdRouteImport } from './routes/api/contingency.$id'
 import { Route as ApiAuthInstagramRouteImport } from './routes/api/auth.instagram'
@@ -115,6 +116,11 @@ const ApiMediaUploadRoute = ApiMediaUploadRouteImport.update({
   path: '/api/media/upload',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLoopsIdRoute = ApiLoopsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiLoopsRoute,
+} as any)
 const ApiCronTickRoute = ApiCronTickRouteImport.update({
   id: '/api/cron/tick',
   path: '/api/cron/tick',
@@ -177,7 +183,7 @@ export interface FileRoutesByFullPath {
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
-  '/api/loops': typeof ApiLoopsRoute
+  '/api/loops': typeof ApiLoopsRouteWithChildren
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
   '/api/auth/callback': typeof ApiAuthCallbackRoute
@@ -185,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
   '/api/contingency/$id': typeof ApiContingencyIdRoute
   '/api/cron/tick': typeof ApiCronTickRoute
+  '/api/loops/$id': typeof ApiLoopsIdRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
@@ -203,7 +210,7 @@ export interface FileRoutesByTo {
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
-  '/api/loops': typeof ApiLoopsRoute
+  '/api/loops': typeof ApiLoopsRouteWithChildren
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
@@ -212,6 +219,7 @@ export interface FileRoutesByTo {
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
   '/api/contingency/$id': typeof ApiContingencyIdRoute
   '/api/cron/tick': typeof ApiCronTickRoute
+  '/api/loops/$id': typeof ApiLoopsIdRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
@@ -232,7 +240,7 @@ export interface FileRoutesById {
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
-  '/api/loops': typeof ApiLoopsRoute
+  '/api/loops': typeof ApiLoopsRouteWithChildren
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/_app/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
@@ -241,6 +249,7 @@ export interface FileRoutesById {
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
   '/api/contingency/$id': typeof ApiContingencyIdRoute
   '/api/cron/tick': typeof ApiCronTickRoute
+  '/api/loops/$id': typeof ApiLoopsIdRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
@@ -270,6 +279,7 @@ export interface FileRouteTypes {
     | '/api/auth/instagram'
     | '/api/contingency/$id'
     | '/api/cron/tick'
+    | '/api/loops/$id'
     | '/api/media/upload'
     | '/api/queue/$id'
     | '/api/queue/clear'
@@ -297,6 +307,7 @@ export interface FileRouteTypes {
     | '/api/auth/instagram'
     | '/api/contingency/$id'
     | '/api/cron/tick'
+    | '/api/loops/$id'
     | '/api/media/upload'
     | '/api/queue/$id'
     | '/api/queue/clear'
@@ -325,6 +336,7 @@ export interface FileRouteTypes {
     | '/api/auth/instagram'
     | '/api/contingency/$id'
     | '/api/cron/tick'
+    | '/api/loops/$id'
     | '/api/media/upload'
     | '/api/queue/$id'
     | '/api/queue/clear'
@@ -340,7 +352,7 @@ export interface RootRouteChildren {
   ApiAccountsRoute: typeof ApiAccountsRouteWithChildren
   ApiContingencyRoute: typeof ApiContingencyRouteWithChildren
   ApiHistoryRoute: typeof ApiHistoryRoute
-  ApiLoopsRoute: typeof ApiLoopsRoute
+  ApiLoopsRoute: typeof ApiLoopsRouteWithChildren
   ApiQueueRoute: typeof ApiQueueRouteWithChildren
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthCallbackIgRoute: typeof ApiAuthCallbackIgRoute
@@ -464,6 +476,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/media/upload'
       preLoaderRoute: typeof ApiMediaUploadRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/loops/$id': {
+      id: '/api/loops/$id'
+      path: '/$id'
+      fullPath: '/api/loops/$id'
+      preLoaderRoute: typeof ApiLoopsIdRouteImport
+      parentRoute: typeof ApiLoopsRoute
     }
     '/api/cron/tick': {
       id: '/api/cron/tick'
@@ -594,6 +613,18 @@ const ApiContingencyRouteWithChildren = ApiContingencyRoute._addFileChildren(
   ApiContingencyRouteChildren,
 )
 
+interface ApiLoopsRouteChildren {
+  ApiLoopsIdRoute: typeof ApiLoopsIdRoute
+}
+
+const ApiLoopsRouteChildren: ApiLoopsRouteChildren = {
+  ApiLoopsIdRoute: ApiLoopsIdRoute,
+}
+
+const ApiLoopsRouteWithChildren = ApiLoopsRoute._addFileChildren(
+  ApiLoopsRouteChildren,
+)
+
 interface ApiQueueRouteChildren {
   ApiQueueIdRoute: typeof ApiQueueIdRoute
   ApiQueueClearRoute: typeof ApiQueueClearRoute
@@ -626,7 +657,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAccountsRoute: ApiAccountsRouteWithChildren,
   ApiContingencyRoute: ApiContingencyRouteWithChildren,
   ApiHistoryRoute: ApiHistoryRoute,
-  ApiLoopsRoute: ApiLoopsRoute,
+  ApiLoopsRoute: ApiLoopsRouteWithChildren,
   ApiQueueRoute: ApiQueueRouteWithChildren,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthCallbackIgRoute: ApiAuthCallbackIgRoute,
