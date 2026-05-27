@@ -657,23 +657,44 @@ function DistributeTab() {
       const startMs = new Date(start).getTime();
       let ok = 0;
       let fail = 0;
-      const shuffle = <T,>(arr: T[]): T[] => {
+      // PRNG seeded determinístico (FNV-1a + xorshift) — uma ordem por conta
+      const seededRng = (seed: string) => {
+        let h = 2166136261 >>> 0;
+        for (let i = 0; i < seed.length; i++) {
+          h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
+        }
+        return () => {
+          h ^= h << 13; h >>>= 0;
+          h ^= h >>> 17;
+          h ^= h << 5; h >>>= 0;
+          return (h >>> 0) / 4294967296;
+        };
+      };
+      const shuffleSeeded = <T,>(arr: T[], seed: string): T[] => {
+        const rng = seededRng(seed);
         const a = [...arr];
         for (let j = a.length - 1; j > 0; j--) {
-          const k = Math.floor(Math.random() * (j + 1));
+          const k = Math.floor(rng() * (j + 1));
           [a[j], a[k]] = [a[k], a[j]];
         }
         return a;
       };
       const jitterMs = Math.max(0, jitter) * 60_000;
+      // Cada conta recebe uma sequência INDEPENDENTE de vídeos.
+      // Em "random": shuffle determinístico com seed = accountId (reproduzível, único por conta).
+      const accountVideos = new Map<string, DriveVideo[]>();
+      for (const accId of selectedAccounts) {
+        accountVideos.set(
+          accId,
+          order === "random" ? shuffleSeeded(selectedList, accId) : selectedList,
+        );
+      }
       for (let cycle = 0; cycle < selectedList.length; cycle++) {
         const cycleStartMs = startMs + cycle * gap * 60_000;
         const groupId = crypto.randomUUID();
         const groupScheduledAt = new Date(cycleStartMs).toISOString();
-        const accountsForCycle =
-          order === "random" ? shuffle(selectedAccounts) : selectedAccounts;
-        for (const accId of accountsForCycle) {
-          const v = selectedList[cycle];
+        for (const accId of selectedAccounts) {
+          const v = accountVideos.get(accId)![cycle];
           const jitterOffset = jitterMs ? Math.floor(Math.random() * (jitterMs + 1)) : 0;
           const scheduledAt = new Date(cycleStartMs + jitterOffset).toISOString();
           const uniqueCaption = variateCaption(caption, `${accId}|${v.id}`);
@@ -688,14 +709,13 @@ function DistributeTab() {
           });
           if (res) {
             ok++;
-            // Dispara build de variante em background (não bloqueia o agendamento
-            // dos próximos itens — o scheduler também faz fallback a cada tick).
             void api.buildVariant(res.id);
           } else {
             fail++;
           }
         }
       }
+
       setEnqueueOk(fail === 0 && ok > 0);
       setEnqueueMsg(
         `✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ${selectedList.length} ciclo(s) de ${gap}min · jitter +0–${jitter}min`,
@@ -1108,7 +1128,7 @@ function DistributeTab() {
         </div>
         <p className="text-[11px] text-muted2">
           {order === "random"
-            ? "Cada conta recebe os vídeos em ordem embaralhada."
+            ? "Ordem: aleatória e independente por conta (seed = accountId)."
             : "Todas as contas seguem a mesma ordem de seleção."}
         </p>
       </section>
