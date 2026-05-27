@@ -160,6 +160,24 @@ async function ensureSchema(): Promise<void> {
           "CREATE INDEX IF NOT EXISTS idx_snapshots_media ON history_snapshots(ig_media_id, snapshot_date DESC)",
         )
         .run();
+      // followers_snapshots — snapshot diário de seguidores por conta.
+      await db
+        .prepare(
+          `CREATE TABLE IF NOT EXISTS followers_snapshots (
+             id TEXT PRIMARY KEY,
+             account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+             snapshot_date TEXT NOT NULL,
+             followers INTEGER NOT NULL,
+             created_at TEXT NOT NULL DEFAULT (datetime('now')),
+             UNIQUE(account_id, snapshot_date)
+           )`,
+        )
+        .run();
+      await db
+        .prepare(
+          "CREATE INDEX IF NOT EXISTS idx_followers_snap_account_date ON followers_snapshots(account_id, snapshot_date DESC)",
+        )
+        .run();
     } catch (err) {
       // Não bloqueia o app se o PRAGMA falhar — reseta a promise para tentar de novo
       // na próxima request.
@@ -168,6 +186,22 @@ async function ensureSchema(): Promise<void> {
     }
   })();
   return ensureSchemaPromise;
+}
+
+async function recordFollowersSnapshot(accountId: string, followers: number) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    await requireDb()
+      .prepare(
+        `INSERT INTO followers_snapshots (id, account_id, snapshot_date, followers)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(account_id, snapshot_date) DO UPDATE SET followers = excluded.followers`,
+      )
+      .bind(`${accountId}:${today}`, accountId, today, followers)
+      .run();
+  } catch (err) {
+    console.warn("[db] recordFollowersSnapshot falhou:", err);
+  }
 }
 
 
@@ -353,6 +387,9 @@ const rawDb = {
       )
       .run();
     await rawDb.resetCredentialFailedQueue(a.username);
+    if (typeof a.followers === "number" && a.followers >= 0) {
+      await recordFollowersSnapshot(a.id, a.followers);
+    }
   },
   async resetCredentialFailedQueue(username: string) {
     await requireDb()
@@ -405,6 +442,9 @@ const rawDb = {
         id,
       )
       .run();
+    if (typeof input.followers === "number" && input.followers >= 0) {
+      await recordFollowersSnapshot(id, input.followers);
+    }
   },
   async resolveAccountForPublishing(id: string): Promise<AccountRow | null> {
     const account = await rawDb.getAccount(id);

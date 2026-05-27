@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   Trophy,
   Search,
@@ -13,10 +13,13 @@ import {
   Users as UsersIcon,
   Film,
   Activity,
-  AlertTriangle,
   Radio,
   ExternalLink,
   X,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useRanking, useDailyRanking, type Period } from "@/hooks/use-ranking";
 import type { AccountRankingData } from "@/routes/api/ranking";
@@ -27,11 +30,41 @@ export const Route = createFileRoute("/_app/ranking")({
   head: () => ({ meta: [{ title: "Ranking · Insta Manager" }] }),
 });
 
-type Tab = "geral" | "alcance" | "metrica" | "diario";
+type Tab = "geral" | "metrica" | "diario";
 type StatusFilter = "all" | "saudavel" | "atencao" | "restrita" | "critica";
 type MetricKey = "views" | "reach" | "followers" | "likes" | "reels" | "eng" | "nfi";
-type SortKey = "score" | "views" | "followers" | "eng" | "nfi";
+type SortKey =
+  | "score"
+  | "views"
+  | "avg"
+  | "followers"
+  | "likes"
+  | "eng"
+  | "nfi"
+  | "delta_views"
+  | "delta_followers";
+type SortDir = "desc" | "asc";
 type AnyStatus = AccountRankingData["reach_status"] | DailyAccountData["reach_status"];
+
+const SORT_OPTIONS: { id: SortKey; label: string }[] = [
+  { id: "score", label: "Score" },
+  { id: "views", label: "Views" },
+  { id: "avg", label: "Avg/Reel" },
+  { id: "followers", label: "Seguidores" },
+  { id: "likes", label: "Curtidas" },
+  { id: "eng", label: "Engajamento %" },
+  { id: "nfi", label: "NF-Index" },
+  { id: "delta_views", label: "Ganho de views hoje" },
+  { id: "delta_followers", label: "Ganho de seguidores hoje" },
+];
+
+const STATUS_LABELS: Record<StatusFilter, string> = {
+  all: "Todos",
+  saudavel: "Saudável",
+  atencao: "Atenção",
+  restrita: "Restrita",
+  critica: "Crítica",
+};
 
 const PERIODS: { id: Period; label: string }[] = [
   { id: "1d", label: "1d" },
@@ -48,6 +81,8 @@ const fmt = (n: number) =>
       : String(Math.round(n));
 
 const fmtPct = (n: number | null) => (n === null ? "—" : `${n.toFixed(1)}%`);
+
+const fmtSigned = (n: number) => (n > 0 ? `+${fmt(n)}` : n < 0 ? `-${fmt(Math.abs(n))}` : "0");
 
 function statusColor(s: AnyStatus): string {
   if (s === "saudavel" || s === "good") return "var(--success)";
@@ -95,6 +130,27 @@ function engColor(eng: number | null): string {
   return "var(--danger)";
 }
 
+/** Persistência simples no localStorage. */
+function usePersistedState<T>(key: string, initial: T): [T, (v: T) => void] {
+  const [val, setVal] = useState<T>(() => {
+    if (typeof window === "undefined") return initial;
+    try {
+      const raw = window.localStorage.getItem(key);
+      return raw ? (JSON.parse(raw) as T) : initial;
+    } catch {
+      return initial;
+    }
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(key, JSON.stringify(val));
+    } catch {
+      /* ignore */
+    }
+  }, [key, val]);
+  return [val, setVal];
+}
+
 function Sparkline({ data }: { data: { hour: string; views: number }[] }) {
   const max = Math.max(1, ...data.map((d) => d.views));
   return (
@@ -138,6 +194,56 @@ function RankDelta({ delta }: { delta: number | null }) {
   );
 }
 
+/** Linha "+124 views" colorida com seta. */
+function DeltaLine({
+  value,
+  label,
+  nullDash = false,
+}: {
+  value: number | null;
+  label: string;
+  nullDash?: boolean;
+}) {
+  if (value === null) {
+    return (
+      <div className="inline-flex items-center gap-1 text-[11px] text-muted2 tabular-nums">
+        <Minus className="h-3 w-3" /> — {label}
+      </div>
+    );
+  }
+  if (value === 0) {
+    return (
+      <div className="inline-flex items-center gap-1 text-[11px] text-muted2 tabular-nums">
+        <Minus className="h-3 w-3" />
+        {nullDash ? "—" : "0"} {label}
+      </div>
+    );
+  }
+  const positive = value > 0;
+  const color = positive ? "var(--success)" : "var(--danger)";
+  const Icon = positive ? ArrowUp : ArrowDown;
+  return (
+    <div
+      className="inline-flex items-center gap-1 text-[11px] tabular-nums font-medium"
+      style={{ color }}
+    >
+      <Icon className="h-3 w-3" />
+      {fmtSigned(value)} {label}
+    </div>
+  );
+}
+
+function GainCell({ acc }: { acc: AccountRankingData }) {
+  return (
+    <div className="flex flex-col gap-0.5 items-start">
+      <DeltaLine value={acc.delta_views_24h} label="views" />
+      <DeltaLine value={acc.delta_followers_24h} label="seguidores" />
+      <DeltaLine value={acc.delta_likes_24h} label="curtidas" />
+      <DeltaLine value={acc.delta_comments_24h} label="comentários" />
+    </div>
+  );
+}
+
 function Avatar({
   src,
   alt,
@@ -154,12 +260,7 @@ function Avatar({
     style.boxShadow = `0 0 0 3px ${ring}, 0 0 0 5px var(--bg2)`;
   }
   return src ? (
-    <img
-      src={src}
-      alt={alt}
-      style={style}
-      className="rounded-full bg-bg3 object-cover"
-    />
+    <img src={src} alt={alt} style={style} className="rounded-full bg-bg3 object-cover" />
   ) : (
     <div
       style={style}
@@ -199,10 +300,7 @@ function PodiumCard({
     >
       <div className="relative">
         <Avatar src={acc.profile_picture} alt={acc.username} size={size} ring={RING_COLORS[position - 1]} />
-        <span
-          className="absolute -bottom-1 -right-1 text-lg drop-shadow"
-          aria-hidden
-        >
+        <span className="absolute -bottom-1 -right-1 text-lg drop-shadow" aria-hidden>
           {MEDAL_EMOJI[position - 1]}
         </span>
       </div>
@@ -281,10 +379,7 @@ function EngBar({ eng }: { eng: number | null }) {
   return (
     <div className="flex items-center gap-2 min-w-[90px]">
       <div className="flex-1 h-1.5 rounded-full bg-bg3 overflow-hidden">
-        <div
-          className="h-full transition-all"
-          style={{ width: `${pct}%`, background: color }}
-        />
+        <div className="h-full transition-all" style={{ width: `${pct}%`, background: color }} />
       </div>
       <span className="text-[11px] tabular-nums w-10 text-right" style={{ color }}>
         {eng === null ? "—" : `${eng.toFixed(1)}%`}
@@ -307,6 +402,138 @@ function StatusPill({ status }: { status: AccountRankingData["reach_status"] }) 
   );
 }
 
+/** Header de coluna clicável com seta de direção. */
+function SortableTh({
+  label,
+  sortKey,
+  active,
+  dir,
+  align = "right",
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  active: boolean;
+  dir: SortDir;
+  align?: "left" | "right";
+  onSort: (k: SortKey) => void;
+}) {
+  return (
+    <th
+      className={`px-3 py-2 text-${align} cursor-pointer select-none hover:text-foreground transition`}
+      onClick={() => onSort(sortKey)}
+    >
+      <span
+        className={`inline-flex items-center gap-1 ${align === "right" ? "justify-end w-full" : ""}`}
+        style={{ color: active ? "var(--accent2)" : undefined }}
+      >
+        {label}
+        {active ? (
+          dir === "desc" ? (
+            <ArrowDown className="h-3 w-3" />
+          ) : (
+            <ArrowUp className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </span>
+    </th>
+  );
+}
+
+function FilterPill({ children, onRemove }: { children: React.ReactNode; onRemove: () => void }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg3 pl-3 pr-1.5 py-1 text-xs"
+      style={{ color: "var(--foreground)" }}
+    >
+      {children}
+      <button
+        type="button"
+        onClick={onRemove}
+        className="rounded-full p-0.5 hover:bg-bg2 transition"
+        aria-label="Remover filtro"
+      >
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
+function SortPanel({
+  open,
+  onClose,
+  sortBy,
+  sortDir,
+  setSort,
+  options,
+  title = "Ordenar por",
+}: {
+  open: boolean;
+  onClose: () => void;
+  sortBy: SortKey;
+  sortDir: SortDir;
+  setSort: (k: SortKey, d: SortDir) => void;
+  options: { id: SortKey; label: string }[];
+  title?: string;
+}) {
+  if (!open) return null;
+  return (
+    <>
+      <div className="fixed inset-0 z-30" onClick={onClose} />
+      <div className="absolute right-0 top-full mt-2 z-40 w-72 rounded-xl border border-border bg-bg2 shadow-2xl p-3 space-y-3">
+        <div>
+          <div className="text-[11px] uppercase text-muted2 mb-2">{title}</div>
+          <div className="space-y-0.5">
+            {options.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => setSort(o.id, sortDir)}
+                className={`w-full text-left px-2 py-1.5 rounded-md text-sm transition ${
+                  sortBy === o.id
+                    ? "bg-bg3 text-foreground font-medium"
+                    : "text-text2 hover:bg-bg3 hover:text-foreground"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="text-[11px] uppercase text-muted2 mb-2">Direção</div>
+          <div className="grid grid-cols-2 gap-1">
+            <button
+              type="button"
+              onClick={() => setSort(sortBy, "desc")}
+              className={`inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs border transition ${
+                sortDir === "desc"
+                  ? "border-[var(--accent2)] bg-bg3 text-foreground"
+                  : "border-border bg-bg2 text-text2 hover:text-foreground"
+              }`}
+            >
+              <ArrowDown className="h-3 w-3" /> Maior primeiro
+            </button>
+            <button
+              type="button"
+              onClick={() => setSort(sortBy, "asc")}
+              className={`inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs border transition ${
+                sortDir === "asc"
+                  ? "border-[var(--accent2)] bg-bg3 text-foreground"
+                  : "border-border bg-bg2 text-text2 hover:text-foreground"
+              }`}
+            >
+              <ArrowUp className="h-3 w-3" /> Menor primeiro
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function AccountDrawer({
   acc,
   onClose,
@@ -319,10 +546,7 @@ function AccountDrawer({
   const maxView = Math.max(1, ...reels.map((r) => r.views));
   return (
     <>
-      <div
-        className="fixed inset-0 z-40 bg-black/60 animate-in fade-in"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 z-40 bg-black/60 animate-in fade-in" onClick={onClose} />
       <div className="fixed inset-y-0 right-0 z-50 w-full sm:w-[440px] bg-bg2 border-l border-border shadow-2xl overflow-y-auto animate-in slide-in-from-right duration-200">
         <div className="flex items-center justify-between p-4 border-b border-border sticky top-0 bg-bg2 z-10">
           <div className="flex items-center gap-3 min-w-0">
@@ -354,10 +578,7 @@ function AccountDrawer({
             </div>
             <div className="rounded-lg border border-border bg-bg3/40 p-3">
               <div className="text-[11px] text-muted2 uppercase">Score</div>
-              <div
-                className="text-xl font-bold tabular-nums"
-                style={{ color: scoreColor(acc.score) }}
-              >
+              <div className="text-xl font-bold tabular-nums" style={{ color: scoreColor(acc.score) }}>
                 {acc.score.toFixed(1)}
               </div>
             </div>
@@ -381,6 +602,14 @@ function AccountDrawer({
                 {acc.engagement_rate === null ? "—" : `${acc.engagement_rate.toFixed(1)}%`}
               </div>
             </div>
+          </div>
+
+          <div className="rounded-lg border border-border bg-bg3/40 p-3 space-y-1">
+            <div className="text-xs text-muted2 mb-1">Ganho nas últimas 24h</div>
+            <DeltaLine value={acc.delta_views_24h} label="views" />
+            <DeltaLine value={acc.delta_followers_24h} label="seguidores" />
+            <DeltaLine value={acc.delta_likes_24h} label="curtidas" />
+            <DeltaLine value={acc.delta_comments_24h} label="comentários" />
           </div>
 
           <div className="rounded-lg border border-border bg-bg3/40 p-3">
@@ -450,15 +679,41 @@ function AccountDrawer({
   );
 }
 
+const SORT_GETTERS: Record<SortKey, (r: AccountRankingData) => number> = {
+  score: (r) => r.score,
+  views: (r) => r.period_views,
+  avg: (r) => r.period_avg_views,
+  followers: (r) => r.followers,
+  likes: (r) => r.period_likes,
+  eng: (r) => r.engagement_rate ?? 0,
+  nfi: (r) => r.non_follower_index ?? 0,
+  delta_views: (r) => r.delta_views_24h,
+  delta_followers: (r) => r.delta_followers_24h ?? 0,
+};
+
 function RankingPage() {
-  const [period, setPeriod] = useState<Period>("1d");
-  const [tab, setTab] = useState<Tab>("geral");
+  const [period, setPeriod] = usePersistedState<Period>("ranking.period", "1d");
+  const [tab, setTab] = usePersistedState<Tab>("ranking.tab", "geral");
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [sortBy, setSortBy] = useState<SortKey>("score");
+  const [statusFilter, setStatusFilter] = usePersistedState<StatusFilter>(
+    "ranking.statusFilter",
+    "all",
+  );
+  const [sortBy, setSortBy] = usePersistedState<SortKey>("ranking.sortBy", "score");
+  const [sortDir, setSortDir] = usePersistedState<SortDir>("ranking.sortDir", "desc");
+  const [sortPanelOpen, setSortPanelOpen] = useState(false);
   const [metric, setMetric] = useState<MetricKey>("views");
   const [openId, setOpenId] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+
+  const setSort = (k: SortKey, d: SortDir) => {
+    setSortBy(k);
+    setSortDir(d);
+  };
+  const toggleSort = (k: SortKey) => {
+    if (sortBy === k) setSortDir(sortDir === "desc" ? "asc" : "desc");
+    else setSort(k, "desc");
+  };
 
   const { data: ranking = [], isLoading, refetch, isFetching } = useRanking(period);
   const { data: daily } = useDailyRanking();
@@ -471,21 +726,16 @@ function RankingPage() {
       if (statusFilter !== "all" && r.reach_status !== statusFilter) return false;
       return true;
     });
-    const get = (r: AccountRankingData) => {
-      switch (sortBy) {
-        case "views": return r.period_views;
-        case "followers": return r.followers;
-        case "eng": return r.engagement_rate ?? 0;
-        case "nfi": return r.non_follower_index ?? 0;
-        default: return r.score;
-      }
-    };
-    return [...list].sort((a, b) => get(b) - get(a));
-  }, [ranking, search, statusFilter, sortBy]);
+    const get = SORT_GETTERS[sortBy];
+    return [...list].sort((a, b) => (sortDir === "desc" ? get(b) - get(a) : get(a) - get(b)));
+  }, [ranking, search, statusFilter, sortBy, sortDir]);
 
   const top3 = ranking.slice(0, 3);
-  const restricted = ranking.filter((r) => r.reach_status === "restrita" || r.reach_status === "critica");
   const opened = openId ? ranking.find((r) => r.id === openId) ?? null : null;
+
+  const sortLabel = SORT_OPTIONS.find((o) => o.id === sortBy)?.label ?? "Score";
+  const hasFilters =
+    sortBy !== "score" || sortDir !== "desc" || statusFilter !== "all" || search.trim().length > 0;
 
   return (
     <div className="space-y-6 p-4 sm:p-6 pb-24">
@@ -531,7 +781,6 @@ function RankingPage() {
         {(
           [
             { id: "geral", label: "Geral" },
-            { id: "alcance", label: "Alcance & Restrição" },
             { id: "metrica", label: "Por Métrica" },
             { id: "diario", label: "Histórico Diário" },
           ] as { id: Tab; label: string }[]
@@ -552,52 +801,80 @@ function RankingPage() {
 
       {/* Filtros secundários */}
       {tab !== "diario" && (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted2" />
-            <input
-              type="text"
-              placeholder="Buscar conta…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-border bg-bg2 pl-9 pr-3 py-2 text-sm placeholder:text-muted2 focus:outline-none focus:border-border2"
-            />
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted2" />
+              <input
+                type="text"
+                placeholder="Buscar conta…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full rounded-lg border border-border bg-bg2 pl-9 pr-3 py-2 text-sm placeholder:text-muted2 focus:outline-none focus:border-border2"
+              />
+            </div>
+            <div className="inline-flex rounded-lg border border-border bg-bg2 p-1">
+              {(
+                [
+                  { id: "all", label: "Todos" },
+                  { id: "saudavel", label: "🟢" },
+                  { id: "atencao", label: "🟡" },
+                  { id: "restrita", label: "🔴" },
+                  { id: "critica", label: "⚠️" },
+                ] as { id: StatusFilter; label: string }[]
+              ).map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setStatusFilter(f.id)}
+                  className={`px-3 py-1.5 rounded-md text-xs ${
+                    statusFilter === f.id
+                      ? "bg-bg3 text-foreground"
+                      : "text-text2 hover:text-foreground"
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            {tab === "geral" && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSortPanelOpen((v) => !v)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg2 px-3 py-2 text-xs hover:bg-bg3"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  Organizar
+                </button>
+                <SortPanel
+                  open={sortPanelOpen}
+                  onClose={() => setSortPanelOpen(false)}
+                  sortBy={sortBy}
+                  sortDir={sortDir}
+                  setSort={setSort}
+                  options={SORT_OPTIONS}
+                />
+              </div>
+            )}
           </div>
-          <div className="inline-flex rounded-lg border border-border bg-bg2 p-1">
-            {(
-              [
-                { id: "all", label: "Todos" },
-                { id: "saudavel", label: "🟢" },
-                { id: "atencao", label: "🟡" },
-                { id: "restrita", label: "🔴" },
-                { id: "critica", label: "⚠️" },
-              ] as { id: StatusFilter; label: string }[]
-            ).map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setStatusFilter(f.id)}
-                className={`px-3 py-1.5 rounded-md text-xs ${
-                  statusFilter === f.id
-                    ? "bg-bg3 text-foreground"
-                    : "text-text2 hover:text-foreground"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-          {tab === "geral" && (
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortKey)}
-              className="rounded-lg border border-border bg-bg2 px-3 py-2 text-xs hover:bg-bg3"
-            >
-              <option value="score">Ordenar: Score</option>
-              <option value="views">Views</option>
-              <option value="followers">Seguidores</option>
-              <option value="eng">Engajamento</option>
-              <option value="nfi">NF-Index</option>
-            </select>
+
+          {/* Pills de filtros ativos */}
+          {tab === "geral" && hasFilters && (
+            <div className="flex flex-wrap gap-2">
+              {(sortBy !== "score" || sortDir !== "desc") && (
+                <FilterPill onRemove={() => setSort("score", "desc")}>
+                  Ordenado por: {sortLabel} {sortDir === "desc" ? "↓" : "↑"}
+                </FilterPill>
+              )}
+              {statusFilter !== "all" && (
+                <FilterPill onRemove={() => setStatusFilter("all")}>
+                  Filtro: {STATUS_LABELS[statusFilter]}
+                </FilterPill>
+              )}
+              {search.trim() && (
+                <FilterPill onRemove={() => setSearch("")}>Busca: {search.trim()}</FilterPill>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -631,13 +908,64 @@ function RankingPage() {
                   <tr>
                     <th className="px-3 py-2 text-left">#</th>
                     <th className="px-3 py-2 text-left">Conta</th>
-                    <th className="px-3 py-2 text-right">Seguidores</th>
-                    <th className="px-3 py-2 text-right">Views</th>
-                    <th className="px-3 py-2 text-right">Avg/Reel</th>
-                    <th className="px-3 py-2 text-right">Curtidas</th>
-                    <th className="px-3 py-2 text-left">Engajamento</th>
-                    <th className="px-3 py-2 text-right">NF-Index</th>
-                    <th className="px-3 py-2 text-right">Score</th>
+                    <SortableTh
+                      label="Seguidores"
+                      sortKey="followers"
+                      active={sortBy === "followers"}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <SortableTh
+                      label="Views"
+                      sortKey="views"
+                      active={sortBy === "views"}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <SortableTh
+                      label="Avg/Reel"
+                      sortKey="avg"
+                      active={sortBy === "avg"}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <SortableTh
+                      label="Curtidas"
+                      sortKey="likes"
+                      active={sortBy === "likes"}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <SortableTh
+                      label="Engajamento"
+                      sortKey="eng"
+                      active={sortBy === "eng"}
+                      dir={sortDir}
+                      align="left"
+                      onSort={toggleSort}
+                    />
+                    <SortableTh
+                      label="NF-Index"
+                      sortKey="nfi"
+                      active={sortBy === "nfi"}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
+                    <SortableTh
+                      label="Ganho Hoje"
+                      sortKey="delta_views"
+                      active={sortBy === "delta_views" || sortBy === "delta_followers"}
+                      dir={sortDir}
+                      align="left"
+                      onSort={toggleSort}
+                    />
+                    <SortableTh
+                      label="Score"
+                      sortKey="score"
+                      active={sortBy === "score"}
+                      dir={sortDir}
+                      onSort={toggleSort}
+                    />
                     <th className="px-3 py-2 text-left">Status</th>
                   </tr>
                 </thead>
@@ -656,9 +984,7 @@ function RankingPage() {
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1.5">
                           <span className="text-sm font-semibold tabular-nums w-6">{r.rank}</span>
-                          {r.rank <= 3 && (
-                            <span className="text-sm">{MEDAL_EMOJI[r.rank - 1]}</span>
-                          )}
+                          {r.rank <= 3 && <span className="text-sm">{MEDAL_EMOJI[r.rank - 1]}</span>}
                         </div>
                       </td>
                       <td className="px-3 py-2">
@@ -672,15 +998,16 @@ function RankingPage() {
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmt(r.followers)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmt(r.period_views)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {fmt(r.period_avg_views)}
-                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{fmt(r.period_avg_views)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{fmt(r.period_likes)}</td>
                       <td className="px-3 py-2">
                         <EngBar eng={r.engagement_rate} />
                       </td>
                       <td className="px-3 py-2 text-right">
                         <NfiBadge nfi={r.non_follower_index} />
+                      </td>
+                      <td className="px-3 py-2">
+                        <GainCell acc={r} />
                       </td>
                       <td className="px-3 py-2 text-right">
                         <ScoreBadge score={r.score} />
@@ -732,77 +1059,21 @@ function RankingPage() {
                   </div>
                   <StatusPill status={r.reach_status} />
                 </div>
+                <div className="mt-2 pt-2 border-t border-border">
+                  <GainCell acc={r} />
+                </div>
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* TAB 2 — Alcance */}
-      {tab === "alcance" && !isLoading && ranking.length > 0 && (
-        <div className="space-y-4">
-          {restricted.length > 0 && (
-            <div
-              className="rounded-xl border p-3 flex items-start gap-2"
-              style={{
-                borderColor: "var(--danger)",
-                background: "color-mix(in oklab, var(--danger) 12%, transparent)",
-              }}
-            >
-              <AlertTriangle className="h-4 w-4 mt-0.5" style={{ color: "var(--danger)" }} />
-              <div className="text-sm">
-                <b>⚠️ {restricted.length}</b> conta(s) com possível restrição de alcance —
-                views médias muito abaixo do número de seguidores.
-              </div>
-            </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {[...filtered]
-              .filter((r) => r.reach_status === "atencao" || r.reach_status === "restrita" || r.reach_status === "critica")
-              .sort((a, b) => (a.non_follower_index ?? 0) - (b.non_follower_index ?? 0))
-              .map((r) => (
-                <button
-                  key={r.id}
-                  type="button"
-                  onClick={() => setOpenId(r.id)}
-                  className="text-left rounded-xl border border-border bg-bg2 p-4 space-y-3 hover:border-border2"
-                  style={{ borderLeftColor: statusColor(r.reach_status), borderLeftWidth: 4 }}
-                >
-                  <div className="flex items-center gap-2">
-                    <Avatar src={r.profile_picture} alt={r.username} size={36} />
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold truncate">@{r.username}</div>
-                      <div className="text-[11px] text-muted2">{fmt(r.followers)} seguidores</div>
-                    </div>
-                    <StatusPill status={r.reach_status} />
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span
-                      className="text-3xl font-bold tabular-nums"
-                      style={{ color: nfiColor(r.non_follower_index) }}
-                    >
-                      {nfiLabel(r.non_follower_index)}
-                    </span>
-                    <span className="text-xs text-muted2">NF-Index</span>
-                  </div>
-                  <Sparkline data={r.hourly_views_24h} />
-                  <div className="text-[11px] text-muted2">
-                    Avg: <b>{fmt(r.period_avg_views)}</b> v/reel · Reels:{" "}
-                    <b>{r.period_reels}</b> · Eng:{" "}
-                    <b>{r.engagement_rate === null ? "—" : `${r.engagement_rate.toFixed(1)}%`}</b>
-                  </div>
-                </button>
-              ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3 — Por Métrica */}
+      {/* TAB — Por Métrica */}
       {tab === "metrica" && !isLoading && ranking.length > 0 && (
         <MetricTab metric={metric} setMetric={setMetric} accounts={filtered} onPick={setOpenId} />
       )}
 
-      {/* TAB 4 — Diário */}
+      {/* TAB — Diário */}
       {tab === "diario" && (
         <DailyTab
           data={daily}
@@ -912,6 +1183,35 @@ function MetricTab({
   );
 }
 
+// ----- Daily Tab -----
+
+type DailySortKey =
+  | "views"
+  | "followers_gain"
+  | "likes"
+  | "comments"
+  | "views_loss"
+  | "followers_loss";
+type DailyFilter = "all" | "positive" | "negative";
+
+const DAILY_SORT_OPTIONS: { id: DailySortKey; label: string }[] = [
+  { id: "views", label: "Ganho de views" },
+  { id: "followers_gain", label: "Ganho de seguidores" },
+  { id: "likes", label: "Ganho de curtidas" },
+  { id: "comments", label: "Ganho de comentários" },
+  { id: "views_loss", label: "Maior perda de views" },
+  { id: "followers_loss", label: "Maior perda de seguidores" },
+];
+
+const DAILY_GETTERS: Record<DailySortKey, (a: DailyAccountData) => number> = {
+  views: (a) => a.daily_views,
+  followers_gain: (a) => a.daily_views, // placeholder — daily endpoint não traz delta_followers
+  likes: (a) => a.daily_likes,
+  comments: (a) => a.daily_comments,
+  views_loss: (a) => -a.daily_views,
+  followers_loss: (a) => -a.daily_views,
+};
+
 function DailyTab({
   data,
   selectedDay,
@@ -925,6 +1225,23 @@ function DailyTab({
   search: string;
   setSearch: (s: string) => void;
 }) {
+  const [sortBy, setSortBy] = usePersistedState<DailySortKey>("ranking.daily.sortBy", "views");
+  const [sortDir, setSortDir] = usePersistedState<SortDir>("ranking.daily.sortDir", "desc");
+  const [filter, setFilter] = usePersistedState<DailyFilter>("ranking.daily.filter", "all");
+  const [panelOpen, setPanelOpen] = useState(false);
+
+  const setSort = (k: SortKey | DailySortKey, d: SortDir) => {
+    setSortBy(k as DailySortKey);
+    setSortDir(d);
+  };
+  const toggleSort = (k: DailySortKey) => {
+    if (sortBy === k) setSortDir(sortDir === "desc" ? "asc" : "desc");
+    else {
+      setSortBy(k);
+      setSortDir("desc");
+    }
+  };
+
   if (!data) {
     return (
       <div className="space-y-2">
@@ -949,9 +1266,17 @@ function DailyTab({
     for (const a of d.accounts) if (!allAccountIds.has(a.id)) allAccountIds.set(a.id, a);
 
   const q = search.trim().toLowerCase();
-  const filteredAccounts = current.accounts.filter(
-    (a) => !q || a.username.toLowerCase().includes(q),
-  );
+  const get = DAILY_GETTERS[sortBy];
+  const filteredAccounts = current.accounts
+    .filter((a) => !q || a.username.toLowerCase().includes(q))
+    .filter((a) => {
+      if (filter === "all") return true;
+      if (filter === "positive") return a.daily_views > 0;
+      return a.daily_views < 0;
+    })
+    .sort((a, b) => (sortDir === "desc" ? get(b) - get(a) : get(a) - get(b)));
+
+  const sortLabel = DAILY_SORT_OPTIONS.find((o) => o.id === sortBy)?.label ?? "";
 
   return (
     <div className="space-y-4">
@@ -971,16 +1296,76 @@ function DailyTab({
         ))}
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted2" />
-        <input
-          type="text"
-          placeholder="Buscar conta…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full rounded-lg border border-border bg-bg2 pl-9 pr-3 py-2 text-sm placeholder:text-muted2 focus:outline-none focus:border-border2"
-        />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted2" />
+          <input
+            type="text"
+            placeholder="Buscar conta…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full rounded-lg border border-border bg-bg2 pl-9 pr-3 py-2 text-sm placeholder:text-muted2 focus:outline-none focus:border-border2"
+          />
+        </div>
+        <div className="inline-flex rounded-lg border border-border bg-bg2 p-1">
+          {(
+            [
+              { id: "all", label: "Todas" },
+              { id: "positive", label: "Só com ganho" },
+              { id: "negative", label: "Só com perda" },
+            ] as { id: DailyFilter; label: string }[]
+          ).map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={`px-3 py-1.5 rounded-md text-xs ${
+                filter === f.id ? "bg-bg3 text-foreground" : "text-text2 hover:text-foreground"
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setPanelOpen((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg2 px-3 py-2 text-xs hover:bg-bg3"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Organizar
+          </button>
+          <SortPanel
+            open={panelOpen}
+            onClose={() => setPanelOpen(false)}
+            sortBy={sortBy as unknown as SortKey}
+            sortDir={sortDir}
+            setSort={(k, d) => setSort(k as unknown as DailySortKey, d)}
+            options={DAILY_SORT_OPTIONS as unknown as { id: SortKey; label: string }[]}
+            title="Ordenar por"
+          />
+        </div>
       </div>
+
+      {(sortBy !== "views" || sortDir !== "desc" || filter !== "all") && (
+        <div className="flex flex-wrap gap-2">
+          {(sortBy !== "views" || sortDir !== "desc") && (
+            <FilterPill
+              onRemove={() => {
+                setSortBy("views");
+                setSortDir("desc");
+              }}
+            >
+              Ordenado por: {sortLabel} {sortDir === "desc" ? "↓" : "↑"}
+            </FilterPill>
+          )}
+          {filter !== "all" && (
+            <FilterPill onRemove={() => setFilter("all")}>
+              {filter === "positive" ? "Só com ganho" : "Só com perda"}
+            </FilterPill>
+          )}
+        </div>
+      )}
 
       <div className="rounded-xl border border-border bg-bg2 overflow-hidden">
         <div className="overflow-x-auto">
@@ -991,9 +1376,28 @@ function DailyTab({
                 <th className="px-3 py-2 text-left">Δ</th>
                 <th className="px-3 py-2 text-left">Conta</th>
                 <th className="px-3 py-2 text-right">Reels</th>
-                <th className="px-3 py-2 text-right">Views</th>
+                <ThSortDaily
+                  label="Views"
+                  k="views"
+                  sortBy={sortBy}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                />
                 <th className="px-3 py-2 text-right">Avg/Reel</th>
-                <th className="px-3 py-2 text-right">Curtidas</th>
+                <ThSortDaily
+                  label="Curtidas"
+                  k="likes"
+                  sortBy={sortBy}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                />
+                <ThSortDaily
+                  label="Comentários"
+                  k="comments"
+                  sortBy={sortBy}
+                  sortDir={sortDir}
+                  onSort={toggleSort}
+                />
                 <th className="px-3 py-2 text-right">Reach</th>
               </tr>
             </thead>
@@ -1019,6 +1423,7 @@ function DailyTab({
                   <td className="px-3 py-2 text-right tabular-nums">{fmt(a.daily_views)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmt(a.daily_avg_views)}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{fmt(a.daily_likes)}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{fmt(a.daily_comments)}</td>
                   <td
                     className="px-3 py-2 text-right tabular-nums"
                     style={{ color: statusColor(a.reach_status) }}
@@ -1080,5 +1485,44 @@ function DailyTab({
     </div>
   );
 }
+
+function ThSortDaily({
+  label,
+  k,
+  sortBy,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  k: DailySortKey;
+  sortBy: DailySortKey;
+  sortDir: SortDir;
+  onSort: (k: DailySortKey) => void;
+}) {
+  const active = sortBy === k;
+  return (
+    <th
+      className="px-3 py-2 text-right cursor-pointer select-none hover:text-foreground"
+      onClick={() => onSort(k)}
+    >
+      <span
+        className="inline-flex items-center gap-1 justify-end w-full"
+        style={{ color: active ? "var(--accent2)" : undefined }}
+      >
+        {label}
+        {active ? (
+          sortDir === "desc" ? (
+            <ArrowDown className="h-3 w-3" />
+          ) : (
+            <ArrowUp className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-40" />
+        )}
+      </span>
+    </th>
+  );
+}
+
 // Fragment kept for legacy parser
 export const _legacy = Fragment;
