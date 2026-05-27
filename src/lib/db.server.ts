@@ -76,6 +76,38 @@ async function ensureSchema(): Promise<void> {
       if (!queueCols.has("original_media_key")) {
         await db.prepare("ALTER TABLE queue ADD COLUMN original_media_key TEXT").run();
       }
+      if (!queueCols.has("loop_id")) {
+        await db.prepare("ALTER TABLE queue ADD COLUMN loop_id TEXT").run();
+      }
+      if (!queueCols.has("cycle_number")) {
+        await db.prepare("ALTER TABLE queue ADD COLUMN cycle_number INTEGER").run();
+      }
+      // loops — agendamentos recorrentes
+      await db
+        .prepare(
+          `CREATE TABLE IF NOT EXISTS loops (
+             id TEXT PRIMARY KEY,
+             source_type TEXT NOT NULL CHECK (source_type IN ('snapshot','live_folder')),
+             folder_id TEXT,
+             folder_name TEXT,
+             video_ids_json TEXT,
+             account_ids_json TEXT NOT NULL,
+             caption TEXT NOT NULL DEFAULT '',
+             gap_min INTEGER NOT NULL DEFAULT 60,
+             jitter_min INTEGER NOT NULL DEFAULT 20,
+             order_mode TEXT NOT NULL DEFAULT 'random' CHECK (order_mode IN ('sequential','random')),
+             status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','paused','stopped')),
+             cycle_number INTEGER NOT NULL DEFAULT 0,
+             next_cycle_at TEXT NOT NULL,
+             last_error TEXT,
+             created_at TEXT NOT NULL DEFAULT (datetime('now')),
+             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+           )`,
+        )
+        .run();
+      await db
+        .prepare("CREATE INDEX IF NOT EXISTS idx_loops_active ON loops(status, next_cycle_at)")
+        .run();
       // oauth_states — links únicos de conexão (Instagram OAuth Tester).
       await db
         .prepare(
@@ -118,6 +150,25 @@ export type AccountRow = {
   updated_at: string;
 };
 
+export type LoopRow = {
+  id: string;
+  source_type: "snapshot" | "live_folder";
+  folder_id: string | null;
+  folder_name: string | null;
+  video_ids_json: string | null;
+  account_ids_json: string;
+  caption: string;
+  gap_min: number;
+  jitter_min: number;
+  order_mode: "sequential" | "random";
+  status: "active" | "paused" | "stopped";
+  cycle_number: number;
+  next_cycle_at: string;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type QueueRow = {
   id: string;
   account_id: string;
@@ -138,6 +189,8 @@ export type QueueRow = {
   variant_method: string | null;
   variant_error: string | null;
   original_media_key: string | null;
+  loop_id: string | null;
+  cycle_number: number | null;
   created_at: string;
 };
 
@@ -479,6 +532,8 @@ const rawDb = {
       | "variant_method"
       | "variant_error"
       | "original_media_key"
+      | "loop_id"
+      | "cycle_number"
     > &
       Partial<
         Pick<
@@ -488,13 +543,15 @@ const rawDb = {
           | "variant_processed"
           | "variant_method"
           | "original_media_key"
+          | "loop_id"
+          | "cycle_number"
         >
       >,
   ) {
     await requireDb()
       .prepare(
-        `INSERT INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at, group_id, group_scheduled_at, variant_processed, variant_method, original_media_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at, group_id, group_scheduled_at, variant_processed, variant_method, original_media_key, loop_id, cycle_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         q.id,
@@ -509,6 +566,8 @@ const rawDb = {
         q.variant_processed ?? 0,
         q.variant_method ?? null,
         q.original_media_key ?? null,
+        q.loop_id ?? null,
+        q.cycle_number ?? null,
       )
       .run();
   },
@@ -804,6 +863,76 @@ const rawDb = {
       .prepare(`UPDATE queue SET variant_error = ? WHERE id = ?`)
       .bind(error.slice(0, 500), id)
       .run();
+  },
+
+  // ============ loops ============
+  async createLoop(input: Omit<LoopRow, "created_at" | "updated_at" | "cycle_number" | "last_error" | "status"> & { status?: LoopRow["status"] }) {
+    await requireDb()
+      .prepare(
+        `INSERT INTO loops (id, source_type, folder_id, folder_name, video_ids_json, account_ids_json, caption, gap_min, jitter_min, order_mode, status, cycle_number, next_cycle_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+      )
+      .bind(
+        input.id,
+        input.source_type,
+        input.folder_id ?? null,
+        input.folder_name ?? null,
+        input.video_ids_json ?? null,
+        input.account_ids_json,
+        input.caption,
+        input.gap_min,
+        input.jitter_min,
+        input.order_mode,
+        input.status ?? "active",
+        input.next_cycle_at,
+      )
+      .run();
+  },
+  async listLoops(): Promise<LoopRow[]> {
+    const { results } = await requireDb()
+      .prepare(`SELECT * FROM loops WHERE status != 'stopped' ORDER BY created_at DESC`)
+      .all<LoopRow>();
+    return results ?? [];
+  },
+  async getLoop(id: string): Promise<LoopRow | null> {
+    return (
+      (await requireDb().prepare(`SELECT * FROM loops WHERE id = ?`).bind(id).first<LoopRow>()) ??
+      null
+    );
+  },
+  async listDueActiveLoops(nowIso: string, windowMinutes = 120): Promise<LoopRow[]> {
+    // Loops ativos cujo next_cycle_at está dentro da janela (próximas X min)
+    const horizon = new Date(new Date(nowIso).getTime() + windowMinutes * 60_000).toISOString();
+    const { results } = await requireDb()
+      .prepare(
+        `SELECT * FROM loops WHERE status = 'active' AND next_cycle_at <= ? ORDER BY next_cycle_at ASC`,
+      )
+      .bind(horizon)
+      .all<LoopRow>();
+    return results ?? [];
+  },
+  async setLoopStatus(id: string, status: LoopRow["status"], lastError?: string | null) {
+    await requireDb()
+      .prepare(
+        `UPDATE loops SET status = ?, last_error = ?, updated_at = datetime('now') WHERE id = ?`,
+      )
+      .bind(status, lastError ?? null, id)
+      .run();
+  },
+  async advanceLoop(id: string, nextCycleAt: string, cycleNumber: number) {
+    await requireDb()
+      .prepare(
+        `UPDATE loops SET next_cycle_at = ?, cycle_number = ?, last_error = NULL, updated_at = datetime('now') WHERE id = ?`,
+      )
+      .bind(nextCycleAt, cycleNumber, id)
+      .run();
+  },
+  async cancelPendingForLoop(id: string): Promise<number> {
+    const res = await requireDb()
+      .prepare(`DELETE FROM queue WHERE loop_id = ? AND status = 'scheduled'`)
+      .bind(id)
+      .run();
+    return (res.meta?.changes as number) ?? 0;
   },
 };
 
