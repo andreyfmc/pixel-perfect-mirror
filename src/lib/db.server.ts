@@ -183,7 +183,23 @@ async function ensureSchema(): Promise<void> {
       // na próxima request.
       ensureSchemaPromise = undefined;
       console.warn("[db] ensureSchema falhou:", err);
-    }
+}
+
+async function recordFollowersSnapshot(accountId: string, followers: number) {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    await requireDb()
+      .prepare(
+        `INSERT INTO followers_snapshots (id, account_id, snapshot_date, followers)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(account_id, snapshot_date) DO UPDATE SET followers = excluded.followers`,
+      )
+      .bind(`${accountId}:${today}`, accountId, today, followers)
+      .run();
+  } catch (err) {
+    console.warn("[db] recordFollowersSnapshot falhou:", err);
+  }
+}
   })();
   return ensureSchemaPromise;
 }
