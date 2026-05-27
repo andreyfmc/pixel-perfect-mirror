@@ -446,6 +446,46 @@ export const instagram = {
     );
   },
 
+  /**
+   * Busca métricas básicas + insights (reach) de uma mídia já publicada.
+   * Retorna 0 quando o campo não existe (alguns media_types não expõem reach).
+   */
+  async fetchMediaMetrics(
+    mediaId: string,
+    accessToken: string,
+    provider?: GraphHostId,
+  ): Promise<{ reach: number; likes: number; comments: number }> {
+    // 1) like_count + comments_count — sempre disponíveis
+    let likes = 0;
+    let comments = 0;
+    try {
+      const base = await gget(
+        `/${mediaId}`,
+        { access_token: accessToken, fields: "like_count,comments_count" },
+        provider,
+      );
+      likes = Number(base.like_count ?? 0) || 0;
+      comments = Number(base.comments_count ?? 0) || 0;
+    } catch {
+      // segue tentando insights
+    }
+    // 2) insights.reach — endpoint separado para evitar 400 quando indisponível
+    let reach = 0;
+    try {
+      const ins = await gget(
+        `/${mediaId}/insights`,
+        { access_token: accessToken, metric: "reach" },
+        provider,
+      );
+      const data = (ins?.data ?? []) as Array<{ name: string; values?: Array<{ value?: number }> }>;
+      const reachEntry = data.find((d) => d.name === "reach");
+      reach = Number(reachEntry?.values?.[0]?.value ?? 0) || 0;
+    } catch {
+      // sem insights — mantém 0
+    }
+    return { reach, likes, comments };
+  },
+
   async fetchContainerStatus(
     containerId: string,
     accessToken: string,
