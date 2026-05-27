@@ -138,6 +138,8 @@ export type VariantResult = {
     timestampsUpdated: number;
     smhdBalanceUpdated: number;
     encoderRewritten: boolean;
+    xmpErased: boolean;
+    dayRewritten: boolean;
   };
 };
 
