@@ -1,4 +1,6 @@
 // GET /api/ranking/daily — ranking dia a dia dos últimos 7 dias (UTC).
+// Usa history_snapshots para medir o crescimento real por dia (delta de plays/likes/comments
+// por reel). Se ainda não houver snapshots, faz fallback para published_at (lógica antiga).
 import { createFileRoute } from "@tanstack/react-router";
 import { requireDb, hasDb } from "@/lib/cf.server";
 
@@ -9,8 +11,8 @@ export type DailyAccountData = {
   profile_picture: string | null;
   followers: number;
 
-  daily_reels: number;
-  daily_views: number;
+  daily_reels: number;        // reels que tiveram crescimento naquele dia
+  daily_views: number;        // delta de plays naquele dia
   daily_likes: number;
   daily_comments: number;
   daily_avg_views: number;
@@ -48,6 +50,8 @@ function labelFor(date: string, today: string, yesterday: string): string {
   return `${WEEKDAYS[d.getUTCDay()]} ${dd}/${mm}`;
 }
 
+type DailyAgg = { reels: number; views: number; likes: number; comments: number };
+
 export const Route = createFileRoute("/api/ranking/daily")({
   server: {
     handlers: {
@@ -79,36 +83,114 @@ export const Route = createFileRoute("/api/ranking/daily")({
           dates.push(d.toISOString().slice(0, 10));
         }
         const yesterdayUtc = dates[1];
+        const oldest = dates[dates.length - 1];
+        // Inclui o dia anterior ao mais antigo para calcular delta correto.
+        const lagCutoff = new Date(now.getTime() - 7 * 86400_000)
+          .toISOString()
+          .slice(0, 10);
 
-        // Para cada dia, agregar e ranquear.
-        const byDate: DailyRankingResponse = {};
-        // Mapa para calcular delta: date → (accId → rank)
-        const ranksByDate = new Map<string, Map<string, number>>();
+        // 1) Tenta usar snapshots (medição real de crescimento diário).
+        let dailyByAcc = new Map<string, Map<string, DailyAgg>>();
+        let usedSnapshots = false;
 
-        for (const date of dates) {
-          const aggRes = await db
+        try {
+          const snapRes = await db
             .prepare(
-              `SELECT account_id,
-                      COUNT(*) AS reels,
-                      COALESCE(SUM(reach), 0) AS views,
-                      COALESCE(SUM(likes), 0) AS likes,
-                      COALESCE(SUM(comments), 0) AS comments
-               FROM history
-               WHERE date(published_at) = ?
-               GROUP BY account_id`,
+              `WITH per_media AS (
+                 SELECT account_id, ig_media_id, snapshot_date,
+                        plays, likes, comments,
+                        LAG(plays)    OVER (PARTITION BY ig_media_id ORDER BY snapshot_date) AS prev_plays,
+                        LAG(likes)    OVER (PARTITION BY ig_media_id ORDER BY snapshot_date) AS prev_likes,
+                        LAG(comments) OVER (PARTITION BY ig_media_id ORDER BY snapshot_date) AS prev_comments
+                 FROM history_snapshots
+                 WHERE snapshot_date >= ?
+               )
+               SELECT account_id, snapshot_date AS date,
+                      COUNT(DISTINCT ig_media_id) AS reels,
+                      SUM(MAX(plays    - COALESCE(prev_plays, 0), 0))    AS views,
+                      SUM(MAX(likes    - COALESCE(prev_likes, 0), 0))    AS likes,
+                      SUM(MAX(comments - COALESCE(prev_comments, 0), 0)) AS comments
+               FROM per_media
+               WHERE snapshot_date >= ?
+               GROUP BY account_id, snapshot_date`,
             )
-            .bind(date)
+            .bind(lagCutoff, oldest)
             .all<{
               account_id: string;
+              date: string;
               reels: number;
               views: number;
               likes: number;
               comments: number;
             }>();
-          const agg = new Map((aggRes.results ?? []).map((r) => [r.account_id, r]));
 
+          const rows = snapRes.results ?? [];
+          if (rows.length > 0) {
+            usedSnapshots = true;
+            for (const r of rows) {
+              let m = dailyByAcc.get(r.account_id);
+              if (!m) {
+                m = new Map();
+                dailyByAcc.set(r.account_id, m);
+              }
+              m.set(r.date, {
+                reels: r.reels ?? 0,
+                views: r.views ?? 0,
+                likes: r.likes ?? 0,
+                comments: r.comments ?? 0,
+              });
+            }
+          }
+        } catch {
+          // Tabela ou window function indisponível — segue pro fallback.
+          usedSnapshots = false;
+        }
+
+        // 2) Fallback: agrega por published_at (reels publicados naquele dia).
+        if (!usedSnapshots) {
+          dailyByAcc = new Map();
+          for (const date of dates) {
+            const aggRes = await db
+              .prepare(
+                `SELECT account_id,
+                        COUNT(*) AS reels,
+                        COALESCE(SUM(COALESCE(NULLIF(plays,0), reach)), 0) AS views,
+                        COALESCE(SUM(likes), 0) AS likes,
+                        COALESCE(SUM(comments), 0) AS comments
+                 FROM history
+                 WHERE date(published_at) = ?
+                 GROUP BY account_id`,
+              )
+              .bind(date)
+              .all<{
+                account_id: string;
+                reels: number;
+                views: number;
+                likes: number;
+                comments: number;
+              }>();
+            for (const r of aggRes.results ?? []) {
+              let m = dailyByAcc.get(r.account_id);
+              if (!m) {
+                m = new Map();
+                dailyByAcc.set(r.account_id, m);
+              }
+              m.set(date, {
+                reels: r.reels ?? 0,
+                views: r.views ?? 0,
+                likes: r.likes ?? 0,
+                comments: r.comments ?? 0,
+              });
+            }
+          }
+        }
+
+        const byDate: DailyRankingResponse = {};
+        const ranksByDate = new Map<string, Map<string, number>>();
+
+        for (const date of dates) {
           const rows: DailyAccountData[] = accounts.map((a) => {
-            const x = agg.get(a.id);
+            const x = dailyByAcc.get(a.id)?.get(date);
             const daily_reels = x?.reels ?? 0;
             const daily_views = x?.views ?? 0;
             const daily_likes = x?.likes ?? 0;
@@ -157,7 +239,6 @@ export const Route = createFileRoute("/api/ranking/daily")({
           };
         }
 
-        // Calcular rank_delta = rank_ontem - rank_hoje (positivo = subiu).
         for (let i = 0; i < dates.length - 1; i++) {
           const date = dates[i];
           const prev = dates[i + 1];
