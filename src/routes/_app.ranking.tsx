@@ -451,7 +451,7 @@ function AccountDrawer({
 }
 
 function RankingPage() {
-  const [period, setPeriod] = useState<Period>("7d");
+  const [period, setPeriod] = useState<Period>("1d");
   const [tab, setTab] = useState<Tab>("geral");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
