@@ -243,6 +243,7 @@ export type HistoryRow = {
   thumb_url: string | null;
   published_at: string;
   reach: number;
+  plays: number;
   likes: number;
   comments: number;
   fetched_at: string | null;
