@@ -2,7 +2,7 @@
 // (preview Lovable / dev local sem `wrangler dev --remote`), cai no mock.
 
 import { mockAccounts, mockQueue, mockHistory, type Account, type QueueItem } from "./mock";
-import type { AccountRow, QueueRow, HistoryRow } from "./db.server";
+import type { AccountRow, QueueRow, HistoryRow, LoopRow } from "./db.server";
 
 async function tryJson<T>(path: string, init?: RequestInit): Promise<T | null> {
   try {
@@ -215,4 +215,66 @@ export const api = {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
     }
   },
+
+  // ============ loops ============
+  async listLoops(): Promise<LoopRow[]> {
+    const data = await tryJson<{ loops: LoopRow[] }>("/api/loops");
+    return data?.loops ?? [];
+  },
+
+  async createLoop(body: {
+    source_type: "snapshot" | "live_folder";
+    folder_id?: string | null;
+    folder_name?: string | null;
+    video_ids?: string[];
+    account_ids: string[];
+    caption: string;
+    gap_min: number;
+    jitter_min: number;
+    order_mode: "sequential" | "random";
+    next_cycle_at: string;
+  }): Promise<{ id: string } | { error: string } | null> {
+    try {
+      const res = await fetch("/api/loops", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      return (await res.json()) as { id: string } | { error: string };
+    } catch {
+      return null;
+    }
+  },
+
+  async patchLoop(
+    id: string,
+    body: { status?: "active" | "paused" | "stopped"; cancel_pending?: boolean },
+  ) {
+    await fetch(`/api/loops/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  },
+
+  async deleteLoop(id: string) {
+    await fetch(`/api/loops/${id}`, { method: "DELETE" });
+  },
+
+  async folderLiveCount(
+    folderId: string,
+  ): Promise<{ folder: { id: string; name: string } | null; count: number; error: string | null } | null> {
+    try {
+      const res = await fetch(`/api/drive/folder/${folderId}`);
+      if (!res.ok) return null;
+      return (await res.json()) as {
+        folder: { id: string; name: string } | null;
+        count: number;
+        error: string | null;
+      };
+    } catch {
+      return null;
+    }
+  },
 };
+
