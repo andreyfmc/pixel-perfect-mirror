@@ -197,6 +197,56 @@ export const Route = createFileRoute("/api/ranking")({
           .all<{ account_id: string; c: number }>();
         const pendingMap = new Map((pendingRes.results ?? []).map((r) => [r.account_id, r.c]));
 
+        // Ganho diário (0–24h vs 24–48h) por conta — usa published_at em history.
+        const day48Cutoff = new Date(Date.now() - 48 * 3600_000).toISOString();
+        const todayAggRes = await db
+          .prepare(
+            `SELECT account_id,
+                    COALESCE(SUM(COALESCE(NULLIF(plays,0), reach)), 0) AS views,
+                    COALESCE(SUM(likes), 0) AS likes,
+                    COALESCE(SUM(comments), 0) AS comments
+             FROM history
+             WHERE published_at >= ?
+             GROUP BY account_id`,
+          )
+          .bind(day24Cutoff)
+          .all<{ account_id: string; views: number; likes: number; comments: number }>();
+        const todayMap = new Map((todayAggRes.results ?? []).map((r) => [r.account_id, r]));
+        const yestAggRes = await db
+          .prepare(
+            `SELECT account_id,
+                    COALESCE(SUM(COALESCE(NULLIF(plays,0), reach)), 0) AS views,
+                    COALESCE(SUM(likes), 0) AS likes,
+                    COALESCE(SUM(comments), 0) AS comments
+             FROM history
+             WHERE published_at >= ? AND published_at < ?
+             GROUP BY account_id`,
+          )
+          .bind(day48Cutoff, day24Cutoff)
+          .all<{ account_id: string; views: number; likes: number; comments: number }>();
+        const yestMap = new Map((yestAggRes.results ?? []).map((r) => [r.account_id, r]));
+
+        // Snapshot de seguidores de ontem (mais recente em até 48h atrás).
+        const yesterdayDate = new Date(Date.now() - 24 * 3600_000)
+          .toISOString()
+          .slice(0, 10);
+        const followersSnapMap = new Map<string, number>();
+        try {
+          const snapRes = await db
+            .prepare(
+              `SELECT account_id, followers
+               FROM followers_snapshots
+               WHERE snapshot_date <= ?
+               GROUP BY account_id
+               HAVING snapshot_date = MAX(snapshot_date)`,
+            )
+            .bind(yesterdayDate)
+            .all<{ account_id: string; followers: number }>();
+          for (const r of snapRes.results ?? []) followersSnapMap.set(r.account_id, r.followers);
+        } catch {
+          // tabela ainda não existe — ignora
+        }
+
         // Pré-cálculo bruto
         const pre = accounts.map((a) => {
           const pa = periodAgg.get(a.id);
