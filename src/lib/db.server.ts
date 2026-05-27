@@ -122,6 +122,44 @@ async function ensureSchema(): Promise<void> {
            )`,
         )
         .run();
+      // history.plays — total de reproduções (Reels) com fallback para reach.
+      const { results: historyResults } = await db
+        .prepare("PRAGMA table_info(history)")
+        .all<{ name: string }>();
+      const historyCols = new Set((historyResults ?? []).map((r) => r.name));
+      if (!historyCols.has("plays")) {
+        await db.prepare("ALTER TABLE history ADD COLUMN plays INTEGER DEFAULT 0").run();
+        await db
+          .prepare("UPDATE history SET plays = reach WHERE (plays IS NULL OR plays = 0) AND reach > 0")
+          .run();
+      }
+      // history_snapshots — snapshots diários por reel.
+      await db
+        .prepare(
+          `CREATE TABLE IF NOT EXISTS history_snapshots (
+             id TEXT PRIMARY KEY,
+             account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+             ig_media_id TEXT NOT NULL,
+             snapshot_date TEXT NOT NULL,
+             plays INTEGER DEFAULT 0,
+             reach INTEGER DEFAULT 0,
+             likes INTEGER DEFAULT 0,
+             comments INTEGER DEFAULT 0,
+             created_at TEXT NOT NULL DEFAULT (datetime('now')),
+             UNIQUE(ig_media_id, snapshot_date)
+           )`,
+        )
+        .run();
+      await db
+        .prepare(
+          "CREATE INDEX IF NOT EXISTS idx_snapshots_account_date ON history_snapshots(account_id, snapshot_date DESC)",
+        )
+        .run();
+      await db
+        .prepare(
+          "CREATE INDEX IF NOT EXISTS idx_snapshots_media ON history_snapshots(ig_media_id, snapshot_date DESC)",
+        )
+        .run();
     } catch (err) {
       // Não bloqueia o app se o PRAGMA falhar — reseta a promise para tentar de novo
       // na próxima request.
