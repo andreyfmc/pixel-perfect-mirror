@@ -122,6 +122,44 @@ async function ensureSchema(): Promise<void> {
            )`,
         )
         .run();
+      // history.plays — total de reproduções (Reels) com fallback para reach.
+      const { results: historyResults } = await db
+        .prepare("PRAGMA table_info(history)")
+        .all<{ name: string }>();
+      const historyCols = new Set((historyResults ?? []).map((r) => r.name));
+      if (!historyCols.has("plays")) {
+        await db.prepare("ALTER TABLE history ADD COLUMN plays INTEGER DEFAULT 0").run();
+        await db
+          .prepare("UPDATE history SET plays = reach WHERE (plays IS NULL OR plays = 0) AND reach > 0")
+          .run();
+      }
+      // history_snapshots — snapshots diários por reel.
+      await db
+        .prepare(
+          `CREATE TABLE IF NOT EXISTS history_snapshots (
+             id TEXT PRIMARY KEY,
+             account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+             ig_media_id TEXT NOT NULL,
+             snapshot_date TEXT NOT NULL,
+             plays INTEGER DEFAULT 0,
+             reach INTEGER DEFAULT 0,
+             likes INTEGER DEFAULT 0,
+             comments INTEGER DEFAULT 0,
+             created_at TEXT NOT NULL DEFAULT (datetime('now')),
+             UNIQUE(ig_media_id, snapshot_date)
+           )`,
+        )
+        .run();
+      await db
+        .prepare(
+          "CREATE INDEX IF NOT EXISTS idx_snapshots_account_date ON history_snapshots(account_id, snapshot_date DESC)",
+        )
+        .run();
+      await db
+        .prepare(
+          "CREATE INDEX IF NOT EXISTS idx_snapshots_media ON history_snapshots(ig_media_id, snapshot_date DESC)",
+        )
+        .run();
     } catch (err) {
       // Não bloqueia o app se o PRAGMA falhar — reseta a promise para tentar de novo
       // na próxima request.
@@ -205,6 +243,7 @@ export type HistoryRow = {
   thumb_url: string | null;
   published_at: string;
   reach: number;
+  plays: number;
   likes: number;
   comments: number;
   fetched_at: string | null;
@@ -734,12 +773,12 @@ const rawDb = {
     return results ?? [];
   },
   async recordPublication(
-    h: Omit<HistoryRow, "fetched_at" | "reach" | "likes" | "comments"> & Partial<HistoryRow>,
+    h: Omit<HistoryRow, "fetched_at" | "reach" | "plays" | "likes" | "comments"> & Partial<HistoryRow>,
   ) {
     await requireDb()
       .prepare(
-        `INSERT INTO history (id, account_id, queue_id, ig_media_id, caption, media_type, permalink, thumb_url, published_at, reach, likes, comments)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO history (id, account_id, queue_id, ig_media_id, caption, media_type, permalink, thumb_url, published_at, reach, plays, likes, comments)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         h.id,
@@ -752,6 +791,7 @@ const rawDb = {
         h.thumb_url ?? null,
         h.published_at,
         h.reach ?? 0,
+        h.plays ?? 0,
         h.likes ?? 0,
         h.comments ?? 0,
       )
@@ -787,16 +827,43 @@ const rawDb = {
   },
   async updateHistoryInsights(
     id: string,
-    metrics: { reach: number; likes: number; comments: number },
+    metrics: { reach: number; plays: number; likes: number; comments: number },
   ) {
     await requireDb()
       .prepare(
         `UPDATE history
-         SET reach = ?, likes = ?, comments = ?, fetched_at = datetime('now')
+         SET reach = ?, plays = ?, likes = ?, comments = ?, fetched_at = datetime('now')
          WHERE id = ?`,
       )
-      .bind(metrics.reach, metrics.likes, metrics.comments, id)
+      .bind(metrics.reach, metrics.plays, metrics.likes, metrics.comments, id)
       .run();
+    // Atualiza/insere snapshot do dia (UTC) para crescimento diário.
+    const row = await requireDb()
+      .prepare("SELECT account_id, ig_media_id FROM history WHERE id = ?")
+      .bind(id)
+      .first<{ account_id: string; ig_media_id: string }>();
+    if (row) {
+      await requireDb()
+        .prepare(
+          `INSERT INTO history_snapshots (id, account_id, ig_media_id, snapshot_date, plays, reach, likes, comments)
+           VALUES (?, ?, ?, date('now'), ?, ?, ?, ?)
+           ON CONFLICT(ig_media_id, snapshot_date) DO UPDATE SET
+             plays = excluded.plays,
+             reach = excluded.reach,
+             likes = excluded.likes,
+             comments = excluded.comments`,
+        )
+        .bind(
+          crypto.randomUUID(),
+          row.account_id,
+          row.ig_media_id,
+          metrics.plays,
+          metrics.reach,
+          metrics.likes,
+          metrics.comments,
+        )
+        .run();
+    }
   },
 
   // ============ oauth_states (links únicos de conexão) ============

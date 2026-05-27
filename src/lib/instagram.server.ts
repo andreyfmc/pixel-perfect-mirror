@@ -447,14 +447,15 @@ export const instagram = {
   },
 
   /**
-   * Busca métricas básicas + insights (reach) de uma mídia já publicada.
-   * Retorna 0 quando o campo não existe (alguns media_types não expõem reach).
+   * Busca métricas básicas + insights (reach, plays) de uma mídia já publicada.
+   * Retorna 0 quando o campo não existe. `plays` é o total de reproduções
+   * (número visível no perfil); cai para `reach` quando indisponível.
    */
   async fetchMediaMetrics(
     mediaId: string,
     accessToken: string,
     provider?: GraphHostId,
-  ): Promise<{ reach: number; likes: number; comments: number }> {
+  ): Promise<{ reach: number; plays: number; likes: number; comments: number }> {
     // 1) like_count + comments_count — sempre disponíveis
     let likes = 0;
     let comments = 0;
@@ -469,21 +470,34 @@ export const instagram = {
     } catch {
       // segue tentando insights
     }
-    // 2) insights.reach — endpoint separado para evitar 400 quando indisponível
+    // 2) insights.reach + plays — pedidos juntos; ignora erros parciais.
     let reach = 0;
+    let plays = 0;
     try {
       const ins = await gget(
         `/${mediaId}/insights`,
-        { access_token: accessToken, metric: "reach" },
+        { access_token: accessToken, metric: "reach,plays" },
         provider,
       );
       const data = (ins?.data ?? []) as Array<{ name: string; values?: Array<{ value?: number }> }>;
-      const reachEntry = data.find((d) => d.name === "reach");
-      reach = Number(reachEntry?.values?.[0]?.value ?? 0) || 0;
+      reach = Number(data.find((d) => d.name === "reach")?.values?.[0]?.value ?? 0) || 0;
+      plays = Number(data.find((d) => d.name === "plays")?.values?.[0]?.value ?? 0) || 0;
     } catch {
-      // sem insights — mantém 0
+      // Tenta apenas reach se plays não está disponível (algumas contas).
+      try {
+        const ins = await gget(
+          `/${mediaId}/insights`,
+          { access_token: accessToken, metric: "reach" },
+          provider,
+        );
+        const data = (ins?.data ?? []) as Array<{ name: string; values?: Array<{ value?: number }> }>;
+        reach = Number(data.find((d) => d.name === "reach")?.values?.[0]?.value ?? 0) || 0;
+      } catch {
+        // sem insights — mantém 0
+      }
     }
-    return { reach, likes, comments };
+    if (plays === 0 && reach > 0) plays = reach;
+    return { reach, plays, likes, comments };
   },
 
   async fetchContainerStatus(
