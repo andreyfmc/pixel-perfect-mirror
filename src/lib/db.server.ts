@@ -532,6 +532,8 @@ const rawDb = {
       | "variant_method"
       | "variant_error"
       | "original_media_key"
+      | "loop_id"
+      | "cycle_number"
     > &
       Partial<
         Pick<
@@ -541,13 +543,15 @@ const rawDb = {
           | "variant_processed"
           | "variant_method"
           | "original_media_key"
+          | "loop_id"
+          | "cycle_number"
         >
       >,
   ) {
     await requireDb()
       .prepare(
-        `INSERT INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at, group_id, group_scheduled_at, variant_processed, variant_method, original_media_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at, group_id, group_scheduled_at, variant_processed, variant_method, original_media_key, loop_id, cycle_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         q.id,
@@ -562,6 +566,8 @@ const rawDb = {
         q.variant_processed ?? 0,
         q.variant_method ?? null,
         q.original_media_key ?? null,
+        q.loop_id ?? null,
+        q.cycle_number ?? null,
       )
       .run();
   },
