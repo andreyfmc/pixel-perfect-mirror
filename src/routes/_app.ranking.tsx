@@ -484,7 +484,7 @@ function RankingPage() {
   }, [ranking, search, statusFilter, sortBy]);
 
   const top3 = ranking.slice(0, 3);
-  const restricted = ranking.filter((r) => r.reach_status === "restricted");
+  const restricted = ranking.filter((r) => r.reach_status === "restrita" || r.reach_status === "critica");
   const opened = openId ? ranking.find((r) => r.id === openId) ?? null : null;
 
   return (
@@ -647,7 +647,7 @@ function RankingPage() {
                       onClick={() => setOpenId(r.id)}
                       className="border-t border-border hover:bg-bg3 cursor-pointer"
                       style={
-                        r.reach_status === "restricted"
+                        r.reach_status === "restrita" || r.reach_status === "critica"
                           ? { background: "color-mix(in oklab, var(--danger) 5%, transparent)" }
                           : undefined
                       }
@@ -703,7 +703,7 @@ function RankingPage() {
                 onClick={() => setOpenId(r.id)}
                 className="w-full rounded-xl border border-border bg-bg2 p-3 text-left active:bg-bg3"
                 style={
-                  r.reach_status === "restricted"
+                  r.reach_status === "restrita" || r.reach_status === "critica"
                     ? { borderLeft: "3px solid var(--danger)" }
                     : undefined
                 }
@@ -757,7 +757,7 @@ function RankingPage() {
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {[...filtered]
-              .filter((r) => r.reach_status === "warn" || r.reach_status === "restricted")
+              .filter((r) => r.reach_status === "atencao" || r.reach_status === "restrita" || r.reach_status === "critica")
               .sort((a, b) => (a.non_follower_index ?? 0) - (b.non_follower_index ?? 0))
               .map((r) => (
                 <button
