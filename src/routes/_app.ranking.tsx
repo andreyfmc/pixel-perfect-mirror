@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Fragment as FragmentWithKey, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   Trophy,
   Search,
