@@ -371,6 +371,9 @@ const rawDb = {
       )
       .run();
     await rawDb.resetCredentialFailedQueue(a.username);
+    if (typeof a.followers === "number" && a.followers >= 0) {
+      await recordFollowersSnapshot(a.id, a.followers);
+    }
   },
   async resetCredentialFailedQueue(username: string) {
     await requireDb()
@@ -423,6 +426,9 @@ const rawDb = {
         id,
       )
       .run();
+    if (typeof input.followers === "number" && input.followers >= 0) {
+      await recordFollowersSnapshot(id, input.followers);
+    }
   },
   async resolveAccountForPublishing(id: string): Promise<AccountRow | null> {
     const account = await rawDb.getAccount(id);
