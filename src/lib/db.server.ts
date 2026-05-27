@@ -146,7 +146,28 @@ export type AccountRow = {
   followers: number;
   health_score: number;
   last_post_at: string | null;
+  loop_id: string | null;
+  cycle_number: number | null;
   created_at: string;
+};
+
+export type LoopRow = {
+  id: string;
+  source_type: "snapshot" | "live_folder";
+  folder_id: string | null;
+  folder_name: string | null;
+  video_ids_json: string | null;
+  account_ids_json: string;
+  caption: string;
+  gap_min: number;
+  jitter_min: number;
+  order_mode: "sequential" | "random";
+  status: "active" | "paused" | "stopped";
+  cycle_number: number;
+  next_cycle_at: string;
+  last_error: string | null;
+  created_at: string;
+  updated_at: string;
   updated_at: string;
 };
 
