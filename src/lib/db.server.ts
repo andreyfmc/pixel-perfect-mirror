@@ -864,6 +864,76 @@ const rawDb = {
       .bind(error.slice(0, 500), id)
       .run();
   },
+
+  // ============ loops ============
+  async createLoop(input: Omit<LoopRow, "created_at" | "updated_at" | "cycle_number" | "last_error" | "status"> & { status?: LoopRow["status"] }) {
+    await requireDb()
+      .prepare(
+        `INSERT INTO loops (id, source_type, folder_id, folder_name, video_ids_json, account_ids_json, caption, gap_min, jitter_min, order_mode, status, cycle_number, next_cycle_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+      )
+      .bind(
+        input.id,
+        input.source_type,
+        input.folder_id ?? null,
+        input.folder_name ?? null,
+        input.video_ids_json ?? null,
+        input.account_ids_json,
+        input.caption,
+        input.gap_min,
+        input.jitter_min,
+        input.order_mode,
+        input.status ?? "active",
+        input.next_cycle_at,
+      )
+      .run();
+  },
+  async listLoops(): Promise<LoopRow[]> {
+    const { results } = await requireDb()
+      .prepare(`SELECT * FROM loops WHERE status != 'stopped' ORDER BY created_at DESC`)
+      .all<LoopRow>();
+    return results ?? [];
+  },
+  async getLoop(id: string): Promise<LoopRow | null> {
+    return (
+      (await requireDb().prepare(`SELECT * FROM loops WHERE id = ?`).bind(id).first<LoopRow>()) ??
+      null
+    );
+  },
+  async listDueActiveLoops(nowIso: string, windowMinutes = 120): Promise<LoopRow[]> {
+    // Loops ativos cujo next_cycle_at está dentro da janela (próximas X min)
+    const horizon = new Date(new Date(nowIso).getTime() + windowMinutes * 60_000).toISOString();
+    const { results } = await requireDb()
+      .prepare(
+        `SELECT * FROM loops WHERE status = 'active' AND next_cycle_at <= ? ORDER BY next_cycle_at ASC`,
+      )
+      .bind(horizon)
+      .all<LoopRow>();
+    return results ?? [];
+  },
+  async setLoopStatus(id: string, status: LoopRow["status"], lastError?: string | null) {
+    await requireDb()
+      .prepare(
+        `UPDATE loops SET status = ?, last_error = ?, updated_at = datetime('now') WHERE id = ?`,
+      )
+      .bind(status, lastError ?? null, id)
+      .run();
+  },
+  async advanceLoop(id: string, nextCycleAt: string, cycleNumber: number) {
+    await requireDb()
+      .prepare(
+        `UPDATE loops SET next_cycle_at = ?, cycle_number = ?, last_error = NULL, updated_at = datetime('now') WHERE id = ?`,
+      )
+      .bind(nextCycleAt, cycleNumber, id)
+      .run();
+  },
+  async cancelPendingForLoop(id: string): Promise<number> {
+    const res = await requireDb()
+      .prepare(`DELETE FROM queue WHERE loop_id = ? AND status = 'scheduled'`)
+      .bind(id)
+      .run();
+    return (res.meta?.changes as number) ?? 0;
+  },
 };
 
 // Proxy que garante a auto-migração antes de cada chamada de método.
