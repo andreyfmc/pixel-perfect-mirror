@@ -153,6 +153,88 @@ export async function variateMp4(
 
   const seedBytes = await deriveSeedBytes(seed, 64);
 
+  // ---- 0. Apagar bloco XMP da Adobe (uuid box com GUID fixo) ----
+  let xmpErased = false;
+  {
+    const XMP_GUID = new Uint8Array([
+      0xbe, 0x7a, 0xcf, 0xcb, 0x97, 0xa9, 0x42, 0xe8,
+      0x9c, 0x71, 0x99, 0x94, 0x91, 0xe3, 0xaf, 0xac,
+    ]);
+    for (let off = 0; off < buf.length - 8; ) {
+      const box = readBox(buf, off);
+      if (!box) break;
+      if (box.type === "uuid" && box.end - box.payloadStart >= 16) {
+        const guidMatch = XMP_GUID.every((b, i) => buf[box.payloadStart + i] === b);
+        if (guidMatch) {
+          const xmlStart = box.payloadStart + 16;
+          buf.fill(0x20, xmlStart, box.end);
+          xmpErased = true;
+        }
+      }
+      if (box.type === "moov") {
+        for (const child of findChildren(buf, box.payloadStart, box.end)) {
+          if (child.type === "uuid" && child.end - child.payloadStart >= 16) {
+            const guidMatch = XMP_GUID.every((b, i) => buf[child.payloadStart + i] === b);
+            if (guidMatch) {
+              const xmlStart = child.payloadStart + 16;
+              buf.fill(0x20, xmlStart, child.end);
+              xmpErased = true;
+            }
+          }
+        }
+      }
+      off = box.end;
+    }
+  }
+
+  // ---- 0b. Sobrescrever ©day com data fake derivada do seed ----
+  let dayRewritten = false;
+  {
+    const seedNum0 =
+      ((seedBytes[0] << 24) >>> 0) |
+      (seedBytes[1] << 16) |
+      (seedBytes[2] << 8) |
+      seedBytes[3];
+    const start2022ts = Math.floor(new Date("2022-01-01T00:00:00Z").getTime() / 1000);
+    const end2024ts = Math.floor(new Date("2024-12-31T23:59:59Z").getTime() / 1000);
+    const fakeDayUnix = start2022ts + (Math.abs(seedNum0) % (end2024ts - start2022ts));
+    const fakeDayIso = new Date(fakeDayUnix * 1000).toISOString().slice(0, 19);
+
+    const DAY = new Uint8Array([0xa9, 0x64, 0x61, 0x79]);
+    outer_day: for (let i = 4; i < buf.length - 4; i++) {
+      if (
+        buf[i] === DAY[0] &&
+        buf[i + 1] === DAY[1] &&
+        buf[i + 2] === DAY[2] &&
+        buf[i + 3] === DAY[3]
+      ) {
+        const boxStart = i - 4;
+        const boxSize = u32(buf, boxStart);
+        if (boxSize < 16 || boxStart + boxSize > buf.length) continue;
+        let off = boxStart + 8;
+        const boxEnd = boxStart + boxSize;
+        while (off < boxEnd - 8) {
+          const dSize = u32(buf, off);
+          const dType = fourcc(buf, off + 4);
+          if (dType === "data" && dSize >= 16 && off + dSize <= boxEnd) {
+            const payloadOff = off + 16;
+            const payloadLen = dSize - 16;
+            if (payloadLen > 0) {
+              const dayBytes = te.encode(fakeDayIso.slice(0, payloadLen).padEnd(payloadLen, " "));
+              for (let k = 0; k < payloadLen; k++) {
+                buf[payloadOff + k] = dayBytes[k] ?? 0x20;
+              }
+              dayRewritten = true;
+              break outer_day;
+            }
+          }
+          if (dSize < 8) break;
+          off += dSize;
+        }
+      }
+    }
+  }
+
   // ---- 1. Timestamps em mvhd / tkhd / mdhd ----
   // Faixa: 2022-01-01 .. 2024-12-31
   const start2022 = Math.floor(new Date("2022-01-01T00:00:00Z").getTime() / 1000);
