@@ -708,10 +708,17 @@ const rawDb = {
     await requireDb()
       .prepare(
         `UPDATE queue
-         SET status = 'processing', last_error = NULL, ig_container_id = ?
+         SET status = 'processing', last_error = NULL, ig_container_id = ?,
+             attempts = attempts + 1
          WHERE id = ?`,
       )
       .bind(igContainerId, id)
+      .run();
+  },
+  async incrementQueueAttempts(id: string) {
+    await requireDb()
+      .prepare(`UPDATE queue SET attempts = attempts + 1 WHERE id = ?`)
+      .bind(id)
       .run();
   },
   async clearQueueContainer(id: string) {
