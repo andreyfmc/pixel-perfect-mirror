@@ -1040,12 +1040,13 @@ const rawDb = {
   async createLoop(input: Omit<LoopRow, "created_at" | "updated_at" | "cycle_number" | "last_error" | "status"> & { status?: LoopRow["status"] }) {
     await requireDb()
       .prepare(
-        `INSERT INTO loops (id, source_type, folder_id, folder_name, video_ids_json, account_ids_json, caption, gap_min, jitter_min, order_mode, status, cycle_number, next_cycle_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+        `INSERT INTO loops (id, source_type, media_type, folder_id, folder_name, video_ids_json, account_ids_json, caption, gap_min, jitter_min, order_mode, status, cycle_number, next_cycle_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
       )
       .bind(
         input.id,
         input.source_type,
+        input.media_type ?? "REEL",
         input.folder_id ?? null,
         input.folder_name ?? null,
         input.video_ids_json ?? null,
