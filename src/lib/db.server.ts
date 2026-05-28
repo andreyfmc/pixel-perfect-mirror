@@ -586,7 +586,7 @@ const rawDb = {
       .all<QueueRow>();
     return results ?? [];
   },
-  async dueQueueItems(nowIso: string, limit = 4): Promise<QueueRow[]> {
+  async dueQueueItems(nowIso: string, limit = 20): Promise<QueueRow[]> {
     // Inclui:
     //  - 'scheduled' vencidos
     //  - 'processing' COM container (aguardando FINISHED no Instagram)
