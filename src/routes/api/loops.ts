@@ -10,6 +10,7 @@ const json = (data: unknown, status = 200) =>
 
 const CreateLoopSchema = z.object({
   source_type: z.enum(["snapshot", "live_folder"]),
+  media_type: z.enum(["REEL", "IMAGE", "STORY"]).default("REEL"),
   folder_id: z.string().optional().nullable(),
   folder_name: z.string().optional().nullable(),
   video_ids: z.array(z.string().min(1)).max(500).optional(),
@@ -37,6 +38,7 @@ export const Route = createFileRoute("/api/loops")({
         await db.createLoop({
           id,
           source_type: body.source_type,
+          media_type: body.media_type,
           folder_id: body.folder_id ?? null,
           folder_name: body.folder_name ?? null,
           video_ids_json: body.video_ids ? JSON.stringify(body.video_ids) : null,

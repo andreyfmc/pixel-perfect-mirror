@@ -88,6 +88,7 @@ async function ensureSchema(): Promise<void> {
           `CREATE TABLE IF NOT EXISTS loops (
              id TEXT PRIMARY KEY,
              source_type TEXT NOT NULL CHECK (source_type IN ('snapshot','live_folder')),
+             media_type TEXT NOT NULL DEFAULT 'REEL' CHECK (media_type IN ('REEL','IMAGE','STORY')),
              folder_id TEXT,
              folder_name TEXT,
              video_ids_json TEXT,
@@ -105,6 +106,16 @@ async function ensureSchema(): Promise<void> {
            )`,
         )
         .run();
+      // Garante media_type em tabelas loops criadas antes desta migração.
+      const { results: loopCols } = await db
+        .prepare("PRAGMA table_info(loops)")
+        .all<{ name: string }>();
+      const loopColsSet = new Set((loopCols ?? []).map((r) => r.name));
+      if (!loopColsSet.has("media_type")) {
+        await db
+          .prepare("ALTER TABLE loops ADD COLUMN media_type TEXT NOT NULL DEFAULT 'REEL'")
+          .run();
+      }
       await db
         .prepare("CREATE INDEX IF NOT EXISTS idx_loops_active ON loops(status, next_cycle_at)")
         .run();
@@ -225,6 +236,7 @@ export type AccountRow = {
 export type LoopRow = {
   id: string;
   source_type: "snapshot" | "live_folder";
+  media_type: "REEL" | "IMAGE" | "STORY";
   folder_id: string | null;
   folder_name: string | null;
   video_ids_json: string | null;
@@ -574,7 +586,7 @@ const rawDb = {
       .all<QueueRow>();
     return results ?? [];
   },
-  async dueQueueItems(nowIso: string, limit = 4): Promise<QueueRow[]> {
+  async dueQueueItems(nowIso: string, limit = 20): Promise<QueueRow[]> {
     // Inclui:
     //  - 'scheduled' vencidos
     //  - 'processing' COM container (aguardando FINISHED no Instagram)
@@ -1028,12 +1040,13 @@ const rawDb = {
   async createLoop(input: Omit<LoopRow, "created_at" | "updated_at" | "cycle_number" | "last_error" | "status"> & { status?: LoopRow["status"] }) {
     await requireDb()
       .prepare(
-        `INSERT INTO loops (id, source_type, folder_id, folder_name, video_ids_json, account_ids_json, caption, gap_min, jitter_min, order_mode, status, cycle_number, next_cycle_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+        `INSERT INTO loops (id, source_type, media_type, folder_id, folder_name, video_ids_json, account_ids_json, caption, gap_min, jitter_min, order_mode, status, cycle_number, next_cycle_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
       )
       .bind(
         input.id,
         input.source_type,
+        input.media_type ?? "REEL",
         input.folder_id ?? null,
         input.folder_name ?? null,
         input.video_ids_json ?? null,

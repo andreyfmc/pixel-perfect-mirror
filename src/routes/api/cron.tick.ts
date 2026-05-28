@@ -18,9 +18,14 @@ export const Route = createFileRoute("/api/cron/tick")({
         const baseUrl = `${url.protocol}//${url.host}`;
         try {
           const result = await runScheduler(new Date(), { baseUrl });
-          return new Response(JSON.stringify(result), {
-            headers: { "content-type": "application/json" },
-          });
+          return new Response(
+            JSON.stringify({
+              ...result,
+              timestamp: new Date().toISOString(),
+              queueDue: (result.processed ?? 0) + (result.errors ?? 0),
+            }),
+            { headers: { "content-type": "application/json" } },
+          );
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           const stack = err instanceof Error ? err.stack : undefined;

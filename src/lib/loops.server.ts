@@ -108,7 +108,7 @@ export async function materializeLoop(
         id: crypto.randomUUID(),
         account_id: accId,
         caption: uniqueCaption,
-        media_type: "REEL",
+        media_type: loop.media_type ?? "REEL",
         media_key: `drive:${videoId}`,
         thumb_key: null,
         scheduled_at: scheduledAt,
@@ -134,7 +134,7 @@ export async function materializeLoop(
 export async function runLoopMaterializer(
   now: Date = new Date(),
 ): Promise<{ loops: number; enqueued: number; paused: number; stopped: number }> {
-  const due = await db.listDueActiveLoops(now.toISOString(), 0);
+  const due = await db.listDueActiveLoops(now.toISOString(), 2);
   let enqueued = 0;
   let paused = 0;
   let stopped = 0;
