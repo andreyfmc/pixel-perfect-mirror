@@ -252,6 +252,9 @@ export async function runScheduler(
         );
       }
       if (status.statusCode !== "FINISHED" && status.statusCode !== "PUBLISHED") {
+        // Incrementa attempts a cada tick — combinado com attempts<10 em
+        // dueQueueItems, garante que containers travados saiam da fila.
+        await db.incrementQueueAttempts(item.id);
         console.log(
           `[scheduler] queue=${item.id} container ainda ${status.statusCode}, aguardando próximo tick`,
         );
