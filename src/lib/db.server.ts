@@ -589,22 +589,39 @@ const rawDb = {
   async dueQueueItems(nowIso: string, limit = 20): Promise<QueueRow[]> {
     // Inclui:
     //  - 'scheduled' vencidos
-    //  - 'processing' COM container (aguardando FINISHED no Instagram)
-    //  - 'processing' SEM container e parados há >2min (órfãos de tick anterior
-    //    que morreu por timeout do Worker antes de criar o container)
+    //  - 'processing' COM container (aguardando FINISHED no Instagram) — máx 10 tentativas
+    //  - 'processing' SEM container e parados há >2min (órfãos) — máx 5 tentativas
+    // Tentativas excedidas são marcadas como failed via failStuckProcessing().
     const { results } = await requireDb()
       .prepare(
         `SELECT * FROM queue
          WHERE (status = 'scheduled' AND scheduled_at <= ?)
-            OR (status = 'processing' AND ig_container_id IS NOT NULL)
+            OR (status = 'processing' AND ig_container_id IS NOT NULL AND attempts < 10)
             OR (status = 'processing' AND ig_container_id IS NULL
-                AND scheduled_at <= datetime(?, '-2 minutes'))
+                AND scheduled_at <= datetime(?, '-2 minutes')
+                AND attempts < 5)
          ORDER BY scheduled_at ASC
          LIMIT ?`,
       )
       .bind(nowIso, nowIso, limit)
       .all<QueueRow>();
     return results ?? [];
+  },
+
+  /** Marca como failed itens 'processing' que estouraram o limite de tentativas
+   *  (evita reprocessamento infinito de containers travados no Instagram). */
+  async failStuckProcessing(): Promise<number> {
+    const r = await requireDb()
+      .prepare(
+        `UPDATE queue
+         SET status = 'failed',
+             last_error = 'Container travado — excedeu limite de tentativas'
+         WHERE status = 'processing'
+           AND ((ig_container_id IS NOT NULL AND attempts >= 10)
+             OR (ig_container_id IS NULL AND attempts >= 5))`,
+      )
+      .run();
+    return (r.meta?.changes as number | undefined) ?? 0;
   },
 
   async enqueue(
