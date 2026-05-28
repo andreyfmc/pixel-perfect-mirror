@@ -108,7 +108,7 @@ export async function materializeLoop(
         id: crypto.randomUUID(),
         account_id: accId,
         caption: uniqueCaption,
-        media_type: "REEL",
+        media_type: loop.media_type ?? "REEL",
         media_key: `drive:${videoId}`,
         thumb_key: null,
         scheduled_at: scheduledAt,
