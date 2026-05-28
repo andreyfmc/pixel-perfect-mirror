@@ -252,6 +252,9 @@ export async function runScheduler(
         );
       }
       if (status.statusCode !== "FINISHED" && status.statusCode !== "PUBLISHED") {
+        // Incrementa attempts a cada tick — combinado com attempts<10 em
+        // dueQueueItems, garante que containers travados saiam da fila.
+        await db.incrementQueueAttempts(item.id);
         console.log(
           `[scheduler] queue=${item.id} container ainda ${status.statusCode}, aguardando próximo tick`,
         );
@@ -384,9 +387,14 @@ export async function runScheduler(
   }
 
   // Refresh de insights (reach/likes/comments) dos posts recentes.
-  // Limitado a poucos por tick — chamadas /insights pesam no rate-limit.
+  // Limite agressivo: 3 itens/tick, posts <2 dias, 1 por conta — evita
+  // estourar rate-limit da Graph API.
+  let insightsUpdated = 0;
+  let insightsFailed = 0;
   try {
-    const r = await refreshHistoryInsights(8);
+    const r = await refreshHistoryInsights(3);
+    insightsUpdated = r.updated;
+    insightsFailed = r.failed;
     if (r.updated || r.failed) {
       console.log(`[scheduler] insights updated=${r.updated} failed=${r.failed}`);
     }
@@ -394,18 +402,31 @@ export async function runScheduler(
     console.warn("[scheduler] refresh de insights falhou:", err);
   }
 
+  // Marca como failed qualquer item 'processing' que estourou tentativas.
+  try {
+    const stuck = await db.failStuckProcessing();
+    if (stuck) console.warn(`[scheduler] ${stuck} item(s) travado(s) marcado(s) como failed`);
+  } catch (err) {
+    console.warn("[scheduler] failStuckProcessing erro:", err);
+  }
+
+  console.log(
+    `[cron] tick=${now.toISOString()} processed=${processed} errors=${errors} insights=${insightsUpdated} insights_failed=${insightsFailed} due=${due.length}`,
+  );
+
   return { processed, errors };
 }
 
 /**
- * Atualiza reach/likes/comments de até `limit` posts publicados nos últimos 7 dias.
+ * Atualiza reach/likes/comments de até `limit` posts publicados nos últimos 2 dias.
  * Usado pelo tick do scheduler e pelo endpoint manual /api/history/refresh.
+ * 1 item por conta para não martelar a mesma Page no rate-limit.
  */
 export async function refreshHistoryInsights(
-  limit = 8,
+  limit = 3,
 ): Promise<{ updated: number; failed: number }> {
   if (!hasDb()) return { updated: 0, failed: 0 };
-  const rows = await db.listHistoryNeedingInsightsRefresh({ days: 7, limit, minAgeMinutes: 30 });
+  const rows = await db.listHistoryNeedingInsightsRefresh({ days: 2, limit, minAgeMinutes: 30 });
   let updated = 0;
   let failed = 0;
   for (const row of rows) {

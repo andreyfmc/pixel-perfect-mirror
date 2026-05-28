@@ -589,22 +589,39 @@ const rawDb = {
   async dueQueueItems(nowIso: string, limit = 20): Promise<QueueRow[]> {
     // Inclui:
     //  - 'scheduled' vencidos
-    //  - 'processing' COM container (aguardando FINISHED no Instagram)
-    //  - 'processing' SEM container e parados há >2min (órfãos de tick anterior
-    //    que morreu por timeout do Worker antes de criar o container)
+    //  - 'processing' COM container (aguardando FINISHED no Instagram) — máx 10 tentativas
+    //  - 'processing' SEM container e parados há >2min (órfãos) — máx 5 tentativas
+    // Tentativas excedidas são marcadas como failed via failStuckProcessing().
     const { results } = await requireDb()
       .prepare(
         `SELECT * FROM queue
          WHERE (status = 'scheduled' AND scheduled_at <= ?)
-            OR (status = 'processing' AND ig_container_id IS NOT NULL)
+            OR (status = 'processing' AND ig_container_id IS NOT NULL AND attempts < 10)
             OR (status = 'processing' AND ig_container_id IS NULL
-                AND scheduled_at <= datetime(?, '-2 minutes'))
+                AND scheduled_at <= datetime(?, '-2 minutes')
+                AND attempts < 5)
          ORDER BY scheduled_at ASC
          LIMIT ?`,
       )
       .bind(nowIso, nowIso, limit)
       .all<QueueRow>();
     return results ?? [];
+  },
+
+  /** Marca como failed itens 'processing' que estouraram o limite de tentativas
+   *  (evita reprocessamento infinito de containers travados no Instagram). */
+  async failStuckProcessing(): Promise<number> {
+    const r = await requireDb()
+      .prepare(
+        `UPDATE queue
+         SET status = 'failed',
+             last_error = 'Container travado — excedeu limite de tentativas'
+         WHERE status = 'processing'
+           AND ((ig_container_id IS NOT NULL AND attempts >= 10)
+             OR (ig_container_id IS NULL AND attempts >= 5))`,
+      )
+      .run();
+    return (r.meta?.changes as number | undefined) ?? 0;
   },
 
   async enqueue(
@@ -691,10 +708,17 @@ const rawDb = {
     await requireDb()
       .prepare(
         `UPDATE queue
-         SET status = 'processing', last_error = NULL, ig_container_id = ?
+         SET status = 'processing', last_error = NULL, ig_container_id = ?,
+             attempts = attempts + 1
          WHERE id = ?`,
       )
       .bind(igContainerId, id)
+      .run();
+  },
+  async incrementQueueAttempts(id: string) {
+    await requireDb()
+      .prepare(`UPDATE queue SET attempts = attempts + 1 WHERE id = ?`)
+      .bind(id)
       .run();
   },
   async clearQueueContainer(id: string) {
@@ -871,17 +895,27 @@ const rawDb = {
     limit?: number;
     minAgeMinutes?: number;
   } = {}): Promise<HistoryRow[]> {
-    const days = opts.days ?? 7;
-    const limit = opts.limit ?? 8;
+    const days = opts.days ?? 2;
+    const limit = opts.limit ?? 3;
     const minAge = opts.minAgeMinutes ?? 30;
     const sinceIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
     const staleBefore = new Date(Date.now() - minAge * 60_000).toISOString();
+    // 1 item por account_id por tick (evita martelar a mesma conta) + janela
+    // de 10min entre refreshes da mesma linha (já garantido por staleBefore=30min).
     const { results } = await requireDb()
       .prepare(
-        `SELECT * FROM history
-         WHERE published_at >= ?
-           AND (fetched_at IS NULL OR datetime(fetched_at) <= datetime(?))
-         ORDER BY (fetched_at IS NULL) DESC, fetched_at ASC NULLS FIRST, published_at DESC
+        `SELECT * FROM (
+           SELECT *,
+             ROW_NUMBER() OVER (
+               PARTITION BY account_id
+               ORDER BY (fetched_at IS NULL) DESC, fetched_at ASC, published_at DESC
+             ) AS rn
+           FROM history
+           WHERE published_at >= ?
+             AND (fetched_at IS NULL OR datetime(fetched_at) <= datetime(?))
+         )
+         WHERE rn = 1
+         ORDER BY (fetched_at IS NULL) DESC, fetched_at ASC, published_at DESC
          LIMIT ?`,
       )
       .bind(sinceIso, staleBefore, limit)
