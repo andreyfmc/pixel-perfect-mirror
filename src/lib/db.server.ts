@@ -895,17 +895,27 @@ const rawDb = {
     limit?: number;
     minAgeMinutes?: number;
   } = {}): Promise<HistoryRow[]> {
-    const days = opts.days ?? 7;
-    const limit = opts.limit ?? 8;
+    const days = opts.days ?? 2;
+    const limit = opts.limit ?? 3;
     const minAge = opts.minAgeMinutes ?? 30;
     const sinceIso = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
     const staleBefore = new Date(Date.now() - minAge * 60_000).toISOString();
+    // 1 item por account_id por tick (evita martelar a mesma conta) + janela
+    // de 10min entre refreshes da mesma linha (já garantido por staleBefore=30min).
     const { results } = await requireDb()
       .prepare(
-        `SELECT * FROM history
-         WHERE published_at >= ?
-           AND (fetched_at IS NULL OR datetime(fetched_at) <= datetime(?))
-         ORDER BY (fetched_at IS NULL) DESC, fetched_at ASC NULLS FIRST, published_at DESC
+        `SELECT * FROM (
+           SELECT *,
+             ROW_NUMBER() OVER (
+               PARTITION BY account_id
+               ORDER BY (fetched_at IS NULL) DESC, fetched_at ASC, published_at DESC
+             ) AS rn
+           FROM history
+           WHERE published_at >= ?
+             AND (fetched_at IS NULL OR datetime(fetched_at) <= datetime(?))
+         )
+         WHERE rn = 1
+         ORDER BY (fetched_at IS NULL) DESC, fetched_at ASC, published_at DESC
          LIMIT ?`,
       )
       .bind(sinceIso, staleBefore, limit)
