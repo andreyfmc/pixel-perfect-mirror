@@ -88,6 +88,7 @@ async function ensureSchema(): Promise<void> {
           `CREATE TABLE IF NOT EXISTS loops (
              id TEXT PRIMARY KEY,
              source_type TEXT NOT NULL CHECK (source_type IN ('snapshot','live_folder')),
+             media_type TEXT NOT NULL DEFAULT 'REEL' CHECK (media_type IN ('REEL','IMAGE','STORY')),
              folder_id TEXT,
              folder_name TEXT,
              video_ids_json TEXT,
@@ -105,6 +106,16 @@ async function ensureSchema(): Promise<void> {
            )`,
         )
         .run();
+      // Garante media_type em tabelas loops criadas antes desta migração.
+      const { results: loopCols } = await db
+        .prepare("PRAGMA table_info(loops)")
+        .all<{ name: string }>();
+      const loopColsSet = new Set((loopCols ?? []).map((r) => r.name));
+      if (!loopColsSet.has("media_type")) {
+        await db
+          .prepare("ALTER TABLE loops ADD COLUMN media_type TEXT NOT NULL DEFAULT 'REEL'")
+          .run();
+      }
       await db
         .prepare("CREATE INDEX IF NOT EXISTS idx_loops_active ON loops(status, next_cycle_at)")
         .run();
