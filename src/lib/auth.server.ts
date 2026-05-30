@@ -1,7 +1,7 @@
 // Single-user auth: HS256 JWT em cookie httpOnly.
 // Credenciais fixas no código (sem variáveis de ambiente, sem bcrypt).
 export const COOKIE_NAME = "im_session";
-export const COOKIE_MAX_AGE = 60 * 60 * 24; // 24h
+export const COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 dias
 
 // ---------- base64url ----------
 function b64urlEncode(input: ArrayBuffer | Uint8Array | string): string {
