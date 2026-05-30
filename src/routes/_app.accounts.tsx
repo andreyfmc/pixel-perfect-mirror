@@ -822,6 +822,99 @@ function AccountsPage() {
         }
         .acc-row, .acc-card { animation: accFadeIn 250ms ease both; }
       `}</style>
+
+      <Dialog open={!!statusDialog} onOpenChange={(o) => !o && setStatusDialog(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Status · @{statusDialog?.account.username}
+            </DialogTitle>
+            <DialogDescription>
+              Verificação de saúde da conta Instagram (token, permissões e cota).
+            </DialogDescription>
+          </DialogHeader>
+          {statusDialog?.loading && (
+            <div className="flex items-center gap-2 py-6 text-sm text-text2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Verificando conta…
+            </div>
+          )}
+          {statusDialog?.error && (
+            <div className="rounded-md border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
+              {statusDialog.error}
+            </div>
+          )}
+          {statusDialog?.report && (
+            <div className="space-y-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={statusDialog.report.status} />
+                <span className="text-xs text-text2">
+                  Saúde: <span className="tabular-nums font-semibold text-foreground">{statusDialog.report.health_score}</span>
+                </span>
+                <span className="text-xs text-text2">
+                  {statusDialog.report.can_publish ? "Pode publicar ✓" : "Publicação bloqueada ✗"}
+                </span>
+              </div>
+
+              {statusDialog.report.quota && (
+                <div className="rounded-lg border border-border bg-bg3 p-3">
+                  <div className="mb-1 flex items-center justify-between text-xs text-text2">
+                    <span>Cota de publicação (janela 24h)</span>
+                    <span className="tabular-nums">
+                      {statusDialog.report.quota.used}/{statusDialog.report.quota.total}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded bg-bg">
+                    <div
+                      className="h-full bg-accent2"
+                      style={{
+                        width: `${Math.min(100, (statusDialog.report.quota.used / Math.max(1, statusDialog.report.quota.total)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {statusDialog.report.restrictions.length > 0 && (
+                <div>
+                  <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted2">
+                    Restrições
+                  </div>
+                  <ul className="list-disc space-y-1 pl-5 text-xs text-text2">
+                    {statusDialog.report.restrictions.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {statusDialog.report.suggestions.length > 0 && (
+                <div>
+                  <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted2">
+                    Sugestões
+                  </div>
+                  <ul className="list-disc space-y-1 pl-5 text-xs text-text2">
+                    {statusDialog.report.suggestions.map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-text2">
+                <div className="rounded border border-border bg-bg3 p-2">
+                  <div className="font-semibold text-foreground">/media</div>
+                  <div>{statusDialog.report.checks.media.ok ? "OK" : statusDialog.report.checks.media.error ?? "Falhou"}</div>
+                </div>
+                <div className="rounded border border-border bg-bg3 p-2">
+                  <div className="font-semibold text-foreground">/content_publishing_limit</div>
+                  <div>{statusDialog.report.checks.publishing_limit.ok ? "OK" : statusDialog.report.checks.publishing_limit.error ?? "Falhou"}</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
