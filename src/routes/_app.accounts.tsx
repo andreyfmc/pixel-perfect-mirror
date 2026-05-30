@@ -474,6 +474,30 @@ function AccountsPage() {
     }
   }
 
+  async function openStatus(a: Account) {
+    setStatusDialog({ account: a, loading: true, report: null, error: null });
+    try {
+      const r = await api.getAccountStatus(a.id);
+      if (!r) {
+        setStatusDialog({ account: a, loading: false, report: null, error: "Sem resposta do servidor" });
+        return;
+      }
+      if (r.ok && r.report) {
+        setStatusDialog({ account: a, loading: false, report: r.report, error: null });
+        qc.invalidateQueries({ queryKey: ["accounts"] });
+      } else {
+        setStatusDialog({ account: a, loading: false, report: null, error: r.error ?? "Falha" });
+      }
+    } catch (err) {
+      setStatusDialog({
+        account: a,
+        loading: false,
+        report: null,
+        error: err instanceof Error ? err.message : "Falha",
+      });
+    }
+  }
+
   async function removeAccount(a: Account) {
     if (!confirm(`Remover @${a.username}? Esta ação não pode ser desfeita.`)) return;
     const t = toast.loading("Removendo conta…");
