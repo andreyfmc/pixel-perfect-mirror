@@ -4,6 +4,26 @@
 import { mockAccounts, mockQueue, mockHistory, type Account, type QueueItem } from "./mock";
 import type { AccountRow, QueueRow, HistoryRow, LoopRow } from "./db.server";
 
+export type AccountStatusReport = {
+  status:
+    | "healthy"
+    | "restricted"
+    | "action_blocked"
+    | "limited"
+    | "token_expired"
+    | "needs_reconnect";
+  can_publish: boolean;
+  restrictions: string[];
+  suggestions: string[];
+  quota: { used: number; total: number; remaining: number; duration_seconds: number } | null;
+  checks: {
+    media: { ok: boolean; error: string | null };
+    publishing_limit: { ok: boolean; error: string | null };
+  };
+  health_score: number;
+  token_status: "valid" | "expired";
+};
+
 async function tryJson<T>(path: string, init?: RequestInit): Promise<T | null> {
   try {
     const res = await fetch(path, init);
@@ -107,6 +127,24 @@ export const api = {
       return null;
     }
   },
+
+  async getAccountStatus(id: string): Promise<{
+    ok: boolean;
+    error?: string;
+    report?: AccountStatusReport;
+  } | null> {
+    try {
+      const res = await fetch(`/api/accounts/${id}/status`, { method: "POST" });
+      return (await res.json()) as {
+        ok: boolean;
+        error?: string;
+        report?: AccountStatusReport;
+      };
+    } catch {
+      return null;
+    }
+  },
+
 
   async deleteQueue(id: string) {
     await fetch(`/api/queue/${id}`, { method: "DELETE" });
