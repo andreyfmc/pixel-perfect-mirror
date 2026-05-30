@@ -1149,6 +1149,14 @@ function AccountMenu({
         <DropdownMenuItem
           onSelect={(e) => {
             e.preventDefault();
+            onStatus();
+          }}
+        >
+          <Activity className="mr-2 h-4 w-4" /> Ver Status
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault();
             onValidate();
           }}
         >
