@@ -120,96 +120,6 @@ export async function runScheduler(
       // (markQueueProcessing faz isso). Se o Worker for morto por timeout
       // entre este ponto e a criação do container, o item ficaria órfão
       // como 'processing' com ig_container_id=NULL e nunca seria reprocessado.
-      try {
-        const validated = await instagram.validateCredentials({
-          igUserId,
-          accessToken,
-          expectedUsername: account.username,
-        });
-        const validatedIgId = typeof validated.ig?.id === "string" ? validated.ig.id : undefined;
-        const validatedToken =
-          typeof validated.accessToken === "string" ? validated.accessToken : undefined;
-        provider = validated.host ?? provider;
-        if (validatedIgId || validatedToken || validated.host) {
-          igUserId = validatedIgId ?? igUserId;
-          accessToken = validatedToken ?? accessToken;
-          await db.updateAccountCredentials(item.account_id, {
-            ig_user_id: validatedIgId,
-            access_token: validatedToken,
-            provider,
-            token_status: "valid",
-            profile_picture:
-              typeof validated.ig?.profile_picture_url === "string"
-                ? validated.ig.profile_picture_url
-                : undefined,
-            followers:
-              typeof validated.ig?.followers_count === "number"
-                ? validated.ig.followers_count
-                : undefined,
-            health_score: 95,
-          });
-        }
-      } catch (err) {
-        if (isInvalidAccessTokenError(err)) {
-          await db.markAccountNeedsReconnect(item.account_id);
-          await db.setQueueStatus(item.id, "canceled", {
-            last_error: "Token OAuth inválido ou expirado. Reconecte esta conta antes de publicar.",
-          });
-          errors++;
-          continue;
-        }
-        if (isMismatchedCredentialsError(err)) {
-          // Linha tem (ig_user_id, access_token) que não batem entre si.
-          // Tenta puxar credenciais frescas de outra linha do mesmo @username
-          // (reconexão posterior) e re-valida uma vez. Sem isso o usuário
-          // fica preso reconectando sem efeito porque a linha antiga "parece"
-          // completa.
-          const healed = await db.healMismatchedCredentials(item.account_id);
-          if (healed?.ig_user_id && healed?.access_token) {
-            try {
-              const reValidated = await instagram.validateCredentials({
-                igUserId: healed.ig_user_id,
-                accessToken: healed.access_token,
-                expectedUsername: healed.username,
-              });
-              igUserId =
-                (typeof reValidated.ig?.id === "string" ? reValidated.ig.id : undefined) ??
-                healed.ig_user_id;
-              accessToken =
-                (typeof reValidated.accessToken === "string"
-                  ? reValidated.accessToken
-                  : undefined) ?? healed.access_token;
-              provider = reValidated.host ?? healed.provider;
-              await db.updateAccountCredentials(item.account_id, {
-                ig_user_id: igUserId,
-                access_token: accessToken,
-                provider,
-                token_status: "valid",
-                health_score: 95,
-              });
-            } catch (healErr) {
-              await db.markAccountNeedsReconnect(item.account_id);
-              await db.setQueueStatus(item.id, "canceled", {
-                last_error: `Credenciais incompatíveis e auto-recuperação falhou — reconecte a conta. (${healErr instanceof Error ? healErr.message : String(healErr)})`,
-              });
-              errors++;
-              continue;
-            }
-          } else {
-            await db.markAccountNeedsReconnect(item.account_id);
-            await db.setQueueStatus(item.id, "canceled", {
-              last_error:
-                "Credenciais incompatíveis: o token salvo não acessa o ig_user_id desta conta. Reconecte a conta no Facebook para regenerar o Page token correto.",
-            });
-            errors++;
-            continue;
-          }
-        } else {
-          console.warn(
-            `[scheduler] queue=${item.id} validação de credencial falhou: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
-      }
 
       let containerId = item.ig_container_id ?? undefined;
       if (!containerId) {
@@ -268,14 +178,6 @@ export async function runScheduler(
         containerId,
       });
 
-      let permalink: string | undefined;
-      try {
-        const info = await instagram.fetchMediaInfo(mediaId, accessToken, provider);
-        permalink = info.permalink as string | undefined;
-      } catch {
-        // campo opcional
-      }
-
       await db.setQueueStatus(item.id, "published", {
         ig_container_id: containerId,
         ig_media_id: mediaId,
@@ -288,7 +190,7 @@ export async function runScheduler(
         ig_media_id: mediaId,
         caption: item.caption,
         media_type: item.media_type,
-        permalink: permalink ?? null,
+        permalink: null,
         thumb_url: item.thumb_key ? publicMediaUrl(item.thumb_key, opts.baseUrl) : null,
         published_at: new Date().toISOString(),
       });
@@ -351,26 +253,28 @@ export async function runScheduler(
   }
 
   // Renovação preventiva de tokens longos do Instagram (60 dias).
-  // Roda em todo tick mas só age sobre tokens que expiram nos próximos 10 dias —
-  // cada token é renovado no máximo uma vez (depois fica fora do filtro).
-  try {
-    const stale = await db.listAccountsForTokenRefresh(10);
-    for (const account of stale) {
-      if (!account.access_token) continue;
-      try {
-        const refreshed = await refreshLongLivedInstagramToken(account.access_token);
-        await db.updateAccountCredentials(account.id, {
-          access_token: refreshed.accessToken,
-          token_expires_at: refreshed.expiresAt,
-          token_status: "valid",
-        });
-      } catch (err) {
-        console.warn(`[scheduler] refresh token falhou para ${account.username}:`, err);
-        await db.markAccountTokenExpired(account.id);
+  // Roda apenas uma vez por dia às 3h UTC para não consumir volume do app
+  // a cada tick. Tokens são renovados com até 10 dias de antecedência.
+  if (now.getUTCHours() === 3 && now.getUTCMinutes() === 0) {
+    try {
+      const stale = await db.listAccountsForTokenRefresh(10);
+      for (const account of stale) {
+        if (!account.access_token) continue;
+        try {
+          const refreshed = await refreshLongLivedInstagramToken(account.access_token);
+          await db.updateAccountCredentials(account.id, {
+            access_token: refreshed.accessToken,
+            token_expires_at: refreshed.expiresAt,
+            token_status: "valid",
+          });
+        } catch (err) {
+          console.warn(`[scheduler] refresh token falhou para ${account.username}:`, err);
+          await db.markAccountTokenExpired(account.id);
+        }
       }
+    } catch (err) {
+      console.warn("[scheduler] varredura de refresh falhou:", err);
     }
-  } catch (err) {
-    console.warn("[scheduler] varredura de refresh falhou:", err);
   }
 
   // Processa variantes pendentes (1 por tick — cada build pode consumir
@@ -386,22 +290,6 @@ export async function runScheduler(
     console.warn("[scheduler] build de variantes falhou:", err);
   }
 
-  // Refresh de insights (reach/likes/comments) dos posts recentes.
-  // Limite agressivo: 3 itens/tick, posts <2 dias, 1 por conta — evita
-  // estourar rate-limit da Graph API.
-  let insightsUpdated = 0;
-  let insightsFailed = 0;
-  try {
-    const r = await refreshHistoryInsights(3);
-    insightsUpdated = r.updated;
-    insightsFailed = r.failed;
-    if (r.updated || r.failed) {
-      console.log(`[scheduler] insights updated=${r.updated} failed=${r.failed}`);
-    }
-  } catch (err) {
-    console.warn("[scheduler] refresh de insights falhou:", err);
-  }
-
   // Marca como failed qualquer item 'processing' que estourou tentativas.
   try {
     const stuck = await db.failStuckProcessing();
@@ -411,7 +299,7 @@ export async function runScheduler(
   }
 
   console.log(
-    `[cron] tick=${now.toISOString()} processed=${processed} errors=${errors} insights=${insightsUpdated} insights_failed=${insightsFailed} due=${due.length}`,
+    `[cron] tick=${now.toISOString()} processed=${processed} errors=${errors} due=${due.length}`,
   );
 
   return { processed, errors };
