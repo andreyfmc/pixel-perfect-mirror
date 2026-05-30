@@ -28,6 +28,7 @@ import {
   X,
   Check,
   Power,
+  Activity,
 } from "lucide-react";
 import {
   DropdownMenu,
