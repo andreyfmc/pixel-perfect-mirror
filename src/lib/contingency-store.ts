@@ -9,6 +9,7 @@ export type ContingencyAccount = {
   id: string;
   username: string;
   password: string;
+  email?: string;
   totp_secret: string;
   status: ContingencyStatus;
   quality: ContingencyQuality;
@@ -148,11 +149,11 @@ function csvEscape(s: string) {
 }
 
 export function toCSV(list: ContingencyAccount[]): string {
-  const header = ["ordem", "username", "password", "token2fa", "status", "quality", "notes", "tipo", "updated_at"];
+  const header = ["ordem", "username", "email", "password", "token2fa", "status", "quality", "notes", "tipo", "updated_at"];
   const lines = [header.join(",")];
   for (const a of list) {
     lines.push(
-      [a.order ?? "", a.username, a.password, a.totp_secret, a.status, a.quality, a.notes, a.connection_type ?? "instagram", a.updated_at]
+      [a.order ?? "", a.username, a.email ?? "", a.password, a.totp_secret, a.status, a.quality, a.notes, a.connection_type ?? "instagram", a.updated_at]
         .map((v) => csvEscape(String(v ?? "")))
         .join(","),
     );
@@ -192,8 +193,9 @@ export function fromCSV(text: string): ContingencyAccount[] {
     }
     return -1;
   };
-  const iUser = idxAny("username", "usuario", "usuário", "user");
+  const iUser = idxAny("username", "perfil", "usuario", "usuário", "user");
   const iPass = idxAny("password", "senha", "pass");
+  const iEmail = idxAny("email", "e-mail", "mail");
   const iTotp = idxAny("token2fa", "totp_secret", "token_2fa", "2fa", "secret", "otp_secret");
   const iStatus = idxAny("status");
   const iQuality = idxAny("quality", "qualidade");
@@ -231,6 +233,7 @@ export function fromCSV(text: string): ContingencyAccount[] {
       newAccount({
         username,
         password: iPass >= 0 ? cells[iPass] ?? "" : "",
+        email: iEmail >= 0 ? (cells[iEmail] ?? "").trim() : undefined,
         totp_secret: iTotp >= 0 ? (cells[iTotp] ?? "").replace(/\s+/g, "") : "",
         status: iStatus >= 0 ? normStatus(cells[iStatus] ?? "") : "em_edicao",
         quality: iQuality >= 0 ? normQuality(cells[iQuality] ?? "") : "boa",
