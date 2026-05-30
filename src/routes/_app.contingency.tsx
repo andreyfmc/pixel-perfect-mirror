@@ -531,6 +531,23 @@ function Row({
           <TotpInline secret={a.totp_secret} privateMode={privateMode} />
         </div>
 
+        {/* email / tempmail */}
+        {a.email && (
+          <div className="shrink-0">
+            <a
+              href={`https://tempmail.plus/pt/#!${encodeURIComponent(a.email)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg3 px-2.5 py-1.5 font-mono text-[13px] min-h-[32px] hover:border-border2 text-text"
+              title={`Abrir ${a.email} no TempMail`}
+            >
+              <span className="max-w-[140px] truncate text-muted2">{a.email.split("@")[0]}</span>
+              <span className="text-[10px] text-accent2 font-medium shrink-0">↗ mail</span>
+            </a>
+          </div>
+        )}
+
         {/* status / quality */}
         <div className="shrink-0"><StatusPill status={a.status} onChange={(s) => onPatch({ status: s })} /></div>
         <div className="shrink-0"><QualityPill quality={a.quality} onChange={(q) => onPatch({ quality: q })} /></div>
@@ -818,6 +835,23 @@ function MobileCard({
           <p className="text-[13px] italic text-muted2">— sem 2FA</p>
         )}
       </div>
+
+      {/* email / tempmail */}
+      {a.email && (
+        <div className="mb-3">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted2">Email</p>
+          <a
+            href={`https://tempmail.plus/pt/#!${encodeURIComponent(a.email)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex min-h-[44px] w-full items-center justify-between gap-2 rounded-lg border border-border bg-bg3 px-3 py-2 text-[13px] font-mono hover:border-border2 active:scale-[0.98]"
+          >
+            <span className="truncate text-text">{a.email}</span>
+            <span className="shrink-0 text-[12px] font-medium text-accent2">↗ Abrir TempMail</span>
+          </a>
+        </div>
+      )}
 
 
       {/* actions */}
