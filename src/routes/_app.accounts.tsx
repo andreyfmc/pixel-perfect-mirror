@@ -996,6 +996,7 @@ function ListView({
             </div>
 
             <HealthBadge score={a.health_score} size={28} />
+            <StatusBadge status={token.expired ? "token_expired" : a.health_score < 40 ? "restricted" : a.health_score < 70 ? "limited" : "healthy"} />
 
             <div className="hidden w-20 shrink-0 items-center gap-1 text-xs text-text2 md:flex">
               <Users className="h-3.5 w-3.5" />
@@ -1131,6 +1132,7 @@ function GridView({
                 </div>
               </div>
               <HealthBadge score={a.health_score} size={32} />
+              <StatusBadge status={(a.token_status === "expired") ? "token_expired" : a.health_score < 40 ? "restricted" : a.health_score < 70 ? "limited" : "healthy"} />
             </div>
 
             <div className="mt-auto flex items-center justify-between gap-1.5">
