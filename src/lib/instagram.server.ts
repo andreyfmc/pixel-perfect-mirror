@@ -567,4 +567,192 @@ export const instagram = {
     }
     return { containerId, mediaId, permalink };
   },
+
+  /**
+   * Verifica saúde da conta IG: leitura leve de /media + /content_publishing_limit.
+   * Captura InstagramGraphError e mapeia em um relatório consumível pela UI.
+   * Nunca lança — sempre retorna um relatório.
+   */
+  async checkAccountStatus(input: {
+    igUserId: string;
+    accessToken: string;
+    provider?: GraphHostId;
+  }): Promise<AccountStatusReport> {
+    const restrictions: string[] = [];
+    const suggestions: string[] = [];
+    let canPublish = true;
+    let status: AccountStatusReport["status"] = "healthy";
+    let quota: AccountStatusReport["quota"] = null;
+    const checks: AccountStatusReport["checks"] = {
+      media: { ok: false, error: null },
+      publishing_limit: { ok: false, error: null },
+    };
+
+    // 1) /media — valida token + acesso básico
+    try {
+      await gget(
+        `/${input.igUserId}/media`,
+        { access_token: input.accessToken, fields: "id", limit: "1" },
+        input.provider,
+      );
+      checks.media.ok = true;
+    } catch (err) {
+      checks.media.error = err instanceof Error ? err.message : String(err);
+      const mapped = mapGraphErrorToStatus(err);
+      if (mapped) {
+        status = mapped.status;
+        canPublish = false;
+        restrictions.push(mapped.reason);
+        suggestions.push(...mapped.suggestions);
+      }
+    }
+
+    // 2) /content_publishing_limit — quota de publicação (24h)
+    try {
+      const json = (await gget(
+        `/${input.igUserId}/content_publishing_limit`,
+        { access_token: input.accessToken, fields: "config,quota_usage" },
+        input.provider,
+      )) as {
+        data?: Array<{
+          quota_usage?: number;
+          config?: { quota_total?: number; quota_duration?: number };
+        }>;
+      };
+      const row = json.data?.[0];
+      const used = Number(row?.quota_usage ?? 0) || 0;
+      const total = Number(row?.config?.quota_total ?? 50) || 50;
+      const duration = Number(row?.config?.quota_duration ?? 86400) || 86400;
+      quota = { used, total, remaining: Math.max(0, total - used), duration_seconds: duration };
+      checks.publishing_limit.ok = true;
+      if (used >= total) {
+        canPublish = false;
+        if (status === "healthy") status = "limited";
+        restrictions.push(`Cota de publicação atingida (${used}/${total} nas últimas 24h).`);
+        suggestions.push("Aguardar a janela de 24h antes de publicar de novo.");
+      } else if (used / total >= 0.8) {
+        if (status === "healthy") status = "limited";
+        restrictions.push(`Cota próxima do limite (${used}/${total}).`);
+      }
+    } catch (err) {
+      checks.publishing_limit.error = err instanceof Error ? err.message : String(err);
+      const mapped = mapGraphErrorToStatus(err);
+      if (mapped && status === "healthy") {
+        status = mapped.status;
+        canPublish = false;
+        restrictions.push(mapped.reason);
+        suggestions.push(...mapped.suggestions);
+      }
+    }
+
+    let healthScore = 100;
+    if (status === "limited") healthScore = 70;
+    if (status === "restricted") healthScore = 40;
+    if (status === "action_blocked") healthScore = 20;
+    if (status === "token_expired" || status === "needs_reconnect") healthScore = 10;
+
+    return {
+      status,
+      can_publish: canPublish,
+      restrictions,
+      suggestions: Array.from(new Set(suggestions)),
+      quota,
+      checks,
+      health_score: healthScore,
+      token_status:
+        status === "token_expired" || status === "needs_reconnect" ? "expired" : "valid",
+    };
+  },
 };
+
+export type AccountStatusReport = {
+  status:
+    | "healthy"
+    | "restricted"
+    | "action_blocked"
+    | "limited"
+    | "token_expired"
+    | "needs_reconnect";
+  can_publish: boolean;
+  restrictions: string[];
+  suggestions: string[];
+  quota: { used: number; total: number; remaining: number; duration_seconds: number } | null;
+  checks: {
+    media: { ok: boolean; error: string | null };
+    publishing_limit: { ok: boolean; error: string | null };
+  };
+  health_score: number;
+  token_status: "valid" | "expired";
+};
+
+function mapGraphErrorToStatus(err: unknown): {
+  status: AccountStatusReport["status"];
+  reason: string;
+  suggestions: string[];
+} | null {
+  if (!(err instanceof InstagramGraphError)) return null;
+  if (isInvalidAccessTokenError(err)) {
+    return {
+      status: "token_expired",
+      reason: "Token OAuth inválido ou expirado.",
+      suggestions: ["Reconectar a conta via Instagram ou Facebook para gerar um novo token."],
+    };
+  }
+  if (isMismatchedCredentialsError(err)) {
+    return {
+      status: "needs_reconnect",
+      reason: "Token salvo não acessa este ig_user_id (credenciais incompatíveis).",
+      suggestions: ["Reconectar a conta para vincular o token correto ao Instagram Business."],
+    };
+  }
+  for (const failure of err.failures) {
+    const e = failure.json.error as
+      | { code?: number; error_subcode?: number; message?: string; type?: string }
+      | undefined;
+    if (!e) continue;
+    if (e.code === 10 || e.code === 200 || e.code === 210) {
+      return {
+        status: "restricted",
+        reason: e.message ?? "Permissão negada pelo Graph.",
+        suggestions: ["Revisar permissões do app no Instagram/Facebook e reconectar."],
+      };
+    }
+    if (e.code === 368) {
+      return {
+        status: "action_blocked",
+        reason: e.message ?? "Conta temporariamente bloqueada por violação de políticas.",
+        suggestions: [
+          "Aguardar 24–72h sem publicar.",
+          "Verificar avisos no Instagram app e revisar conteúdo recente.",
+        ],
+      };
+    }
+    if (e.code === 80004) {
+      return {
+        status: "limited",
+        reason: "Limite de publicações da janela de 24h atingido.",
+        suggestions: ["Aguardar reset da janela (24h) antes de tentar novamente."],
+      };
+    }
+    if ([4, 17, 32, 613].includes(e.code ?? -1)) {
+      return {
+        status: "limited",
+        reason: e.message ?? "Rate limit do Graph API.",
+        suggestions: ["Diminuir frequência de chamadas. Aguardar alguns minutos."],
+      };
+    }
+  }
+  if (isTransientGraphError(err)) {
+    return {
+      status: "limited",
+      reason: "Erro transitório do Graph API.",
+      suggestions: ["Tentar novamente em alguns minutos."],
+    };
+  }
+  return {
+    status: "restricted",
+    reason: err.message,
+    suggestions: ["Validar credenciais e tentar reconectar."],
+  };
+}
+
