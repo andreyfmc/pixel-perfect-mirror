@@ -233,7 +233,7 @@ export function fromCSV(text: string): ContingencyAccount[] {
       newAccount({
         username,
         password: iPass >= 0 ? cells[iPass] ?? "" : "",
-        email: iEmail >= 0 ? (cells[iEmail] ?? "").trim() : undefined,
+        email: iEmail >= 0 ? ((cells[iEmail] ?? "").trim() || undefined) : undefined,
         totp_secret: iTotp >= 0 ? (cells[iTotp] ?? "").replace(/\s+/g, "") : "",
         status: iStatus >= 0 ? normStatus(cells[iStatus] ?? "") : "em_edicao",
         quality: iQuality >= 0 ? normQuality(cells[iQuality] ?? "") : "boa",
