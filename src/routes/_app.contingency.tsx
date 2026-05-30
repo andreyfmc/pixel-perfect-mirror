@@ -545,7 +545,8 @@ function Row({
               className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg3 px-2.5 py-1.5 font-mono text-[13px] min-h-[32px] hover:border-border2 text-text"
               title={`Copiar ${a.email} e abrir TempMail`}
             >
-              <span className="max-w-[260px] truncate text-muted2">{a.email}</span>
+              <span className="truncate text-muted2">{a.email.split("@")[0]}</span>
+              <span className="text-muted2/50 text-[11px] shrink-0">@{a.email.split("@")[1]}</span>
               <span className="text-[10px] text-accent2 font-medium shrink-0">↗ mail</span>
             </button>
           </div>
@@ -570,14 +571,6 @@ function Row({
         </span>
 
         {/* actions */}
-        <button
-          onClick={(e) => { e.stopPropagation(); onActivate(); }}
-          className="hidden shrink-0 items-center gap-1 rounded-md border border-accent/40 bg-accent/10 px-2 py-1 text-[11px] font-medium text-accent2 hover:bg-accent/20 md:inline-flex"
-          title="Ativar como principal"
-        >
-          <Zap className="h-3 w-3" /> Ativar
-        </button>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -863,12 +856,6 @@ function MobileCard({
 
       {/* actions */}
       <div className="flex items-center gap-2">
-        <button
-          onClick={onActivate}
-          className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-3 text-sm font-medium text-accent2 active:scale-[0.98]"
-        >
-          <Zap className="h-4 w-4" /> Ativar
-        </button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
