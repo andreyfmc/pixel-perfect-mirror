@@ -172,6 +172,30 @@ function HealthBadge({ score, size = 32 }: { score: number; size?: number }) {
   );
 }
 
+const STATUS_META: Record<
+  AccountStatusReport["status"],
+  { label: string; color: string; bg: string }
+> = {
+  healthy: { label: "Saudável", color: "var(--success)", bg: "color-mix(in oklab, var(--success) 18%, transparent)" },
+  limited: { label: "Limitada", color: "var(--warning)", bg: "color-mix(in oklab, var(--warning) 18%, transparent)" },
+  restricted: { label: "Restrita", color: "#fb923c", bg: "rgba(251,146,60,0.18)" },
+  action_blocked: { label: "Bloqueada", color: "#a855f7", bg: "rgba(168,85,247,0.18)" },
+  token_expired: { label: "Token expirado", color: "var(--danger)", bg: "color-mix(in oklab, var(--danger) 18%, transparent)" },
+  needs_reconnect: { label: "Reconectar", color: "var(--danger)", bg: "color-mix(in oklab, var(--danger) 18%, transparent)" },
+};
+
+function StatusBadge({ status }: { status: AccountStatusReport["status"] }) {
+  const m = STATUS_META[status];
+  return (
+    <span
+      className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap"
+      style={{ background: m.bg, color: m.color, border: `1px solid ${m.color}` }}
+    >
+      {m.label}
+    </span>
+  );
+}
+
 // -------------- Connect Modal --------------
 function ConnectDialog({
   loading,
