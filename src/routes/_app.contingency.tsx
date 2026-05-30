@@ -545,7 +545,7 @@ function Row({
               className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg3 px-2.5 py-1.5 font-mono text-[13px] min-h-[32px] hover:border-border2 text-text"
               title={`Copiar ${a.email} e abrir TempMail`}
             >
-              <span className="max-w-[180px] truncate text-muted2">{a.email}</span>
+              <span className="max-w-[260px] truncate text-muted2">{a.email}</span>
               <span className="text-[10px] text-accent2 font-medium shrink-0">↗ mail</span>
             </button>
           </div>
