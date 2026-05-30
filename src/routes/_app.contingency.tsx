@@ -805,11 +805,11 @@ function MobileCard({
         </div>
       </div>
 
-      {/* 2fa — sempre visível (mostra "— sem 2FA" quando vazio). Ordem mobile obrigatória: usuário → senha → 2FA */}
-      <div className="mb-3 rounded-lg border border-border bg-bg3 p-3">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted2">Código 2FA atual</p>
-          {a.totp_secret ? (
+      {/* 2fa */}
+      {a.totp_secret ? (
+        <div className="mb-3 rounded-lg border border-border bg-bg3 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted2">Código 2FA atual</p>
             <button
               type="button"
               onClick={async (e) => {
@@ -823,14 +823,12 @@ function MobileCard({
             >
               <Copy className="h-4 w-4" /> Copiar
             </button>
-          ) : null}
-        </div>
-        {a.totp_secret ? (
+          </div>
           <MobileTotp secret={a.totp_secret} privateMode={privateMode} />
-        ) : (
-          <p className="text-[13px] italic text-muted2">— sem 2FA</p>
-        )}
-      </div>
+        </div>
+      ) : (
+        <p className="mb-2 text-[11px] italic text-muted2">— sem 2FA</p>
+      )}
 
       {/* email / tempmail */}
       {a.email && a.email.trim() && (
