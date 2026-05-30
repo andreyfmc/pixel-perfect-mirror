@@ -303,6 +303,12 @@ function AccountsPage() {
   const [refreshProgress, setRefreshProgress] = useState<{ done: number; total: number } | null>(
     null,
   );
+  const [statusDialog, setStatusDialog] = useState<{
+    account: Account;
+    loading: boolean;
+    report: AccountStatusReport | null;
+    error: string | null;
+  } | null>(null);
   const [lastRefresh, setLastRefresh] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
