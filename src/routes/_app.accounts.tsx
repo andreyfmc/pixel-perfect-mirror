@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { api } from "@/lib/api-client";
+import { api, type AccountStatusReport } from "@/lib/api-client";
 import type { Account } from "@/lib/mock";
 import {
   Plus,
