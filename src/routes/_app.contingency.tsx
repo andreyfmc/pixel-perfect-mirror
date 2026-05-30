@@ -532,7 +532,7 @@ function Row({
         </div>
 
         {/* email / tempmail */}
-        {a.email && (
+        {a.email && a.email.trim() && (
           <div className="shrink-0">
             <button
               type="button"
@@ -840,7 +840,7 @@ function MobileCard({
       </div>
 
       {/* email / tempmail */}
-      {a.email && (
+      {a.email && a.email.trim() && (
         <div className="mb-3">
           <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted2">Email</p>
           <button
