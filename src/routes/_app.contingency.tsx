@@ -538,7 +538,7 @@ function Row({
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                navigator.clipboard.writeText(a.email!);
+                navigator.clipboard.writeText(a.email!.split("@")[0]);
                 toast.success(`Email copiado — cole no TempMail`, { duration: 3000 });
                 window.open("https://tempmail.plus/pt/", "_blank", "noopener,noreferrer");
               }}
@@ -847,7 +847,7 @@ function MobileCard({
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              navigator.clipboard.writeText(a.email!);
+              navigator.clipboard.writeText(a.email!.split("@")[0]);
               hapticTap();
               toast.success("Email copiado — cole no TempMail", { duration: 3000 });
               window.open("https://tempmail.plus/pt/", "_blank", "noopener,noreferrer");
