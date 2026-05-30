@@ -769,6 +769,7 @@ function AccountsPage() {
           onValidate={validateOne}
           onReconnect={(a) => handleConnect(a.provider ?? "facebook")}
           onRemove={removeAccount}
+          onStatus={openStatus}
         />
       ) : (
         <GridView
@@ -786,6 +787,7 @@ function AccountsPage() {
           onReconnect={(a) => handleConnect(a.provider ?? "facebook")}
           onRemove={removeAccount}
           onTogglePaused={togglePaused}
+          onStatus={openStatus}
         />
       )}
 
@@ -814,6 +816,7 @@ type RowHandlers = {
   onValidate: (a: Account) => void;
   onReconnect: (a: Account) => void;
   onRemove: (a: Account) => void;
+  onStatus: (a: Account) => void;
 };
 
 function ListView({
@@ -829,6 +832,7 @@ function ListView({
   onValidate,
   onReconnect,
   onRemove,
+  onStatus,
 }: RowHandlers) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-bg2">
@@ -948,6 +952,7 @@ function ListView({
                 onReconnect={() => onReconnect(a)}
                 onTogglePaused={() => onTogglePaused(a.id)}
                 onRemove={() => onRemove(a)}
+                onStatus={() => onStatus(a)}
               />
             )}
           </div>
@@ -970,6 +975,7 @@ function GridView({
   onReconnect,
   onRemove,
   onTogglePaused,
+  onStatus,
 }: Omit<RowHandlers, "now">) {
   return (
     <div
@@ -1039,6 +1045,7 @@ function GridView({
                     onReconnect={() => onReconnect(a)}
                     onTogglePaused={() => onTogglePaused(a.id)}
                     onRemove={() => onRemove(a)}
+                    onStatus={() => onStatus(a)}
                   />
                 </div>
               )}
@@ -1086,6 +1093,7 @@ function AccountMenu({
   onReconnect,
   onTogglePaused,
   onRemove,
+  onStatus,
 }: {
   a: Account;
   tab: Role;
@@ -1095,6 +1103,7 @@ function AccountMenu({
   onReconnect: () => void;
   onTogglePaused: () => void;
   onRemove: () => void;
+  onStatus: () => void;
 }) {
   return (
     <DropdownMenu>
