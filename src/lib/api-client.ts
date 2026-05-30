@@ -108,6 +108,24 @@ export const api = {
     }
   },
 
+  async getAccountStatus(id: string): Promise<{
+    ok: boolean;
+    error?: string;
+    report?: AccountStatusReport;
+  } | null> {
+    try {
+      const res = await fetch(`/api/accounts/${id}/status`, { method: "POST" });
+      return (await res.json()) as {
+        ok: boolean;
+        error?: string;
+        report?: AccountStatusReport;
+      };
+    } catch {
+      return null;
+    }
+  },
+
+
   async deleteQueue(id: string) {
     await fetch(`/api/queue/${id}`, { method: "DELETE" });
   },
