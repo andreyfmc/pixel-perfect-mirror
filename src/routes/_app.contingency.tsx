@@ -137,7 +137,7 @@ function TotpInline({ secret, privateMode }: { secret: string; privateMode: bool
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(code); toast.success("TOTP copiado"); }}
-        className="inline-flex items-center gap-1 rounded-md border border-border bg-bg3 px-1.5 py-0.5 font-mono text-[11px] tabular-nums hover:border-border2"
+        className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg3 px-2.5 py-1.5 font-mono text-[13px] tabular-nums hover:border-border2 min-h-[32px]"
         title="Copiar código TOTP"
       >
         <span className={danger ? "text-danger" : ""}>{code.slice(0, 3)} {code.slice(3)}</span>
@@ -154,9 +154,13 @@ function TotpInline({ secret, privateMode }: { secret: string; privateMode: bool
 }
 
 function MaskedField({
-  value, label, privateMode,
-}: { value: string; label: string; privateMode: boolean }) {
+  value, label, privateMode, size = "sm",
+}: { value: string; label: string; privateMode: boolean; size?: "sm" | "md" }) {
   if (!value) return <span className="text-[11px] text-muted2/60">—</span>;
+  const cls = size === "md"
+    ? "inline-flex items-center gap-1.5 rounded-md border border-border bg-bg3 px-2.5 py-1.5 font-mono text-[13px] min-h-[32px] hover:border-border2"
+    : "inline-flex items-center gap-1 rounded-md border border-border bg-bg3 px-1.5 py-0.5 font-mono text-[11px] hover:border-border2";
+  const iconCls = size === "md" ? "h-3.5 w-3.5 opacity-60" : "h-2.5 w-2.5 opacity-60";
   return (
     <button
       type="button"
@@ -166,11 +170,11 @@ function MaskedField({
         navigator.clipboard.writeText(value);
         toast.success(`${label} copiado`);
       }}
-      className="inline-flex items-center gap-1 rounded-md border border-border bg-bg3 px-1.5 py-0.5 font-mono text-[11px] hover:border-border2"
+      className={cls}
       title={privateMode ? "Modo privado ativo" : `Copiar ${label.toLowerCase()}`}
     >
       <span className="tracking-widest text-muted2">••••••••</span>
-      <Copy className="h-2.5 w-2.5 opacity-60" />
+      <Copy className={iconCls} />
     </button>
   );
 }
@@ -460,8 +464,7 @@ function Row({
       style={{ animation: `fadeUp .25s ease ${Math.min(idx * 20, 400)}ms backwards` }}
     >
       <div
-        onClick={onToggleExpand}
-        className={`flex h-12 cursor-pointer items-center gap-2 px-2 transition-colors hover:bg-white/[0.03] ${zebra}`}
+        className={`flex h-12 cursor-default items-center gap-2 px-2 transition-colors hover:bg-white/[0.03] ${zebra}`}
       >
         {selectMode && (
           <input
@@ -498,35 +501,33 @@ function Row({
 
 
         {/* username */}
-        <div className="flex w-48 min-w-0 shrink-0 items-center gap-1.5">
+        <div className="flex w-52 min-w-0 shrink-0 items-center gap-1.5">
           <TypeToggle type={ctype} onChange={(t) => onPatch({ connection_type: t })} />
-          <span className="truncate font-mono text-[13px]">@{a.username || <span className="text-muted2">sem nome</span>}</span>
           <button
-            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(a.username); toast.success("Copiado"); }}
-            className="shrink-0 text-muted2 hover:text-text"
+            type="button"
+            onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(a.username); toast.success("Username copiado"); }}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg3 px-2.5 py-1.5 font-mono text-[13px] min-h-[32px] hover:border-border2 truncate max-w-[160px]"
             title="Copiar username"
-          ><Copy className="h-3 w-3" /></button>
+          >
+            <span className="truncate">@{a.username || <span className="text-muted2">sem nome</span>}</span>
+            <Copy className="h-3.5 w-3.5 opacity-60 shrink-0" />
+          </button>
         </div>
 
         {/* password */}
-        <div className="flex w-32 shrink-0 items-center gap-1">
-          <MaskedField value={a.password} label="Senha" privateMode={privateMode} />
+        <div className="flex w-40 shrink-0 items-center gap-1">
+          <MaskedField value={a.password} label="Senha" privateMode={privateMode} size="md" />
           {!privateMode && a.password && (
             <button
               onClick={(e) => { e.stopPropagation(); onReveal(); }}
               className="text-muted2 hover:text-text"
               title="Visualizar senha"
-            ><Eye className="h-3 w-3" /></button>
+            ><Eye className="h-3.5 w-3.5" /></button>
           )}
         </div>
 
-        {/* 2fa secret */}
-        <div className="flex w-28 shrink-0 items-center">
-          <MaskedField value={a.totp_secret} label="2FA secret" privateMode={privateMode} />
-        </div>
-
         {/* TOTP code */}
-        <div className="w-36 shrink-0">
+        <div className="w-52 shrink-0">
           <TotpInline secret={a.totp_secret} privateMode={privateMode} />
         </div>
 
