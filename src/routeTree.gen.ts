@@ -44,6 +44,7 @@ import { Route as ApiDriveFolderIdRouteImport } from './routes/api/drive.folder.
 import { Route as ApiAuthInstagramLinkRouteImport } from './routes/api/auth.instagram.link'
 import { Route as ApiAuthInstagramCallbackRouteImport } from './routes/api/auth.instagram.callback'
 import { Route as ApiAccountsIdValidateRouteImport } from './routes/api/accounts.$id.validate'
+import { Route as ApiAccountsIdStatusRouteImport } from './routes/api/accounts.$id.status'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -220,6 +221,11 @@ const ApiAccountsIdValidateRoute = ApiAccountsIdValidateRouteImport.update({
   path: '/validate',
   getParentRoute: () => ApiAccountsIdRoute,
 } as any)
+const ApiAccountsIdStatusRoute = ApiAccountsIdStatusRouteImport.update({
+  id: '/status',
+  path: '/status',
+  getParentRoute: () => ApiAccountsIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -251,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/api/queue/clear': typeof ApiQueueClearRoute
   '/api/ranking/daily': typeof ApiRankingDailyRoute
   '/api/variants/build': typeof ApiVariantsBuildRoute
+  '/api/accounts/$id/status': typeof ApiAccountsIdStatusRoute
   '/api/accounts/$id/validate': typeof ApiAccountsIdValidateRoute
   '/api/auth/instagram/callback': typeof ApiAuthInstagramCallbackRoute
   '/api/auth/instagram/link': typeof ApiAuthInstagramLinkRoute
@@ -287,6 +294,7 @@ export interface FileRoutesByTo {
   '/api/queue/clear': typeof ApiQueueClearRoute
   '/api/ranking/daily': typeof ApiRankingDailyRoute
   '/api/variants/build': typeof ApiVariantsBuildRoute
+  '/api/accounts/$id/status': typeof ApiAccountsIdStatusRoute
   '/api/accounts/$id/validate': typeof ApiAccountsIdValidateRoute
   '/api/auth/instagram/callback': typeof ApiAuthInstagramCallbackRoute
   '/api/auth/instagram/link': typeof ApiAuthInstagramLinkRoute
@@ -325,6 +333,7 @@ export interface FileRoutesById {
   '/api/queue/clear': typeof ApiQueueClearRoute
   '/api/ranking/daily': typeof ApiRankingDailyRoute
   '/api/variants/build': typeof ApiVariantsBuildRoute
+  '/api/accounts/$id/status': typeof ApiAccountsIdStatusRoute
   '/api/accounts/$id/validate': typeof ApiAccountsIdValidateRoute
   '/api/auth/instagram/callback': typeof ApiAuthInstagramCallbackRoute
   '/api/auth/instagram/link': typeof ApiAuthInstagramLinkRoute
@@ -363,6 +372,7 @@ export interface FileRouteTypes {
     | '/api/queue/clear'
     | '/api/ranking/daily'
     | '/api/variants/build'
+    | '/api/accounts/$id/status'
     | '/api/accounts/$id/validate'
     | '/api/auth/instagram/callback'
     | '/api/auth/instagram/link'
@@ -399,6 +409,7 @@ export interface FileRouteTypes {
     | '/api/queue/clear'
     | '/api/ranking/daily'
     | '/api/variants/build'
+    | '/api/accounts/$id/status'
     | '/api/accounts/$id/validate'
     | '/api/auth/instagram/callback'
     | '/api/auth/instagram/link'
@@ -436,6 +447,7 @@ export interface FileRouteTypes {
     | '/api/queue/clear'
     | '/api/ranking/daily'
     | '/api/variants/build'
+    | '/api/accounts/$id/status'
     | '/api/accounts/$id/validate'
     | '/api/auth/instagram/callback'
     | '/api/auth/instagram/link'
@@ -711,6 +723,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAccountsIdValidateRouteImport
       parentRoute: typeof ApiAccountsIdRoute
     }
+    '/api/accounts/$id/status': {
+      id: '/api/accounts/$id/status'
+      path: '/status'
+      fullPath: '/api/accounts/$id/status'
+      preLoaderRoute: typeof ApiAccountsIdStatusRouteImport
+      parentRoute: typeof ApiAccountsIdRoute
+    }
   }
 }
 
@@ -737,10 +756,12 @@ const AppRouteChildren: AppRouteChildren = {
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
 
 interface ApiAccountsIdRouteChildren {
+  ApiAccountsIdStatusRoute: typeof ApiAccountsIdStatusRoute
   ApiAccountsIdValidateRoute: typeof ApiAccountsIdValidateRoute
 }
 
 const ApiAccountsIdRouteChildren: ApiAccountsIdRouteChildren = {
+  ApiAccountsIdStatusRoute: ApiAccountsIdStatusRoute,
   ApiAccountsIdValidateRoute: ApiAccountsIdValidateRoute,
 }
 

@@ -3,6 +3,9 @@
 
 import { mockAccounts, mockQueue, mockHistory, type Account, type QueueItem } from "./mock";
 import type { AccountRow, QueueRow, HistoryRow, LoopRow } from "./db.server";
+import type { AccountStatusReport } from "./instagram.server";
+
+export type { AccountStatusReport };
 
 async function tryJson<T>(path: string, init?: RequestInit): Promise<T | null> {
   try {
