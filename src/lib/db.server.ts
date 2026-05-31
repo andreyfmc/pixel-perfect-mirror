@@ -49,6 +49,20 @@ async function ensureSchema(): Promise<void> {
           )
           .run();
       }
+      if (!cols.has("model_id")) {
+        await db.prepare("ALTER TABLE accounts ADD COLUMN model_id TEXT").run();
+      }
+      // models — agrupamento de contas por "modelo" (ex: Valentina)
+      await db
+        .prepare(
+          `CREATE TABLE IF NOT EXISTS models (
+             id TEXT PRIMARY KEY,
+             name TEXT NOT NULL,
+             color TEXT NOT NULL DEFAULT '#6366f1',
+             created_at TEXT NOT NULL DEFAULT (datetime('now'))
+           )`,
+        )
+        .run();
       const { results: queueResults } = await db
         .prepare("PRAGMA table_info(queue)")
         .all<{ name: string }>();
@@ -231,6 +245,14 @@ export type AccountRow = {
   last_post_at: string | null;
   created_at: string;
   updated_at: string;
+  model_id: string | null;
+};
+
+export type ModelRow = {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
 };
 
 export type LoopRow = {
@@ -1139,6 +1161,41 @@ const rawDb = {
       .bind(id)
       .run();
     return (res.meta?.changes as number) ?? 0;
+  },
+
+  // ============ models ============
+  async listModels(): Promise<ModelRow[]> {
+    const { results } = await requireDb()
+      .prepare("SELECT * FROM models ORDER BY created_at ASC")
+      .all<ModelRow>();
+    return results ?? [];
+  },
+  async createModel(input: { id: string; name: string; color: string }) {
+    await requireDb()
+      .prepare("INSERT INTO models (id, name, color) VALUES (?, ?, ?)")
+      .bind(input.id, input.name, input.color)
+      .run();
+  },
+  async updateModel(id: string, input: { name?: string; color?: string }) {
+    await requireDb()
+      .prepare(
+        `UPDATE models SET
+           name = COALESCE(?, name),
+           color = COALESCE(?, color)
+         WHERE id = ?`,
+      )
+      .bind(input.name ?? null, input.color ?? null, id)
+      .run();
+  },
+  async deleteModel(id: string) {
+    await requireDb().prepare("UPDATE accounts SET model_id = NULL WHERE model_id = ?").bind(id).run();
+    await requireDb().prepare("DELETE FROM models WHERE id = ?").bind(id).run();
+  },
+  async setAccountModel(accountId: string, modelId: string | null) {
+    await requireDb()
+      .prepare("UPDATE accounts SET model_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind(modelId, accountId)
+      .run();
   },
 };
 

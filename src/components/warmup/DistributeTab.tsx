@@ -23,6 +23,7 @@ type PostPersist = {
   gap?: number;
   jitter?: number;
   order?: "sequential" | "random";
+  mediaType?: "REEL" | "IMAGE" | "STORY";
 };
 
 function loadPost(): PostPersist {
@@ -93,6 +94,9 @@ export function DistributeTab() {
   const [order, setOrder] = useState<"sequential" | "random">(
     persisted.order ?? "sequential",
   );
+  const [mediaType, setMediaType] = useState<"REEL" | "IMAGE" | "STORY">(
+    persisted.mediaType ?? "REEL",
+  );
   const [loopMode, setLoopMode] = useState<"once" | "snapshot" | "live_folder">(
     "once",
   );
@@ -105,6 +109,10 @@ export function DistributeTab() {
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
+  });
+  const { data: models = [] } = useQuery({
+    queryKey: ["models"],
+    queryFn: () => api.listModels(),
   });
 
   // Hidrata seleção padrão (todas as contas) se não havia persistido
@@ -120,10 +128,10 @@ export function DistributeTab() {
     try {
       window.localStorage.setItem(
         POST_STORAGE_KEY,
-        JSON.stringify({ selectedAccounts, caption, gap, jitter, order }),
+        JSON.stringify({ selectedAccounts, caption, gap, jitter, order, mediaType }),
       );
     } catch {}
-  }, [selectedAccounts, caption, gap, jitter, order]);
+  }, [selectedAccounts, caption, gap, jitter, order, mediaType]);
 
   // --- Validação -------------------------------------------------------------
   const selectedList = Array.from(selectedVideos.values());
@@ -170,11 +178,12 @@ export function DistributeTab() {
         }
         const res = await api.createLoop({
           source_type: loopMode,
+          media_type: mediaType,
           folder_id: currentFolder?.id ?? null,
           folder_name: currentFolder?.name ?? null,
           video_ids: loopMode === "snapshot" ? selectedList.map((v) => v.id) : undefined,
           account_ids: selectedAccounts,
-          caption,
+          caption: mediaType === "STORY" ? "" : caption,
           gap_min: Math.max(1, gap),
           jitter_min: Math.max(0, jitter),
           order_mode: order,
@@ -212,11 +221,11 @@ export function DistributeTab() {
           const v = accountVideos.get(accId)![cycle];
           const jitterOffset = jitterMs ? Math.floor(Math.random() * (jitterMs + 1)) : 0;
           const scheduledAt = new Date(cycleStartMs + jitterOffset).toISOString();
-          const uniqueCaption = variateCaption(caption, `${accId}|${v.id}`);
+          const uniqueCaption = mediaType === "STORY" ? "" : variateCaption(caption, `${accId}|${v.id}`);
           const res = await api.enqueue({
             account_id: accId,
             caption: uniqueCaption,
-            media_type: "REEL",
+            media_type: mediaType,
             media_key: `drive:${v.id}`,
             scheduled_at: scheduledAt,
             group_id: groupId,
@@ -271,6 +280,35 @@ export function DistributeTab() {
   // ---------------------------------------------------------------------------
   return (
     <div className="space-y-6 pb-24 md:pb-0">
+      {/* Tipo de mídia */}
+      <div className="rounded-[10px] border border-border bg-bg3/30 p-3">
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
+          Tipo de postagem
+        </div>
+        <div className="inline-flex rounded-[8px] border border-border2 bg-bg3 p-0.5">
+          {(["REEL", "IMAGE", "STORY"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setMediaType(t)}
+              className={[
+                "rounded-[6px] px-3 py-1.5 text-xs font-semibold transition",
+                mediaType === t
+                  ? "bg-[var(--accent2)] text-white"
+                  : "text-text2 hover:text-foreground",
+              ].join(" ")}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+        {mediaType === "STORY" && (
+          <div className="mt-2 space-y-1 text-[11px] text-amber-400/80">
+            <p>⚠ Stories não suportam legenda via API — o campo será ignorado.</p>
+            <p>⚠ Vídeos em Story devem ter no máximo 15 segundos.</p>
+          </div>
+        )}
+      </div>
+
       <DriveBrowser
         selectedVideos={selectedVideos}
         onSelectionChange={setSelectedVideos}
@@ -284,6 +322,7 @@ export function DistributeTab() {
         accounts={accounts}
         selectedIds={selectedAccounts}
         onChange={setSelectedAccounts}
+        models={models}
       />
 
       <ScheduleConfig
@@ -301,7 +340,7 @@ export function DistributeTab() {
 
       <ActiveLoopsPanel />
 
-      <CaptionInput value={caption} onChange={setCaption} />
+      {mediaType !== "STORY" && <CaptionInput value={caption} onChange={setCaption} />}
 
       {/* Preview */}
       {selectedList.length > 0 && selectedAccounts.length > 0 && (

@@ -13,6 +13,7 @@ export type Account = {
   can_publish?: boolean;
   role?: "active" | "reserve";
   paused?: boolean;
+  model_id?: string | null;
 };
 
 export const mockAccounts: Account[] = [

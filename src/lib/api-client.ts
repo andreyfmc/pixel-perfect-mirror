@@ -2,7 +2,9 @@
 // (preview Lovable / dev local sem `wrangler dev --remote`), cai no mock.
 
 import { mockAccounts, mockQueue, mockHistory, type Account, type QueueItem } from "./mock";
-import type { AccountRow, QueueRow, HistoryRow, LoopRow } from "./db.server";
+import type { AccountRow, QueueRow, HistoryRow, LoopRow, ModelRow } from "./db.server";
+
+export type Model = ModelRow;
 
 export type AccountStatusReport = {
   status:
@@ -48,6 +50,7 @@ function accountFromRow(r: AccountRow & { posts?: number }): Account {
     token_expires_at: r.token_expires_at,
     token_status: r.token_status ?? "valid",
     provider: r.provider ?? "facebook",
+    model_id: r.model_id ?? null,
   };
 }
 
@@ -262,6 +265,7 @@ export const api = {
 
   async createLoop(body: {
     source_type: "snapshot" | "live_folder";
+    media_type?: "REEL" | "IMAGE" | "STORY";
     folder_id?: string | null;
     folder_name?: string | null;
     video_ids?: string[];
@@ -314,5 +318,43 @@ export const api = {
       return null;
     }
   },
+
+  // ============ models ============
+  async listModels(): Promise<Model[]> {
+    const data = await tryJson<{ models: Model[] }>("/api/models");
+    return data?.models ?? [];
+  },
+  async createModel(body: { name: string; color: string }): Promise<{ id: string } | null> {
+    try {
+      const res = await fetch("/api/models", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { id: string };
+    } catch {
+      return null;
+    }
+  },
+  async patchModel(id: string, body: { name?: string; color?: string }) {
+    await fetch(`/api/models/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  },
+  async deleteModel(id: string) {
+    await fetch(`/api/models/${id}`, { method: "DELETE" });
+  },
+
+  async setAccountModel(accountId: string, modelId: string | null) {
+    await fetch(`/api/accounts/${accountId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model_id: modelId }),
+    });
+  },
 };
+
 

@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as ApiRankingRouteImport } from './routes/api/ranking'
 import { Route as ApiQueueRouteImport } from './routes/api/queue'
+import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiLoopsRouteImport } from './routes/api/loops'
 import { Route as ApiHistoryRouteImport } from './routes/api/history'
 import { Route as ApiContingencyRouteImport } from './routes/api/contingency'
@@ -28,6 +29,7 @@ import { Route as ApiVariantsBuildRouteImport } from './routes/api/variants.buil
 import { Route as ApiRankingDailyRouteImport } from './routes/api/ranking.daily'
 import { Route as ApiQueueClearRouteImport } from './routes/api/queue.clear'
 import { Route as ApiQueueIdRouteImport } from './routes/api/queue.$id'
+import { Route as ApiModelsIdRouteImport } from './routes/api/models.$id'
 import { Route as ApiMediaUploadRouteImport } from './routes/api/media.upload'
 import { Route as ApiLoopsIdRouteImport } from './routes/api/loops.$id'
 import { Route as ApiHistoryRefreshRouteImport } from './routes/api/history.refresh'
@@ -68,6 +70,11 @@ const ApiRankingRoute = ApiRankingRouteImport.update({
 const ApiQueueRoute = ApiQueueRouteImport.update({
   id: '/api/queue',
   path: '/api/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiModelsRoute = ApiModelsRouteImport.update({
+  id: '/api/models',
+  path: '/api/models',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLoopsRoute = ApiLoopsRouteImport.update({
@@ -139,6 +146,11 @@ const ApiQueueIdRoute = ApiQueueIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => ApiQueueRoute,
+} as any)
+const ApiModelsIdRoute = ApiModelsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiModelsRoute,
 } as any)
 const ApiMediaUploadRoute = ApiMediaUploadRouteImport.update({
   id: '/api/media/upload',
@@ -240,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/api/contingency': typeof ApiContingencyRouteWithChildren
   '/api/history': typeof ApiHistoryRouteWithChildren
   '/api/loops': typeof ApiLoopsRouteWithChildren
+  '/api/models': typeof ApiModelsRouteWithChildren
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/ranking': typeof ApiRankingRouteWithChildren
   '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
@@ -253,6 +266,7 @@ export interface FileRoutesByFullPath {
   '/api/history/refresh': typeof ApiHistoryRefreshRoute
   '/api/loops/$id': typeof ApiLoopsIdRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
+  '/api/models/$id': typeof ApiModelsIdRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
   '/api/ranking/daily': typeof ApiRankingDailyRoute
@@ -276,6 +290,7 @@ export interface FileRoutesByTo {
   '/api/contingency': typeof ApiContingencyRouteWithChildren
   '/api/history': typeof ApiHistoryRouteWithChildren
   '/api/loops': typeof ApiLoopsRouteWithChildren
+  '/api/models': typeof ApiModelsRouteWithChildren
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/ranking': typeof ApiRankingRouteWithChildren
   '/': typeof AppIndexRoute
@@ -290,6 +305,7 @@ export interface FileRoutesByTo {
   '/api/history/refresh': typeof ApiHistoryRefreshRoute
   '/api/loops/$id': typeof ApiLoopsIdRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
+  '/api/models/$id': typeof ApiModelsIdRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
   '/api/ranking/daily': typeof ApiRankingDailyRoute
@@ -315,6 +331,7 @@ export interface FileRoutesById {
   '/api/contingency': typeof ApiContingencyRouteWithChildren
   '/api/history': typeof ApiHistoryRouteWithChildren
   '/api/loops': typeof ApiLoopsRouteWithChildren
+  '/api/models': typeof ApiModelsRouteWithChildren
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/ranking': typeof ApiRankingRouteWithChildren
   '/_app/': typeof AppIndexRoute
@@ -329,6 +346,7 @@ export interface FileRoutesById {
   '/api/history/refresh': typeof ApiHistoryRefreshRoute
   '/api/loops/$id': typeof ApiLoopsIdRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
+  '/api/models/$id': typeof ApiModelsIdRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
   '/api/ranking/daily': typeof ApiRankingDailyRoute
@@ -355,6 +373,7 @@ export interface FileRouteTypes {
     | '/api/contingency'
     | '/api/history'
     | '/api/loops'
+    | '/api/models'
     | '/api/queue'
     | '/api/ranking'
     | '/api/accounts/$id'
@@ -368,6 +387,7 @@ export interface FileRouteTypes {
     | '/api/history/refresh'
     | '/api/loops/$id'
     | '/api/media/upload'
+    | '/api/models/$id'
     | '/api/queue/$id'
     | '/api/queue/clear'
     | '/api/ranking/daily'
@@ -391,6 +411,7 @@ export interface FileRouteTypes {
     | '/api/contingency'
     | '/api/history'
     | '/api/loops'
+    | '/api/models'
     | '/api/queue'
     | '/api/ranking'
     | '/'
@@ -405,6 +426,7 @@ export interface FileRouteTypes {
     | '/api/history/refresh'
     | '/api/loops/$id'
     | '/api/media/upload'
+    | '/api/models/$id'
     | '/api/queue/$id'
     | '/api/queue/clear'
     | '/api/ranking/daily'
@@ -429,6 +451,7 @@ export interface FileRouteTypes {
     | '/api/contingency'
     | '/api/history'
     | '/api/loops'
+    | '/api/models'
     | '/api/queue'
     | '/api/ranking'
     | '/_app/'
@@ -443,6 +466,7 @@ export interface FileRouteTypes {
     | '/api/history/refresh'
     | '/api/loops/$id'
     | '/api/media/upload'
+    | '/api/models/$id'
     | '/api/queue/$id'
     | '/api/queue/clear'
     | '/api/ranking/daily'
@@ -462,6 +486,7 @@ export interface RootRouteChildren {
   ApiContingencyRoute: typeof ApiContingencyRouteWithChildren
   ApiHistoryRoute: typeof ApiHistoryRouteWithChildren
   ApiLoopsRoute: typeof ApiLoopsRouteWithChildren
+  ApiModelsRoute: typeof ApiModelsRouteWithChildren
   ApiQueueRoute: typeof ApiQueueRouteWithChildren
   ApiRankingRoute: typeof ApiRankingRouteWithChildren
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
@@ -511,6 +536,13 @@ declare module '@tanstack/react-router' {
       path: '/api/queue'
       fullPath: '/api/queue'
       preLoaderRoute: typeof ApiQueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/models': {
+      id: '/api/models'
+      path: '/api/models'
+      fullPath: '/api/models'
+      preLoaderRoute: typeof ApiModelsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/loops': {
@@ -610,6 +642,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/queue/$id'
       preLoaderRoute: typeof ApiQueueIdRouteImport
       parentRoute: typeof ApiQueueRoute
+    }
+    '/api/models/$id': {
+      id: '/api/models/$id'
+      path: '/$id'
+      fullPath: '/api/models/$id'
+      preLoaderRoute: typeof ApiModelsIdRouteImport
+      parentRoute: typeof ApiModelsRoute
     }
     '/api/media/upload': {
       id: '/api/media/upload'
@@ -817,6 +856,18 @@ const ApiLoopsRouteWithChildren = ApiLoopsRoute._addFileChildren(
   ApiLoopsRouteChildren,
 )
 
+interface ApiModelsRouteChildren {
+  ApiModelsIdRoute: typeof ApiModelsIdRoute
+}
+
+const ApiModelsRouteChildren: ApiModelsRouteChildren = {
+  ApiModelsIdRoute: ApiModelsIdRoute,
+}
+
+const ApiModelsRouteWithChildren = ApiModelsRoute._addFileChildren(
+  ApiModelsRouteChildren,
+)
+
 interface ApiQueueRouteChildren {
   ApiQueueIdRoute: typeof ApiQueueIdRoute
   ApiQueueClearRoute: typeof ApiQueueClearRoute
@@ -863,6 +914,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiContingencyRoute: ApiContingencyRouteWithChildren,
   ApiHistoryRoute: ApiHistoryRouteWithChildren,
   ApiLoopsRoute: ApiLoopsRouteWithChildren,
+  ApiModelsRoute: ApiModelsRouteWithChildren,
   ApiQueueRoute: ApiQueueRouteWithChildren,
   ApiRankingRoute: ApiRankingRouteWithChildren,
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
