@@ -257,8 +257,8 @@ function WarmupPage() {
 type UploadTabProps = {
   uploads: Upload[];
   dragOver: boolean;
-  inputRef: React.RefObject<HTMLInputElement>;
-  folderInputRef: React.RefObject<HTMLInputElement>;
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  folderInputRef: React.RefObject<HTMLInputElement | null>;
   onDragOver: () => void;
   onDragLeave: () => void;
   onDrop: (dt: DataTransfer) => Promise<void>;
