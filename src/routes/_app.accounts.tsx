@@ -280,6 +280,34 @@ function AccountsPage() {
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
   });
+  const { data: models = [] } = useQuery({
+    queryKey: ["models"],
+    queryFn: () => api.listModels(),
+  });
+  const [newModelName, setNewModelName] = useState("");
+  const [newModelColor, setNewModelColor] = useState("#6366f1");
+  const MODEL_COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444", "#8b5cf6", "#14b8a6"];
+
+  async function createModel() {
+    if (!newModelName.trim()) return;
+    const r = await api.createModel({ name: newModelName.trim(), color: newModelColor });
+    if (r) {
+      setNewModelName("");
+      toast.success("Modelo criada");
+      qc.invalidateQueries({ queryKey: ["models"] });
+    }
+  }
+  async function deleteModel(id: string) {
+    if (!confirm("Remover modelo? As contas vinculadas ficarão sem modelo.")) return;
+    await api.deleteModel(id);
+    toast.success("Modelo removida");
+    qc.invalidateQueries({ queryKey: ["models"] });
+    qc.invalidateQueries({ queryKey: ["accounts"] });
+  }
+  async function assignModel(accountId: string, modelId: string | null) {
+    await api.setAccountModel(accountId, modelId);
+    qc.invalidateQueries({ queryKey: ["accounts"] });
+  }
 
   // localStorage overrides
   const [roleMap, setRoleMap] = useState<Record<string, Role>>({});
