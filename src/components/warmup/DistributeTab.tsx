@@ -280,6 +280,35 @@ export function DistributeTab() {
   // ---------------------------------------------------------------------------
   return (
     <div className="space-y-6 pb-24 md:pb-0">
+      {/* Tipo de mídia */}
+      <div className="rounded-[10px] border border-border bg-bg3/30 p-3">
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
+          Tipo de postagem
+        </div>
+        <div className="inline-flex rounded-[8px] border border-border2 bg-bg3 p-0.5">
+          {(["REEL", "IMAGE", "STORY"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setMediaType(t)}
+              className={[
+                "rounded-[6px] px-3 py-1.5 text-xs font-semibold transition",
+                mediaType === t
+                  ? "bg-[var(--accent2)] text-white"
+                  : "text-text2 hover:text-foreground",
+              ].join(" ")}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+        {mediaType === "STORY" && (
+          <div className="mt-2 space-y-1 text-[11px] text-amber-400/80">
+            <p>⚠ Stories não suportam legenda via API — o campo será ignorado.</p>
+            <p>⚠ Vídeos em Story devem ter no máximo 15 segundos.</p>
+          </div>
+        )}
+      </div>
+
       <DriveBrowser
         selectedVideos={selectedVideos}
         onSelectionChange={setSelectedVideos}
@@ -293,6 +322,7 @@ export function DistributeTab() {
         accounts={accounts}
         selectedIds={selectedAccounts}
         onChange={setSelectedAccounts}
+        models={models}
       />
 
       <ScheduleConfig
@@ -310,7 +340,7 @@ export function DistributeTab() {
 
       <ActiveLoopsPanel />
 
-      <CaptionInput value={caption} onChange={setCaption} />
+      {mediaType !== "STORY" && <CaptionInput value={caption} onChange={setCaption} />}
 
       {/* Preview */}
       {selectedList.length > 0 && selectedAccounts.length > 0 && (
