@@ -245,6 +245,14 @@ export type AccountRow = {
   last_post_at: string | null;
   created_at: string;
   updated_at: string;
+  model_id: string | null;
+};
+
+export type ModelRow = {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
 };
 
 export type LoopRow = {
