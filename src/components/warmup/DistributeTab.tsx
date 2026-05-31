@@ -23,6 +23,7 @@ type PostPersist = {
   gap?: number;
   jitter?: number;
   order?: "sequential" | "random";
+  mediaType?: "REEL" | "IMAGE" | "STORY";
 };
 
 function loadPost(): PostPersist {
