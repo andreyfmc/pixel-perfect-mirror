@@ -265,6 +265,7 @@ export const api = {
 
   async createLoop(body: {
     source_type: "snapshot" | "live_folder";
+    media_type?: "REEL" | "IMAGE" | "STORY";
     folder_id?: string | null;
     folder_name?: string | null;
     video_ids?: string[];
