@@ -178,11 +178,12 @@ export function DistributeTab() {
         }
         const res = await api.createLoop({
           source_type: loopMode,
+          media_type: mediaType,
           folder_id: currentFolder?.id ?? null,
           folder_name: currentFolder?.name ?? null,
           video_ids: loopMode === "snapshot" ? selectedList.map((v) => v.id) : undefined,
           account_ids: selectedAccounts,
-          caption,
+          caption: mediaType === "STORY" ? "" : caption,
           gap_min: Math.max(1, gap),
           jitter_min: Math.max(0, jitter),
           order_mode: order,
