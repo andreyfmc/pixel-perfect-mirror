@@ -1162,6 +1162,41 @@ const rawDb = {
       .run();
     return (res.meta?.changes as number) ?? 0;
   },
+
+  // ============ models ============
+  async listModels(): Promise<ModelRow[]> {
+    const { results } = await requireDb()
+      .prepare("SELECT * FROM models ORDER BY created_at ASC")
+      .all<ModelRow>();
+    return results ?? [];
+  },
+  async createModel(input: { id: string; name: string; color: string }) {
+    await requireDb()
+      .prepare("INSERT INTO models (id, name, color) VALUES (?, ?, ?)")
+      .bind(input.id, input.name, input.color)
+      .run();
+  },
+  async updateModel(id: string, input: { name?: string; color?: string }) {
+    await requireDb()
+      .prepare(
+        `UPDATE models SET
+           name = COALESCE(?, name),
+           color = COALESCE(?, color)
+         WHERE id = ?`,
+      )
+      .bind(input.name ?? null, input.color ?? null, id)
+      .run();
+  },
+  async deleteModel(id: string) {
+    await requireDb().prepare("UPDATE accounts SET model_id = NULL WHERE model_id = ?").bind(id).run();
+    await requireDb().prepare("DELETE FROM models WHERE id = ?").bind(id).run();
+  },
+  async setAccountModel(accountId: string, modelId: string | null) {
+    await requireDb()
+      .prepare("UPDATE accounts SET model_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind(modelId, accountId)
+      .run();
+  },
 };
 
 // Proxy que garante a auto-migração antes de cada chamada de método.
