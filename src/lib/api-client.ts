@@ -318,5 +318,43 @@ export const api = {
       return null;
     }
   },
+
+  // ============ models ============
+  async listModels(): Promise<Model[]> {
+    const data = await tryJson<{ models: Model[] }>("/api/models");
+    return data?.models ?? [];
+  },
+  async createModel(body: { name: string; color: string }): Promise<{ id: string } | null> {
+    try {
+      const res = await fetch("/api/models", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as { id: string };
+    } catch {
+      return null;
+    }
+  },
+  async patchModel(id: string, body: { name?: string; color?: string }) {
+    await fetch(`/api/models/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  },
+  async deleteModel(id: string) {
+    await fetch(`/api/models/${id}`, { method: "DELETE" });
+  },
+
+  async setAccountModel(accountId: string, modelId: string | null) {
+    await fetch(`/api/accounts/${accountId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model_id: modelId }),
+    });
+  },
 };
+
 
