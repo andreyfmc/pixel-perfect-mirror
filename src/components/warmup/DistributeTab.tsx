@@ -110,6 +110,10 @@ export function DistributeTab() {
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
   });
+  const { data: models = [] } = useQuery({
+    queryKey: ["models"],
+    queryFn: () => api.listModels(),
+  });
 
   // Hidrata seleção padrão (todas as contas) se não havia persistido
   useEffect(() => {
