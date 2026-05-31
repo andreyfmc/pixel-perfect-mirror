@@ -49,6 +49,20 @@ async function ensureSchema(): Promise<void> {
           )
           .run();
       }
+      if (!cols.has("model_id")) {
+        await db.prepare("ALTER TABLE accounts ADD COLUMN model_id TEXT").run();
+      }
+      // models — agrupamento de contas por "modelo" (ex: Valentina)
+      await db
+        .prepare(
+          `CREATE TABLE IF NOT EXISTS models (
+             id TEXT PRIMARY KEY,
+             name TEXT NOT NULL,
+             color TEXT NOT NULL DEFAULT '#6366f1',
+             created_at TEXT NOT NULL DEFAULT (datetime('now'))
+           )`,
+        )
+        .run();
       const { results: queueResults } = await db
         .prepare("PRAGMA table_info(queue)")
         .all<{ name: string }>();
