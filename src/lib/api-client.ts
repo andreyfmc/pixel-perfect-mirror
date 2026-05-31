@@ -2,7 +2,9 @@
 // (preview Lovable / dev local sem `wrangler dev --remote`), cai no mock.
 
 import { mockAccounts, mockQueue, mockHistory, type Account, type QueueItem } from "./mock";
-import type { AccountRow, QueueRow, HistoryRow, LoopRow } from "./db.server";
+import type { AccountRow, QueueRow, HistoryRow, LoopRow, ModelRow } from "./db.server";
+
+export type Model = ModelRow;
 
 export type AccountStatusReport = {
   status:
