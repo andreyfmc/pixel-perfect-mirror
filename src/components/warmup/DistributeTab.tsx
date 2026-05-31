@@ -128,10 +128,10 @@ export function DistributeTab() {
     try {
       window.localStorage.setItem(
         POST_STORAGE_KEY,
-        JSON.stringify({ selectedAccounts, caption, gap, jitter, order }),
+        JSON.stringify({ selectedAccounts, caption, gap, jitter, order, mediaType }),
       );
     } catch {}
-  }, [selectedAccounts, caption, gap, jitter, order]);
+  }, [selectedAccounts, caption, gap, jitter, order, mediaType]);
 
   // --- Validação -------------------------------------------------------------
   const selectedList = Array.from(selectedVideos.values());
