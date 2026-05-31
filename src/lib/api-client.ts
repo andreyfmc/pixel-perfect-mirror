@@ -50,6 +50,7 @@ function accountFromRow(r: AccountRow & { posts?: number }): Account {
     token_expires_at: r.token_expires_at,
     token_status: r.token_status ?? "valid",
     provider: r.provider ?? "facebook",
+    model_id: r.model_id ?? null,
   };
 }
 
