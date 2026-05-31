@@ -635,6 +635,65 @@ function AccountsPage() {
         </div>
       </header>
 
+      {/* ============ Modelos ============ */}
+      <section className="mb-5 rounded-xl border border-border bg-bg2 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-text2">Modelos</h2>
+          <span className="text-[11px] text-muted2">{models.length} modelo{models.length === 1 ? "" : "s"}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {models.map((m) => (
+            <div
+              key={m.id}
+              className="group inline-flex items-center gap-1.5 rounded-full border border-border2 bg-bg3 px-2 py-1 text-[11px]"
+              style={{ borderColor: `color-mix(in oklab, ${m.color} 50%, var(--border))` }}
+            >
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: m.color }} />
+              <span className="font-medium">{m.name}</span>
+              <span className="text-muted2">
+                · {accounts.filter((a) => a.model_id === m.id).length}
+              </span>
+              <button
+                onClick={() => deleteModel(m.id)}
+                className="ml-1 text-muted2 opacity-0 transition group-hover:opacity-100 hover:text-danger"
+                title="Remover modelo"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+          <div className="inline-flex items-center gap-1.5">
+            <input
+              value={newModelName}
+              onChange={(e) => setNewModelName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && createModel()}
+              placeholder="Nova modelo…"
+              className="h-7 rounded-md border border-border2 bg-bg3 px-2 text-xs outline-none focus:border-accent"
+            />
+            <div className="flex items-center gap-1">
+              {MODEL_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setNewModelColor(c)}
+                  className="h-4 w-4 rounded-full border-2 transition"
+                  style={{
+                    background: c,
+                    borderColor: newModelColor === c ? "var(--foreground)" : "transparent",
+                  }}
+                />
+              ))}
+            </div>
+            <button
+              onClick={createModel}
+              disabled={!newModelName.trim()}
+              className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[11px] font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              <Plus className="h-3 w-3" /> Criar
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* ============ Tabs ============ */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border">
         <div className="flex">
