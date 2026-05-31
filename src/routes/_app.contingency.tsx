@@ -845,7 +845,10 @@ function MobileCard({
             }}
             className="inline-flex min-h-[44px] w-full items-center justify-between gap-2 rounded-lg border border-border bg-bg3 px-3 py-2 text-[13px] font-mono hover:border-border2 active:scale-[0.98]"
           >
-            <span className="truncate text-text">{a.email}</span>
+            <span className="flex flex-col text-left">
+              <span className="text-text text-[13px] font-mono">{a.email!.split("@")[0]}</span>
+              <span className="text-muted2 text-[11px] font-mono">@{a.email!.split("@")[1]}</span>
+            </span>
             <span className="shrink-0 text-[12px] font-medium text-accent2">↗ Abrir TempMail</span>
           </button>
         </div>
