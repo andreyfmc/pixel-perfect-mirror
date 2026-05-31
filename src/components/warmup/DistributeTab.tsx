@@ -94,6 +94,9 @@ export function DistributeTab() {
   const [order, setOrder] = useState<"sequential" | "random">(
     persisted.order ?? "sequential",
   );
+  const [mediaType, setMediaType] = useState<"REEL" | "IMAGE" | "STORY">(
+    persisted.mediaType ?? "REEL",
+  );
   const [loopMode, setLoopMode] = useState<"once" | "snapshot" | "live_folder">(
     "once",
   );
