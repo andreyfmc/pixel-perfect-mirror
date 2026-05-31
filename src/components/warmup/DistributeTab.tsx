@@ -221,11 +221,11 @@ export function DistributeTab() {
           const v = accountVideos.get(accId)![cycle];
           const jitterOffset = jitterMs ? Math.floor(Math.random() * (jitterMs + 1)) : 0;
           const scheduledAt = new Date(cycleStartMs + jitterOffset).toISOString();
-          const uniqueCaption = variateCaption(caption, `${accId}|${v.id}`);
+          const uniqueCaption = mediaType === "STORY" ? "" : variateCaption(caption, `${accId}|${v.id}`);
           const res = await api.enqueue({
             account_id: accId,
             caption: uniqueCaption,
-            media_type: "REEL",
+            media_type: mediaType,
             media_key: `drive:${v.id}`,
             scheduled_at: scheduledAt,
             group_id: groupId,
