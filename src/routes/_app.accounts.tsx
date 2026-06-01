@@ -29,6 +29,7 @@ import {
   Check,
   Power,
   Activity,
+  RotateCcw,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -59,7 +60,7 @@ export const Route = createFileRoute("/_app/accounts")({
   head: () => ({ meta: [{ title: "Contas · Insta Manager" }] }),
 });
 
-type Role = "active" | "reserve";
+type Role = "active" | "reserve" | "discarded";
 type View = "list" | "grid";
 type SortKey = "followers" | "health-asc" | "recent" | "name";
 type HealthFilter = "all" | "good" | "warn" | "bad";
@@ -360,12 +361,39 @@ function AccountsPage() {
     [accountsRaw, roleMap, pausedMap],
   );
 
+  function syncToContingency(username: string) {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("im_contingency_v1");
+      if (!raw) return;
+      const list = JSON.parse(raw) as Array<{ username: string; status: string; notes?: string }>;
+      const target = username.toLowerCase().replace(/^@/, "");
+      let changed = false;
+      const today = new Date().toLocaleDateString("pt-BR");
+      for (const item of list) {
+        if (item.username?.toLowerCase() === target && item.status !== "descartada") {
+          item.status = "descartada";
+          item.notes = `${item.notes ?? ""}\n[Auto] Conta caiu em ${today}`;
+          changed = true;
+        }
+      }
+      if (changed) {
+        localStorage.setItem("im_contingency_v1", JSON.stringify(list));
+        window.dispatchEvent(new CustomEvent("contingency:changed"));
+      }
+    } catch { /* noop */ }
+  }
+
   function setRole(id: string, role: Role) {
     setRoleMap((m) => {
       const n = { ...m, [id]: role };
       saveMap(ROLE_KEY, n);
       return n;
     });
+    if (role === "discarded") {
+      const acc = accountsRaw.find((a) => a.id === id);
+      if (acc?.username) syncToContingency(acc.username);
+    }
   }
   function togglePaused(id: string, value?: boolean) {
     setPausedMap((m) => {
@@ -417,7 +445,7 @@ function AccountsPage() {
   // Restore tab/view from localStorage
   useEffect(() => {
     const t = localStorage.getItem(TAB_KEY);
-    if (t === "active" || t === "reserve") setTab(t);
+    if (t === "active" || t === "reserve" || t === "discarded") setTab(t);
     const v = localStorage.getItem(VIEW_KEY);
     if (v === "list" || v === "grid") setView(v);
   }, []);
@@ -431,6 +459,7 @@ function AccountsPage() {
   // Counters by role
   const activeCount = accounts.filter((a) => a.role === "active").length;
   const reserveCount = accounts.filter((a) => a.role === "reserve").length;
+  const discardedCount = accounts.filter((a) => a.role === "discarded").length;
 
   // Filtered + sorted within current tab
   const filtered = useMemo(() => {
@@ -613,6 +642,11 @@ function AccountsPage() {
     toast.success(`${selected.size} contas ativadas`);
     clearSelection();
   }
+  function bulkDiscard() {
+    selected.forEach((id) => setRole(id, "discarded"));
+    toast.success(`${selected.size} conta(s) descartada(s)`);
+    clearSelection();
+  }
   function bulkRefresh() {
     const targets = accounts.filter((a) => selected.has(a.id));
     void refreshAll(targets);
@@ -739,6 +773,7 @@ function AccountsPage() {
             [
               { id: "active" as Role, label: "Ativas", count: activeCount, dot: "●" },
               { id: "reserve" as Role, label: "Reservas", count: reserveCount, dot: "◎" },
+              { id: "discarded" as Role, label: "Descartadas", count: discardedCount, dot: "✕" },
             ]
           ).map((t) => {
             const active = tab === t.id;
@@ -751,7 +786,7 @@ function AccountsPage() {
                   active ? "text-foreground" : "text-muted2 hover:text-text2",
                 ].join(" ")}
               >
-                <span style={{ color: active ? "var(--accent2)" : undefined }}>{t.dot}</span>
+                <span style={{ color: t.id === "discarded" ? "var(--danger)" : active ? "var(--accent2)" : undefined }}>{t.dot}</span>
                 {t.label}
                 <span
                   className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums"
@@ -891,19 +926,36 @@ function AccountsPage() {
       {selected.size >= 2 && (
         <div className="sticky top-3 z-20 mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-accent/40 bg-bg3 px-3 py-2 text-sm shadow-lg">
           <span className="font-semibold tabular-nums">{selected.size} contas selecionadas</span>
-          {tab === "active" ? (
+          {tab === "active" && (
             <button
               onClick={bulkMoveToReserve}
               className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
             >
               <ArrowRightLeft className="h-3.5 w-3.5" /> Mover para Reservas
             </button>
-          ) : (
+          )}
+          {tab === "reserve" && (
             <button
               onClick={bulkActivate}
               className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
             >
               <Power className="h-3.5 w-3.5" /> Ativar
+            </button>
+          )}
+          {tab === "discarded" && (
+            <button
+              onClick={bulkActivate}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Restaurar para Ativas
+            </button>
+          )}
+          {tab !== "discarded" && (
+            <button
+              onClick={bulkDiscard}
+              className="inline-flex items-center gap-1.5 rounded-md border border-danger/35 bg-danger/10 px-2.5 py-1.5 text-xs text-danger hover:border-danger"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Descartar
             </button>
           )}
           <DropdownMenu>
@@ -980,7 +1032,9 @@ function AccountsPage() {
             ? "Nenhuma conta encontrada com esses filtros."
             : tab === "active"
               ? "Nenhuma conta ativa. Conecte ou mova de Reservas."
-              : "Nenhuma conta em reserva."}
+              : tab === "reserve"
+                ? "Nenhuma conta em reserva."
+                : "Nenhuma conta descartada."}
         </div>
       ) : view === "list" ? (
         <ListView
@@ -993,7 +1047,8 @@ function AccountsPage() {
           setConfirmMove={setConfirmMove}
           onMove={(id, role) => {
             setRole(id, role);
-            toast.success(`Conta movida para ${role === "reserve" ? "Reservas" : "Ativas"}`);
+            const label = role === "reserve" ? "Reservas" : role === "discarded" ? "Descartadas" : "Ativas";
+            toast.success(`Conta movida para ${label}`);
           }}
           onTogglePaused={togglePaused}
           onValidate={validateOne}
@@ -1013,7 +1068,8 @@ function AccountsPage() {
           setConfirmMove={setConfirmMove}
           onMove={(id, role) => {
             setRole(id, role);
-            toast.success(`Conta movida para ${role === "reserve" ? "Reservas" : "Ativas"}`);
+            const label = role === "reserve" ? "Reservas" : role === "discarded" ? "Descartadas" : "Ativas";
+            toast.success(`Conta movida para ${label}`);
           }}
           onValidate={validateOne}
           onReconnect={(a) => handleConnect(a.provider ?? "facebook")}
@@ -1175,7 +1231,7 @@ function ListView({
         return (
           <div
             key={a.id}
-            className="acc-row group relative flex h-14 items-center gap-3 border-b border-border px-3 transition-colors last:border-b-0 hover:bg-bg3"
+            className={`acc-row group relative flex h-14 items-center gap-3 border-b border-border px-3 transition-colors last:border-b-0 hover:bg-bg3${tab === "discarded" ? " opacity-60" : ""}`}
             style={{
               animationDelay: `${Math.min(i, 20) * 30}ms`,
               background: i % 2 === 1 ? "rgba(255,255,255,0.04)" : undefined,
@@ -1281,6 +1337,7 @@ function ListView({
                 a={a}
                 tab={tab}
                 onAskMove={() => setConfirmMove(a.id)}
+                onDirectMove={(role) => onMove(a.id, role)}
                 onValidate={() => onValidate(a)}
                 onReconnect={() => onReconnect(a)}
                 onTogglePaused={() => onTogglePaused(a.id)}
@@ -1326,7 +1383,7 @@ function GridView({
         return (
           <div
             key={a.id}
-            className="acc-card group relative flex h-[140px] flex-col gap-2 rounded-xl border bg-bg2 p-3.5 transition-all hover:-translate-y-0.5"
+            className={`acc-card group relative flex h-[140px] flex-col gap-2 rounded-xl border bg-bg2 p-3.5 transition-all hover:-translate-y-0.5${tab === "discarded" ? " opacity-60" : ""}`}
             style={{
               borderColor: color,
               animationDelay: `${Math.min(i, 20) * 30}ms`,
@@ -1382,6 +1439,7 @@ function GridView({
                     tab={tab}
                     compact
                     onAskMove={() => setConfirmMove(a.id)}
+                    onDirectMove={(role) => onMove(a.id, role)}
                     onValidate={() => onValidate(a)}
                     onReconnect={() => onReconnect(a)}
                     onTogglePaused={() => onTogglePaused(a.id)}
@@ -1432,6 +1490,7 @@ function AccountMenu({
   tab,
   compact = false,
   onAskMove,
+  onDirectMove,
   onValidate,
   onReconnect,
   onTogglePaused,
@@ -1444,6 +1503,7 @@ function AccountMenu({
   tab: Role;
   compact?: boolean;
   onAskMove: () => void;
+  onDirectMove: (role: Role) => void;
   onValidate: () => void;
   onReconnect: () => void;
   onTogglePaused: () => void;
@@ -1463,17 +1523,37 @@ function AccountMenu({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
-        <DropdownMenuItem onSelect={onAskMove}>
-          {tab === "active" ? (
-            <>
-              <ArrowRightLeft className="mr-2 h-4 w-4" /> Mover para Reservas
-            </>
-          ) : (
-            <>
-              <ArrowLeftToLine className="mr-2 h-4 w-4" /> Ativar conta
-            </>
-          )}
-        </DropdownMenuItem>
+        {tab === "active" && (
+          <DropdownMenuItem onSelect={onAskMove}>
+            <ArrowRightLeft className="mr-2 h-4 w-4" /> Mover para Reservas
+          </DropdownMenuItem>
+        )}
+        {tab === "reserve" && (
+          <DropdownMenuItem onSelect={onAskMove}>
+            <ArrowLeftToLine className="mr-2 h-4 w-4" /> Ativar conta
+          </DropdownMenuItem>
+        )}
+        {tab === "discarded" && (
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              onDirectMove("active");
+            }}
+          >
+            <RotateCcw className="mr-2 h-4 w-4" /> Restaurar para Ativas
+          </DropdownMenuItem>
+        )}
+        {tab !== "discarded" && (
+          <DropdownMenuItem
+            className="text-danger focus:text-danger"
+            onSelect={(e) => {
+              e.preventDefault();
+              onDirectMove("discarded");
+            }}
+          >
+            <Trash2 className="mr-2 h-4 w-4" /> Mover para Descartadas
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           onSelect={(e) => {
             e.preventDefault();

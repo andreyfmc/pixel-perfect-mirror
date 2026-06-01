@@ -11,7 +11,7 @@ export type Account = {
   token_status: "valid" | "expired";
   provider: "facebook" | "instagram";
   can_publish?: boolean;
-  role?: "active" | "reserve";
+  role?: "active" | "reserve" | "discarded";
   paused?: boolean;
   model_id?: string | null;
 };

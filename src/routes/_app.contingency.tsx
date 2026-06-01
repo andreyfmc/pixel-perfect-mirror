@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus, CheckSquare, FileUp, HardDrive, Save, FileDown, Search,
   Copy, Eye, EyeOff, Trash2, ChevronDown, ChevronRight, MoreHorizontal,
-  Zap, Lock, Unlock, AlertTriangle, MoreVertical, History,
+  Zap, Lock, Unlock, AlertTriangle, MoreVertical, History, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -921,6 +921,44 @@ function ContingencyPage() {
     document.title = privateMode ? `🔒 ${base}` : base;
   }, [privateMode]);
 
+  // ----- Auto-sync de contas caídas -----
+  const syncDiscarded = useCallback((connectedAccounts: Account[]) => {
+    const fallen = new Set(
+      connectedAccounts
+        .filter((a) => a.token_status === "expired" || a.health_score === 0)
+        .map((a) => a.username.toLowerCase().replace(/^@/, "")),
+    );
+    if (fallen.size === 0) return;
+    const today = new Date().toLocaleDateString("pt-BR");
+    const marked: string[] = [];
+    update((prev) => {
+      const next = prev.map((c) => {
+        if (c.status === "descartada") return c;
+        if (fallen.has(c.username.toLowerCase().replace(/^@/, ""))) {
+          marked.push(c.username);
+          return {
+            ...c,
+            status: "descartada" as ContingencyStatus,
+            notes: `${c.notes ?? ""}\n[Auto] Conta caiu em ${today}`,
+            updated_at: new Date().toISOString(),
+          };
+        }
+        return c;
+      });
+      if (marked.length > 0) saveContingency(next);
+      return next;
+    });
+    if (marked.length > 0) {
+      toast.warning(
+        `${marked.length} conta(s) marcada(s) como descartada automaticamente: ${marked.map((u) => `@${u}`).join(", ")}`,
+      );
+    }
+  }, [update]);
+
+  useEffect(() => {
+    api.listAccounts().then((accs) => syncDiscarded(accs)).catch(() => { /* noop */ });
+  }, [syncDiscarded]);
+
   const counts = useMemo(() => {
     const c = { total: list.length, em_edicao: 0, pronta: 0, em_uso: 0, descartada: 0, instagram: 0, facebook: 0 };
     for (const a of list) {
@@ -1081,6 +1119,20 @@ function ContingencyPage() {
         </button>
 
         <ConnectLinkButton variant="ghost" />
+
+        <button
+          onClick={async () => {
+            const accs = await api.listAccounts().catch(() => [] as Account[]);
+            syncDiscarded(accs);
+            toast.success("Sincronização concluída");
+          }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs hover:border-border2"
+          title="Verifica contas conectadas e marca caídas como descartadas"
+        >
+          <RefreshCw className="h-3.5 w-3.5" /> Sincronizar
+        </button>
+
+
 
 
         <button
