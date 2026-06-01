@@ -1,5 +1,6 @@
 // Helpers de acesso ao D1.
 import { requireDb } from "./cf.server";
+import { ensureMetaAppsSchema } from "./meta-apps.server";
 
 // Auto-migração: garante que colunas adicionadas após o deploy inicial
 // existam no banco do usuário (D1 não roda migrations automaticamente).
@@ -203,6 +204,8 @@ async function ensureSchema(): Promise<void> {
           "CREATE INDEX IF NOT EXISTS idx_followers_snap_account_date ON followers_snapshots(account_id, snapshot_date DESC)",
         )
         .run();
+
+      await ensureMetaAppsSchema();
     } catch (err) {
       // Não bloqueia o app se o PRAGMA falhar — reseta a promise para tentar de novo
       // na próxima request.
@@ -246,6 +249,7 @@ export type AccountRow = {
   created_at: string;
   updated_at: string;
   model_id: string | null;
+  meta_app_id: string | null;
 };
 
 export type ModelRow = {
@@ -394,8 +398,8 @@ const rawDb = {
 
     await requireDb()
       .prepare(
-        `INSERT INTO accounts (id, username, name, profile_picture, ig_user_id, access_token, token_expires_at, token_status, provider, followers, health_score)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?)
+        `INSERT INTO accounts (id, username, name, profile_picture, ig_user_id, access_token, token_expires_at, token_status, provider, followers, health_score, meta_app_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'valid', ?, ?, ?, ?)
          ON CONFLICT(username) DO UPDATE SET
            name = excluded.name,
            profile_picture = COALESCE(excluded.profile_picture, accounts.profile_picture),
@@ -418,6 +422,7 @@ const rawDb = {
         provider,
         a.followers ?? 0,
         a.health_score ?? 100,
+        a.meta_app_id ?? null,
       )
       .run();
     await rawDb.resetCredentialFailedQueue(a.username);
@@ -1017,6 +1022,21 @@ const rawDb = {
       .bind(state)
       .run();
     return { ok: true, redirectUri: row.redirect_uri };
+  },
+
+  async updateOAuthStateMeta(state: string, metaAppId: string): Promise<void> {
+    await requireDb()
+      .prepare("UPDATE oauth_states SET meta_app_id = ? WHERE state = ?")
+      .bind(metaAppId, state)
+      .run();
+  },
+
+  async getOAuthStateMeta(state: string): Promise<string | null> {
+    const row = await requireDb()
+      .prepare("SELECT meta_app_id FROM oauth_states WHERE state = ?")
+      .bind(state)
+      .first<{ meta_app_id: string | null }>();
+    return row?.meta_app_id ?? null;
   },
 
   // ============ token refresh ============
