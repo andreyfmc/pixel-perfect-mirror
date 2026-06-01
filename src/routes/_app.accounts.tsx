@@ -1149,6 +1149,7 @@ function ListView({
                     Token expirado
                   </span>
                 )}
+                <ModelBadge model={models.find((m) => m.id === a.model_id)} />
               </div>
               <p className="truncate text-[11px] text-muted2">{a.name}</p>
             </div>
