@@ -10,6 +10,8 @@ const json = (data: unknown, status = 200) =>
 
 const PatchAccount = z.object({
   model_id: z.string().nullable().optional(),
+  meta_app_id: z.string().nullable().optional(),
+  role: z.enum(["active", "reserve", "discarded"]).optional(),
 });
 
 export const Route = createFileRoute("/api/accounts/$id")({
@@ -24,6 +26,9 @@ export const Route = createFileRoute("/api/accounts/$id")({
         const body = PatchAccount.parse(await request.json());
         if (body.model_id !== undefined) {
           await db.setAccountModel(params.id, body.model_id ?? null);
+        }
+        if (body.role !== undefined) {
+          await db.setAccountRole(params.id, body.role);
         }
         return json({ ok: true });
       },

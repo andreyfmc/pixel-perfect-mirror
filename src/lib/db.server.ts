@@ -53,6 +53,16 @@ async function ensureSchema(): Promise<void> {
       if (!cols.has("model_id")) {
         await db.prepare("ALTER TABLE accounts ADD COLUMN model_id TEXT").run();
       }
+      if (!cols.has("role")) {
+        await db
+          .prepare(
+            "ALTER TABLE accounts ADD COLUMN role TEXT NOT NULL DEFAULT 'active' CHECK (role IN ('active','reserve','discarded'))",
+          )
+          .run();
+        await db
+          .prepare("CREATE INDEX IF NOT EXISTS idx_accounts_role ON accounts(role)")
+          .run();
+      }
       // models — agrupamento de contas por "modelo" (ex: Valentina)
       await db
         .prepare(
@@ -258,6 +268,7 @@ export type AccountRow = {
   updated_at: string;
   model_id: string | null;
   meta_app_id: string | null;
+  role: "active" | "reserve" | "discarded";
 };
 
 export type ModelRow = {
@@ -1234,6 +1245,27 @@ const rawDb = {
       .prepare("UPDATE accounts SET model_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
       .bind(modelId, accountId)
       .run();
+  },
+
+  async setAccountRole(id: string, role: "active" | "reserve" | "discarded"): Promise<void> {
+    await requireDb()
+      .prepare("UPDATE accounts SET role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+      .bind(role, id)
+      .run();
+  },
+
+  async listAccountsForAutoValidate(): Promise<AccountRow[]> {
+    const { results } = await requireDb()
+      .prepare(
+        `SELECT * FROM accounts
+         WHERE role != 'discarded'
+           AND access_token IS NOT NULL
+           AND ig_user_id IS NOT NULL
+           AND health_score > 0
+         ORDER BY updated_at ASC`,
+      )
+      .all<AccountRow>();
+    return results ?? [];
   },
 };
 

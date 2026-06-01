@@ -120,6 +120,14 @@ export const api = {
     await fetch(`/api/accounts/${id}`, { method: "DELETE" });
   },
 
+  async setAccountRole(id: string, role: "active" | "reserve" | "discarded"): Promise<void> {
+    await fetch(`/api/accounts/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
+  },
+
   async validateAccount(id: string): Promise<{
     ok: boolean;
     error?: unknown;

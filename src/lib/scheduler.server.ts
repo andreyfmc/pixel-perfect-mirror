@@ -302,6 +302,69 @@ export async function runScheduler(
     }
   }
 
+  // Auto-validação de contas: roda 3x ao dia às 6h, 14h e 22h UTC.
+  // Ignora contas descartadas (role = 'discarded') e contas com health_score = 0.
+  // Máximo 30 contas por rodada para não estourar o CPU budget do Worker.
+  const AUTO_VALIDATE_HOURS = [6, 14, 22];
+  if (AUTO_VALIDATE_HOURS.includes(now.getUTCHours()) && now.getUTCMinutes() === 0) {
+    try {
+      const toValidate = await db.listAccountsForAutoValidate();
+      const batch = toValidate.slice(0, 30);
+      console.log(`[scheduler] auto-validate: ${batch.length} contas`);
+      for (const account of batch) {
+        if (!account.access_token || !account.ig_user_id) continue;
+        try {
+          let accessToken = account.access_token;
+          const provider = inferGraphProviderFromToken(account.access_token, account.provider);
+          if (provider === "instagram") {
+            const fresh = await ensureFreshAccessToken({
+              accessToken,
+              tokenExpiresAt: account.token_expires_at,
+            }).catch(() => null);
+            if (fresh?.refreshed) {
+              accessToken = fresh.accessToken;
+              await db.updateAccountCredentials(account.id, {
+                access_token: fresh.accessToken,
+                token_expires_at: fresh.expiresAt,
+                token_status: "valid",
+              });
+            }
+          }
+          const result = await instagram.validateCredentials({
+            igUserId: account.ig_user_id,
+            accessToken,
+            expectedUsername: account.username,
+          });
+          await db.updateAccountCredentials(account.id, {
+            access_token: result.accessToken ?? accessToken,
+            ig_user_id: typeof result.ig?.id === "string" ? result.ig.id : undefined,
+            provider: result.host ?? account.provider,
+            token_status: "valid",
+            profile_picture:
+              typeof result.ig?.profile_picture_url === "string"
+                ? result.ig.profile_picture_url
+                : undefined,
+            followers:
+              typeof result.ig?.followers_count === "number"
+                ? result.ig.followers_count
+                : undefined,
+            health_score: 95,
+          });
+        } catch (err) {
+          if (isInvalidAccessTokenError(err)) {
+            await db.markAccountNeedsReconnect(account.id).catch(() => {});
+            console.warn(`[scheduler] auto-validate: token inválido @${account.username}`);
+          } else {
+            console.warn(`[scheduler] auto-validate: falhou @${account.username}:`, err);
+          }
+        }
+      }
+      console.log(`[scheduler] auto-validate: concluído`);
+    } catch (err) {
+      console.warn("[scheduler] auto-validate: varredura falhou:", err);
+    }
+  }
+
   // Processa variantes pendentes (1 por tick — cada build pode consumir
   // boa parte do orçamento de CPU do Worker).
   try {

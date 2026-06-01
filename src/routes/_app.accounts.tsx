@@ -422,6 +422,8 @@ function AccountsPage() {
       saveMap(ROLE_KEY, n);
       return n;
     });
+    // Persiste no banco para que o scheduler server-side respeite o role
+    api.setAccountRole(id, role).catch(() => {});
     if (role === "discarded") {
       const acc = accountsRaw.find((a) => a.id === id);
       if (acc?.username) syncToContingency(acc.username);
