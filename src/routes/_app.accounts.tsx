@@ -421,6 +421,11 @@ function AccountsPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = accounts.filter((a) => a.role === tab);
+    if (modelFilter === "none") {
+      list = list.filter((a) => !a.model_id);
+    } else if (modelFilter !== "all") {
+      list = list.filter((a) => a.model_id === modelFilter);
+    }
     if (q) {
       list = list.filter(
         (a) =>
