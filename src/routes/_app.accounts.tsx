@@ -1465,6 +1465,45 @@ function AccountMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-danger focus:text-danger"
+        <DropdownMenuSeparator />
+        <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted2">
+          Atribuir a modelo
+        </div>
+        {models.length === 0 && (
+          <div className="px-2 pb-1 text-[11px] text-muted2">Nenhuma modelo criada</div>
+        )}
+        {models.map((m) => {
+          const selectedModel = a.model_id === m.id;
+          return (
+            <DropdownMenuItem
+              key={m.id}
+              onSelect={(e) => {
+                e.preventDefault();
+                onAssignModel(a.id, selectedModel ? null : m.id);
+              }}
+            >
+              <span
+                className="mr-2 inline-block h-3 w-3 rounded-full"
+                style={{ background: m.color }}
+              />
+              {m.name}
+              {selectedModel && <Check className="ml-auto h-3.5 w-3.5" />}
+            </DropdownMenuItem>
+          );
+        })}
+        {a.model_id && (
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              onAssignModel(a.id, null);
+            }}
+          >
+            <X className="mr-2 h-4 w-4" /> Remover da modelo
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-danger focus:text-danger"
           onSelect={(e) => {
             e.preventDefault();
             onRemove();
