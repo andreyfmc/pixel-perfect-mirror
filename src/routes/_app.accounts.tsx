@@ -325,6 +325,21 @@ function AccountsPage() {
     await api.setAccountModel(accountId, modelId);
     qc.invalidateQueries({ queryKey: ["accounts"] });
   }
+  async function bulkAssignModel(modelId: string | null) {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    const label =
+      modelId === null
+        ? "Sem modelo"
+        : models.find((m) => m.id === modelId)?.name ?? "modelo";
+    try {
+      await Promise.all(ids.map((id) => api.setAccountModel(id, modelId)));
+      toast.success(`${ids.length} conta(s) atribuída(s) a "${label}"`);
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+    } catch {
+      toast.error("Falha ao atribuir modelo em massa");
+    }
+  }
 
   // localStorage overrides
   const [roleMap, setRoleMap] = useState<Record<string, Role>>({});
@@ -891,6 +906,47 @@ function AccountsPage() {
               <Power className="h-3.5 w-3.5" /> Ativar
             </button>
           )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent">
+                <Users className="h-3.5 w-3.5" /> Atribuir a modelo
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted2">
+                Atribuir {selected.size} conta(s) a
+              </div>
+              {models.length === 0 && (
+                <div className="px-2 pb-1 text-[11px] text-muted2">
+                  Nenhuma modelo criada
+                </div>
+              )}
+              {models.map((m) => (
+                <DropdownMenuItem
+                  key={m.id}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    bulkAssignModel(m.id);
+                  }}
+                >
+                  <span
+                    className="mr-2 inline-block h-3 w-3 rounded-full"
+                    style={{ background: m.color }}
+                  />
+                  {m.name}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  bulkAssignModel(null);
+                }}
+              >
+                <X className="mr-2 h-4 w-4" /> Remover da modelo
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <button
             onClick={bulkRefresh}
             className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
