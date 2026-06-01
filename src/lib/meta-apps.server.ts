@@ -314,6 +314,7 @@ export async function createMetaApp(data: {
 
   return {
     ...created,
+    client_secret: undefined as never,
     client_id_masked: maskClientId(created.client_id),
     account_count: 0,
   };
