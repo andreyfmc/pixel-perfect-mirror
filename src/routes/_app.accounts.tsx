@@ -783,6 +783,46 @@ function AccountsPage() {
         </div>
       </div>
 
+      {/* ============ Model filter ============ */}
+      {(models.length > 0 || accounts.some((a) => !a.model_id)) && (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          {([
+            { id: "all" as const, label: "Todas", color: null, count: accounts.filter((a) => a.role === tab).length },
+            ...models.map((m) => ({
+              id: m.id,
+              label: m.name,
+              color: m.color,
+              count: accounts.filter((a) => a.role === tab && a.model_id === m.id).length,
+            })),
+            { id: "none" as const, label: "Sem modelo", color: null, count: accounts.filter((a) => a.role === tab && !a.model_id).length },
+          ]).map((f) => {
+            const active = modelFilter === f.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setModelFilter(f.id)}
+                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
+                style={{
+                  borderColor: active
+                    ? f.color ?? "var(--accent2)"
+                    : "var(--border)",
+                  background: active
+                    ? `color-mix(in oklab, ${f.color ?? "var(--accent2)"} 18%, transparent)`
+                    : "var(--bg3)",
+                  color: active ? f.color ?? "var(--accent2)" : "var(--text2)",
+                }}
+              >
+                {f.color && (
+                  <span className="h-2 w-2 rounded-full" style={{ background: f.color }} />
+                )}
+                {f.label}
+                <span className="tabular-nums text-[10px] opacity-70">{f.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* ============ Filters ============ */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <label className="relative block min-w-[220px] flex-1">
