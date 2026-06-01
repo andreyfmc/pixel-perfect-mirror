@@ -15,6 +15,7 @@ import {
 import { hasDb, env } from "./cf.server";
 import { buildVariantFor } from "./variant-builder.server";
 import { runLoopMaterializer } from "./loops.server";
+import { getAppForAccount } from "./meta-apps.server";
 
 
 // URL pública dos arquivos no R2 (Public Access ativado no bucket insta-media).
@@ -178,10 +179,33 @@ export async function runScheduler(
         containerId,
       });
 
+      // Resolve o app vinculado à conta para auditoria (sem bloquear em caso de falha)
+      let appId: string | null = null;
+      let appName: string | null = null;
+      try {
+        const appCreds = await getAppForAccount(item.account_id, provider);
+        if (appCreds && !appCreds.app_id.startsWith("env-")) {
+          appId = appCreds.app_id;
+          // Busca nome do app diretamente do banco
+          const { requireDb } = await import("./cf.server");
+          const appRow = await requireDb()
+            .prepare("SELECT name FROM meta_apps WHERE id = ?")
+            .bind(appId)
+            .first<{ name: string }>();
+          appName = appRow?.name ?? null;
+        }
+      } catch {
+        // Não bloqueia a publicação se a busca do app falhar
+      }
+
       await db.setQueueStatus(item.id, "published", {
         ig_container_id: containerId,
         ig_media_id: mediaId,
       });
+
+      if (appId) {
+        await db.setQueueAppUsed(item.id, appId).catch(() => {});
+      }
 
       await db.recordPublication({
         id: crypto.randomUUID(),
@@ -193,6 +217,7 @@ export async function runScheduler(
         permalink: null,
         thumb_url: item.thumb_key ? publicMediaUrl(item.thumb_key, opts.baseUrl) : null,
         published_at: new Date().toISOString(),
+        meta_app_name: appName,
       });
 
       await db.updateLastPostAt(item.account_id, new Date().toISOString());

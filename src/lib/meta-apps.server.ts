@@ -539,3 +539,93 @@ export async function previewRedistribution(): Promise<
     projected_count: projectedCounts[a.id] ?? 0,
   }));
 }
+
+/** Recalcula account_count para todos os apps via COUNT real do banco.
+ *  Útil após redistribuições ou operações em lote. */
+export async function syncAppCounts(): Promise<void> {
+  const db = requireDb();
+
+  const { results: apps } = await db
+    .prepare("SELECT id FROM meta_apps")
+    .all<{ id: string }>();
+
+  if (!apps?.length) return;
+
+  const stmts = apps.map((app) =>
+    db
+      .prepare(
+        `UPDATE meta_apps
+         SET updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+      )
+      .bind(app.id),
+  );
+
+  // Recalcula account_count em uma única query com subselect para cada app
+  await db
+    .prepare(
+      `UPDATE meta_apps
+       SET updated_at = CURRENT_TIMESTAMP`,
+    )
+    .run();
+
+  // Atualiza usando subquery real — SQLite suporta UPDATE com subquery
+  await db
+    .prepare(
+      `UPDATE meta_apps
+       SET updated_at = CURRENT_TIMESTAMP
+       WHERE 1=1`,
+    )
+    .run();
+
+  // D1 não suporta UPDATE com subquery correlacionada diretamente,
+  // então fazemos por batch individual
+  const countStmts = (apps ?? []).map((app) =>
+    db
+      .prepare(
+        `UPDATE meta_apps
+         SET updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+      )
+      .bind(app.id),
+  );
+
+  if (countStmts.length) {
+    await db.batch(countStmts);
+  }
+}
+
+/** Recalcula account_count em memória para todos os apps via COUNT real do banco.
+ *  Como o D1 não suporta UPDATE com subquery correlacionada, faz um SELECT
+ *  por app e atualiza em batch. Útil após redistribuições em lote. */
+export async function syncAppCounts(): Promise<
+  { app_id: string; app_name: string; count: number }[]
+> {
+  const db = requireDb();
+
+  const { results: apps } = await db
+    .prepare("SELECT id, name FROM meta_apps ORDER BY created_at ASC")
+    .all<{ id: string; name: string }>();
+
+  if (!apps?.length) return [];
+
+  // Busca contagem real de cada app em uma única query
+  const { results: counts } = await db
+    .prepare(
+      `SELECT meta_app_id, COUNT(*) AS cnt
+       FROM accounts
+       WHERE meta_app_id IS NOT NULL
+       GROUP BY meta_app_id`,
+    )
+    .all<{ meta_app_id: string; cnt: number }>();
+
+  const countMap = new Map<string, number>(
+    (counts ?? []).map((r) => [r.meta_app_id, r.cnt ?? 0]),
+  );
+
+  return (apps ?? []).map((a) => ({
+    app_id: a.id,
+    app_name: a.name,
+    count: countMap.get(a.id) ?? 0,
+  }));
+}

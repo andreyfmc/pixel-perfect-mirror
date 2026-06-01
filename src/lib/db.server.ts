@@ -159,6 +159,17 @@ async function ensureSchema(): Promise<void> {
           .prepare("UPDATE history SET plays = reach WHERE (plays IS NULL OR plays = 0) AND reach > 0")
           .run();
       }
+      if (!historyCols.has("meta_app_name")) {
+        await db.prepare("ALTER TABLE history ADD COLUMN meta_app_name TEXT").run();
+      }
+      // queue.app_used_at_publish — auditoria do app usado na publicação.
+      const { results: queueResults } = await db
+        .prepare("PRAGMA table_info(queue)")
+        .all<{ name: string }>();
+      const queueCols = new Set((queueResults ?? []).map((r) => r.name));
+      if (!queueCols.has("app_used_at_publish")) {
+        await db.prepare("ALTER TABLE queue ADD COLUMN app_used_at_publish TEXT").run();
+      }
       // history_snapshots — snapshots diários por reel.
       await db
         .prepare(
@@ -301,6 +312,7 @@ export type QueueRow = {
   original_media_key: string | null;
   loop_id: string | null;
   cycle_number: number | null;
+  app_used_at_publish: string | null;
   created_at: string;
 };
 
@@ -319,6 +331,7 @@ export type HistoryRow = {
   likes: number;
   comments: number;
   fetched_at: string | null;
+  meta_app_name: string | null;
 };
 
 const rawDb = {
@@ -742,6 +755,12 @@ const rawDb = {
       .bind(igContainerId, id)
       .run();
   },
+  async setQueueAppUsed(id: string, appId: string): Promise<void> {
+    await requireDb()
+      .prepare("UPDATE queue SET app_used_at_publish = ? WHERE id = ?")
+      .bind(appId, id)
+      .run();
+  },
   async incrementQueueAttempts(id: string) {
     await requireDb()
       .prepare(`UPDATE queue SET attempts = attempts + 1 WHERE id = ?`)
@@ -891,8 +910,8 @@ const rawDb = {
   ) {
     await requireDb()
       .prepare(
-        `INSERT INTO history (id, account_id, queue_id, ig_media_id, caption, media_type, permalink, thumb_url, published_at, reach, plays, likes, comments)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO history (id, account_id, queue_id, ig_media_id, caption, media_type, permalink, thumb_url, published_at, reach, plays, likes, comments, meta_app_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         h.id,
@@ -908,6 +927,7 @@ const rawDb = {
         h.plays ?? 0,
         h.likes ?? 0,
         h.comments ?? 0,
+        h.meta_app_name ?? null,
       )
       .run();
   },
