@@ -1255,6 +1255,8 @@ function GridView({
   onRemove,
   onTogglePaused,
   onStatus,
+  models,
+  onAssignModel,
 }: Omit<RowHandlers, "now">) {
   return (
     <div
