@@ -163,12 +163,9 @@ async function ensureSchema(): Promise<void> {
         await db.prepare("ALTER TABLE history ADD COLUMN meta_app_name TEXT").run();
       }
       // queue.app_used_at_publish — auditoria do app usado na publicação.
-      const { results: queueResults } = await db
-        .prepare("PRAGMA table_info(queue)")
-        .all<{ name: string }>();
-      const queueCols = new Set((queueResults ?? []).map((r) => r.name));
       if (!queueCols.has("app_used_at_publish")) {
         await db.prepare("ALTER TABLE queue ADD COLUMN app_used_at_publish TEXT").run();
+        queueCols.add("app_used_at_publish");
       }
       // history_snapshots — snapshots diários por reel.
       await db
@@ -682,6 +679,7 @@ const rawDb = {
       | "original_media_key"
       | "loop_id"
       | "cycle_number"
+      | "app_used_at_publish"
     > &
       Partial<
         Pick<
