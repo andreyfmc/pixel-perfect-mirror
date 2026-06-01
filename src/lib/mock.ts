@@ -14,6 +14,7 @@ export type Account = {
   role?: "active" | "reserve" | "discarded";
   paused?: boolean;
   model_id?: string | null;
+  meta_app_id?: string | null;
 };
 
 export const mockAccounts: Account[] = [

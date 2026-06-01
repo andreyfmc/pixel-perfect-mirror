@@ -314,7 +314,6 @@ export async function createMetaApp(data: {
 
   return {
     ...created,
-    client_secret: undefined as never,
     client_id_masked: maskClientId(created.client_id),
     account_count: 0,
   };
@@ -540,60 +539,6 @@ export async function previewRedistribution(): Promise<
   }));
 }
 
-/** Recalcula account_count para todos os apps via COUNT real do banco.
- *  Útil após redistribuições ou operações em lote. */
-export async function syncAppCounts(): Promise<void> {
-  const db = requireDb();
-
-  const { results: apps } = await db
-    .prepare("SELECT id FROM meta_apps")
-    .all<{ id: string }>();
-
-  if (!apps?.length) return;
-
-  const stmts = apps.map((app) =>
-    db
-      .prepare(
-        `UPDATE meta_apps
-         SET updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-      )
-      .bind(app.id),
-  );
-
-  // Recalcula account_count em uma única query com subselect para cada app
-  await db
-    .prepare(
-      `UPDATE meta_apps
-       SET updated_at = CURRENT_TIMESTAMP`,
-    )
-    .run();
-
-  // Atualiza usando subquery real — SQLite suporta UPDATE com subquery
-  await db
-    .prepare(
-      `UPDATE meta_apps
-       SET updated_at = CURRENT_TIMESTAMP
-       WHERE 1=1`,
-    )
-    .run();
-
-  // D1 não suporta UPDATE com subquery correlacionada diretamente,
-  // então fazemos por batch individual
-  const countStmts = (apps ?? []).map((app) =>
-    db
-      .prepare(
-        `UPDATE meta_apps
-         SET updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-      )
-      .bind(app.id),
-  );
-
-  if (countStmts.length) {
-    await db.batch(countStmts);
-  }
-}
 
 /** Recalcula account_count em memória para todos os apps via COUNT real do banco.
  *  Como o D1 não suporta UPDATE com subquery correlacionada, faz um SELECT

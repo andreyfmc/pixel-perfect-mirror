@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ExternalLink,
   Clock,
+  Layers,
 } from "lucide-react";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
 
@@ -203,10 +204,16 @@ function Dashboard() {
     queryFn: () => api.listHistory(),
     refetchInterval: 60_000,
   });
+  const metaAppsQ = useQuery({
+    queryKey: ["meta-apps"],
+    queryFn: () => api.listMetaApps(),
+    staleTime: 30_000,
+  });
 
   const accounts = accountsQ.data ?? [];
   const queue = queueQ.data ?? [];
   const history = historyQ.data ?? [];
+  const metaApps = metaAppsQ.data ?? [];
 
   // tick "atualizado há Xs"
   useEffect(() => {
@@ -337,6 +344,10 @@ function Dashboard() {
           sparkSeed={4}
         />
       </section>
+
+      <MetaAppsCard apps={metaApps} />
+
+
 
       {/* Main grid */}
       <section className="mt-8 grid gap-5 lg:grid-cols-3">
@@ -602,5 +613,96 @@ function Dashboard() {
         Atualizado há {secondsAgo}s
       </div>
     </div>
+  );
+}
+
+function MetaAppsCard({
+  apps,
+}: {
+  apps: import("@/lib/api-client").MetaApp[];
+}) {
+  const activeApps = apps.filter((a) => a.is_active === 1);
+  const totalAccounts = apps.reduce((s, a) => s + a.account_count, 0);
+  const maxLoad = Math.max(...activeApps.map((a) => a.account_count), 0);
+  const isUnbalanced =
+    totalAccounts > 0 &&
+    activeApps.some((a) => a.account_count / totalAccounts > 0.6);
+  const hasInactiveWithAccounts = apps.some(
+    (a) => a.is_active === 0 && a.account_count > 0,
+  );
+
+  return (
+    <section className="mt-6">
+      <div className="im-card p-5">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Layers className="h-4 w-4 text-text2" />
+            <h2 className="text-sm font-semibold tracking-tight">Apps Meta</h2>
+            <span className="rounded-full bg-bg3 px-2 py-0.5 text-[10px] font-semibold text-text2 tabular-nums">
+              {activeApps.length} ativo{activeApps.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <Link to="/settings" className="text-xs text-text2 hover:text-foreground">
+            Gerenciar →
+          </Link>
+        </div>
+
+        {apps.length === 0 ? (
+          <p className="text-sm" style={{ color: "var(--muted2)" }}>
+            Usando env
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {activeApps.map((a) => {
+              const pct = maxLoad > 0 ? (a.account_count / maxLoad) * 100 : 0;
+              const over =
+                totalAccounts > 0 && a.account_count / totalAccounts > 0.6;
+              return (
+                <div key={a.id} className="flex items-center gap-3 text-xs">
+                  <span className="w-28 truncate text-text2">
+                    {a.name.length > 12 ? a.name.slice(0, 12) + "…" : a.name}
+                  </span>
+                  <div className="relative h-2 flex-1 overflow-hidden rounded-full bg-bg3">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${pct}%`,
+                        background: over ? "var(--warning)" : "var(--accent2)",
+                      }}
+                    />
+                  </div>
+                  <span className="w-8 text-right tabular-nums text-text2">
+                    {a.account_count}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {(isUnbalanced || hasInactiveWithAccounts) && (
+          <div className="mt-4 space-y-1.5 text-xs">
+            {isUnbalanced && (
+              <div
+                className="flex items-center gap-1.5"
+                style={{ color: "var(--warning)" }}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Distribuição desbalanceada — considere redistribuir
+              </div>
+            )}
+            {hasInactiveWithAccounts && (
+              <div
+                className="flex items-center gap-1.5"
+                style={{ color: "var(--danger)" }}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                App inativo com contas vinculadas
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

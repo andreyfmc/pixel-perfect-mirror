@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { api, type AccountStatusReport, type Model } from "@/lib/api-client";
+import { api, type AccountStatusReport, type Model, type MetaApp } from "@/lib/api-client";
 import type { Account } from "@/lib/mock";
 import {
   Plus,
@@ -214,6 +214,34 @@ function ModelBadge({ model }: { model: Model | undefined }) {
   );
 }
 
+function MetaAppBadge({ app }: { app: MetaApp | undefined }) {
+  if (!app) return null;
+  const inactive = app.is_active === 0;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium whitespace-nowrap"
+      style={
+        inactive
+          ? {
+              background: "color-mix(in oklab, var(--danger) 15%, transparent)",
+              color: "var(--danger)",
+              border: "1px solid color-mix(in oklab, var(--danger) 30%, transparent)",
+            }
+          : {
+              background: "color-mix(in oklab, var(--accent2) 12%, transparent)",
+              color: "var(--accent2)",
+              border: "1px solid color-mix(in oklab, var(--accent2) 25%, transparent)",
+            }
+      }
+      title={inactive ? "App inativo — reconecte a conta" : `App: ${app.name}`}
+    >
+      {inactive && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
+      {inactive ? "App inativo" : app.name}
+    </span>
+  );
+}
+
+
 // -------------- Connect Modal --------------
 function ConnectDialog({
   loading,
@@ -301,6 +329,10 @@ function AccountsPage() {
   const { data: models = [] } = useQuery({
     queryKey: ["models"],
     queryFn: () => api.listModels(),
+  });
+  const { data: metaApps = [] } = useQuery({
+    queryKey: ["meta-apps"],
+    queryFn: () => api.listMetaApps(),
   });
   const [newModelName, setNewModelName] = useState("");
   const [newModelColor, setNewModelColor] = useState("#6366f1");
@@ -1056,6 +1088,7 @@ function AccountsPage() {
           onRemove={removeAccount}
           onStatus={openStatus}
           models={models}
+          metaApps={metaApps}
           onAssignModel={assignModel}
         />
       ) : (
@@ -1077,6 +1110,7 @@ function AccountsPage() {
           onTogglePaused={togglePaused}
           onStatus={openStatus}
           models={models}
+          metaApps={metaApps}
           onAssignModel={assignModel}
         />
       )}
@@ -1201,6 +1235,7 @@ type RowHandlers = {
   onRemove: (a: Account) => void;
   onStatus: (a: Account) => void;
   models: Model[];
+  metaApps: MetaApp[];
   onAssignModel: (accountId: string, modelId: string | null) => void;
 };
 
@@ -1219,6 +1254,7 @@ function ListView({
   onRemove,
   onStatus,
   models,
+  metaApps,
   onAssignModel,
 }: RowHandlers) {
   return (
@@ -1262,6 +1298,7 @@ function ListView({
                   </span>
                 )}
                 <ModelBadge model={models.find((m) => m.id === a.model_id)} />
+                <MetaAppBadge app={metaApps.find((p) => p.id === a.meta_app_id)} />
               </div>
               <p className="truncate text-[11px] text-muted2">{a.name}</p>
             </div>
@@ -1344,6 +1381,7 @@ function ListView({
                 onRemove={() => onRemove(a)}
                 onStatus={() => onStatus(a)}
                 models={models}
+                metaApps={metaApps}
                 onAssignModel={onAssignModel}
               />
             )}
@@ -1369,6 +1407,7 @@ function GridView({
   onTogglePaused,
   onStatus,
   models,
+  metaApps,
   onAssignModel,
 }: Omit<RowHandlers, "now">) {
   return (
@@ -1419,6 +1458,7 @@ function GridView({
                   </span>
                 )}
                 <ModelBadge model={models.find((m) => m.id === a.model_id)} />
+                <MetaAppBadge app={metaApps.find((p) => p.id === a.meta_app_id)} />
               </div>
               {!isConfirming && (
                 <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -1446,6 +1486,7 @@ function GridView({
                     onRemove={() => onRemove(a)}
                     onStatus={() => onStatus(a)}
                     models={models}
+                    metaApps={metaApps}
                     onAssignModel={onAssignModel}
                   />
                 </div>
@@ -1497,6 +1538,7 @@ function AccountMenu({
   onRemove,
   onStatus,
   models,
+  metaApps,
   onAssignModel,
 }: {
   a: Account;
@@ -1510,8 +1552,10 @@ function AccountMenu({
   onRemove: () => void;
   onStatus: () => void;
   models: Model[];
+  metaApps: MetaApp[];
   onAssignModel: (accountId: string, modelId: string | null) => void;
 }) {
+  const qc = useQueryClient();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -1634,6 +1678,41 @@ function AccountMenu({
             <X className="mr-2 h-4 w-4" /> Remover da modelo
           </DropdownMenuItem>
         )}
+        <DropdownMenuSeparator />
+        <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted2">
+          App Meta vinculado
+        </div>
+        {metaApps.filter((p) => p.is_active === 1).length === 0 && (
+          <div className="px-2 pb-1 text-[11px] text-muted2">Nenhum app ativo</div>
+        )}
+        {metaApps
+          .filter((p) => p.is_active === 1)
+          .map((p) => {
+            const selected = a.meta_app_id === p.id;
+            return (
+              <DropdownMenuItem
+                key={p.id}
+                onSelect={async (e) => {
+                  e.preventDefault();
+                  if (selected) return;
+                  await api.setAccountMetaApp(a.id, p.id);
+                  toast.success("App atualizado");
+                  qc.invalidateQueries({ queryKey: ["accounts"] });
+                  qc.invalidateQueries({ queryKey: ["meta-apps"] });
+                }}
+              >
+                <span
+                  className="mr-2 inline-block h-2 w-2 rounded-full"
+                  style={{ background: "var(--accent2)" }}
+                />
+                {p.name}
+                {selected && <Check className="ml-auto h-3.5 w-3.5" />}
+              </DropdownMenuItem>
+            );
+          })}
+        <div className="px-2 py-1 text-[10px] italic" style={{ color: "var(--warning)" }}>
+          Trocar o app não invalida o token atual.
+        </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-danger focus:text-danger"

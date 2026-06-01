@@ -6,6 +6,19 @@ import type { AccountRow, QueueRow, HistoryRow, LoopRow, ModelRow } from "./db.s
 
 export type Model = ModelRow;
 
+export type MetaApp = {
+  id: string;
+  name: string;
+  client_id: string;
+  client_id_masked: string;
+  provider: "facebook" | "instagram";
+  is_active: number;
+  notes: string | null;
+  account_count: number;
+  created_at: string;
+};
+
+
 export type AccountStatusReport = {
   status:
     | "healthy"
@@ -51,6 +64,7 @@ function accountFromRow(r: AccountRow & { posts?: number }): Account {
     token_status: r.token_status ?? "valid",
     provider: r.provider ?? "facebook",
     model_id: r.model_id ?? null,
+    meta_app_id: r.meta_app_id ?? null,
   };
 }
 
@@ -355,6 +369,104 @@ export const api = {
       body: JSON.stringify({ model_id: modelId }),
     });
   },
+
+  // ============ meta-apps ============
+  async listMetaApps(): Promise<MetaApp[]> {
+    const data = await tryJson<MetaApp[]>("/api/meta-apps");
+    return data ?? [];
+  },
+
+  async createMetaApp(body: {
+    name: string;
+    client_id: string;
+    client_secret: string;
+    provider: "facebook" | "instagram";
+    notes?: string;
+  }): Promise<MetaApp> {
+    const res = await fetch("/api/meta-apps", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(err.error ?? `HTTP ${res.status}`);
+    }
+    return (await res.json()) as MetaApp;
+  },
+
+  async updateMetaApp(
+    id: string,
+    body: {
+      name?: string;
+      client_secret?: string;
+      notes?: string;
+      is_active?: number;
+    },
+  ): Promise<MetaApp | null> {
+    try {
+      const res = await fetch(`/api/meta-apps/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) return null;
+      return (await res.json()) as MetaApp;
+    } catch {
+      return null;
+    }
+  },
+
+  async deleteMetaApp(
+    id: string,
+  ): Promise<{ ok: true } | { ok: false; error: string; account_count: number }> {
+    const res = await fetch(`/api/meta-apps/${id}`, { method: "DELETE" });
+    return (await res.json()) as
+      | { ok: true }
+      | { ok: false; error: string; account_count: number };
+  },
+
+  async redistributeApps(): Promise<{
+    moved: number;
+    distribution: { app_id: string; app_name: string; count: number }[];
+  } | null> {
+    try {
+      const res = await fetch("/api/meta-apps?action=redistribute", { method: "POST" });
+      if (!res.ok) return null;
+      return (await res.json()) as {
+        moved: number;
+        distribution: { app_id: string; app_name: string; count: number }[];
+      };
+    } catch {
+      return null;
+    }
+  },
+
+  async previewRedistributeApps(): Promise<
+    { app_id: string; app_name: string; current_count: number; projected_count: number }[] | null
+  > {
+    try {
+      const res = await fetch("/api/meta-apps?action=preview-redistribute", { method: "POST" });
+      if (!res.ok) return null;
+      return (await res.json()) as {
+        app_id: string;
+        app_name: string;
+        current_count: number;
+        projected_count: number;
+      }[];
+    } catch {
+      return null;
+    }
+  },
+
+  async setAccountMetaApp(accountId: string, metaAppId: string) {
+    await fetch(`/api/meta-apps/${metaAppId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ assign_account_id: accountId }),
+    });
+  },
 };
+
 
 
