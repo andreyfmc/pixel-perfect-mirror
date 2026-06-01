@@ -1088,6 +1088,8 @@ type RowHandlers = {
   onReconnect: (a: Account) => void;
   onRemove: (a: Account) => void;
   onStatus: (a: Account) => void;
+  models: Model[];
+  onAssignModel: (accountId: string, modelId: string | null) => void;
 };
 
 function ListView({
