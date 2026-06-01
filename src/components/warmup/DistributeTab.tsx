@@ -106,13 +106,37 @@ export function DistributeTab() {
   const [enqueueMsg, setEnqueueMsg] = useState<string | null>(null);
 
   // --- Data ------------------------------------------------------------------
-  const { data: accounts = [] } = useQuery({
+  const { data: accountsRaw = [] } = useQuery({
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
   });
   const { data: models = [] } = useQuery({
     queryKey: ["models"],
     queryFn: () => api.listModels(),
+  });
+
+  // Lê overrides de role (definidos na aba Contas) e exclui contas descartadas
+  const [roleMap, setRoleMap] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const load = () => {
+      try {
+        const raw = window.localStorage.getItem("accounts.roleOverrides.v1");
+        setRoleMap(raw ? (JSON.parse(raw) as Record<string, string>) : {});
+      } catch {
+        setRoleMap({});
+      }
+    };
+    load();
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "accounts.roleOverrides.v1") load();
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const accounts = accountsRaw.filter((a) => {
+    const role = roleMap[a.id] ?? (a as { role?: string }).role ?? "active";
+    return role !== "discarded";
   });
 
   // Hidrata seleção padrão (todas as contas) se não havia persistido
@@ -122,6 +146,17 @@ export function DistributeTab() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accounts.length]);
+
+  // Remove contas descartadas da seleção persistida
+  useEffect(() => {
+    if (!accountsRaw.length) return;
+    const validIds = new Set(accounts.map((a) => a.id));
+    setSelectedAccounts((prev) => {
+      const filtered = prev.filter((id) => validIds.has(id));
+      return filtered.length === prev.length ? prev : filtered;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountsRaw, roleMap]);
 
   // Persiste preferências
   useEffect(() => {
