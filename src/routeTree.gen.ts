@@ -18,6 +18,8 @@ import { Route as ApiLoopsRouteImport } from './routes/api/loops'
 import { Route as ApiHistoryRouteImport } from './routes/api/history'
 import { Route as ApiContingencyRouteImport } from './routes/api/contingency'
 import { Route as ApiAccountsRouteImport } from './routes/api/accounts'
+import { Route as ApiMetaAppsRouteImport } from './routes/api/meta-apps'
+import { Route as ApiMetaAppsIdRouteImport } from './routes/api/meta-apps.$id'
 import { Route as AppWarmupRouteImport } from './routes/_app.warmup'
 import { Route as AppRankingRouteImport } from './routes/_app.ranking'
 import { Route as AppQueueRouteImport } from './routes/_app.queue'
@@ -88,6 +90,16 @@ const ApiAccountsRoute = ApiAccountsRouteImport.update({
   id: '/api/accounts',
   path: '/api/accounts',
   getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMetaAppsRoute = ApiMetaAppsRouteImport.update({
+  id: '/api/meta-apps',
+  path: '/api/meta-apps',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMetaAppsIdRoute = ApiMetaAppsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiMetaAppsRoute,
 } as any)
 const AppWarmupRoute = AppWarmupRouteImport.update({
   id: '/warmup',
@@ -233,10 +245,12 @@ export interface FileRoutesByFullPath {
   '/api/contingency': typeof ApiContingencyRouteWithChildren
   '/api/history': typeof ApiHistoryRouteWithChildren
   '/api/loops': typeof ApiLoopsRouteWithChildren
+  '/api/meta-apps': typeof ApiMetaAppsRouteWithChildren
   '/api/models': typeof ApiModelsRouteWithChildren
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/ranking': typeof ApiRankingRouteWithChildren
   '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
+  '/api/meta-apps/$id': typeof ApiMetaAppsIdRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
@@ -268,11 +282,13 @@ export interface FileRoutesByTo {
   '/api/contingency': typeof ApiContingencyRouteWithChildren
   '/api/history': typeof ApiHistoryRouteWithChildren
   '/api/loops': typeof ApiLoopsRouteWithChildren
+  '/api/meta-apps': typeof ApiMetaAppsRouteWithChildren
   '/api/models': typeof ApiModelsRouteWithChildren
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/ranking': typeof ApiRankingRouteWithChildren
   '/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
+  '/api/meta-apps/$id': typeof ApiMetaAppsIdRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
@@ -306,11 +322,13 @@ export interface FileRoutesById {
   '/api/contingency': typeof ApiContingencyRouteWithChildren
   '/api/history': typeof ApiHistoryRouteWithChildren
   '/api/loops': typeof ApiLoopsRouteWithChildren
+  '/api/meta-apps': typeof ApiMetaAppsRouteWithChildren
   '/api/models': typeof ApiModelsRouteWithChildren
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/ranking': typeof ApiRankingRouteWithChildren
   '/_app/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
+  '/api/meta-apps/$id': typeof ApiMetaAppsIdRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
@@ -348,7 +366,9 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/queue'
     | '/api/ranking'
+    | '/api/meta-apps'
     | '/api/accounts/$id'
+    | '/api/meta-apps/$id'
     | '/api/auth/callback'
     | '/api/auth/callback-ig'
     | '/api/auth/instagram'
@@ -383,8 +403,10 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/queue'
     | '/api/ranking'
+    | '/api/meta-apps'
     | '/'
     | '/api/accounts/$id'
+    | '/api/meta-apps/$id'
     | '/api/auth/callback'
     | '/api/auth/callback-ig'
     | '/api/auth/instagram'
@@ -420,8 +442,10 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/queue'
     | '/api/ranking'
+    | '/api/meta-apps'
     | '/_app/'
     | '/api/accounts/$id'
+    | '/api/meta-apps/$id'
     | '/api/auth/callback'
     | '/api/auth/callback-ig'
     | '/api/auth/instagram'
@@ -449,6 +473,7 @@ export interface RootRouteChildren {
   ApiContingencyRoute: typeof ApiContingencyRouteWithChildren
   ApiHistoryRoute: typeof ApiHistoryRouteWithChildren
   ApiLoopsRoute: typeof ApiLoopsRouteWithChildren
+  ApiMetaAppsRoute: typeof ApiMetaAppsRouteWithChildren
   ApiModelsRoute: typeof ApiModelsRouteWithChildren
   ApiQueueRoute: typeof ApiQueueRouteWithChildren
   ApiRankingRoute: typeof ApiRankingRouteWithChildren
@@ -498,6 +523,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/models'
       preLoaderRoute: typeof ApiModelsRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/meta-apps': {
+      id: '/api/meta-apps'
+      path: '/api/meta-apps'
+      fullPath: '/api/meta-apps'
+      preLoaderRoute: typeof ApiMetaAppsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/meta-apps/$id': {
+      id: '/api/meta-apps/$id'
+      path: '/$id'
+      fullPath: '/api/meta-apps/$id'
+      preLoaderRoute: typeof ApiMetaAppsIdRouteImport
+      parentRoute: typeof ApiMetaAppsRoute
     }
     '/api/loops': {
       id: '/api/loops'
@@ -847,12 +886,25 @@ const ApiAuthInstagramRouteChildren: ApiAuthInstagramRouteChildren = {
 const ApiAuthInstagramRouteWithChildren =
   ApiAuthInstagramRoute._addFileChildren(ApiAuthInstagramRouteChildren)
 
+interface ApiMetaAppsRouteChildren {
+  ApiMetaAppsIdRoute: typeof ApiMetaAppsIdRoute
+}
+
+const ApiMetaAppsRouteChildren: ApiMetaAppsRouteChildren = {
+  ApiMetaAppsIdRoute: ApiMetaAppsIdRoute,
+}
+
+const ApiMetaAppsRouteWithChildren = ApiMetaAppsRoute._addFileChildren(
+  ApiMetaAppsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   ApiAccountsRoute: ApiAccountsRouteWithChildren,
   ApiContingencyRoute: ApiContingencyRouteWithChildren,
   ApiHistoryRoute: ApiHistoryRouteWithChildren,
   ApiLoopsRoute: ApiLoopsRouteWithChildren,
+  ApiMetaAppsRoute: ApiMetaAppsRouteWithChildren,
   ApiModelsRoute: ApiModelsRouteWithChildren,
   ApiQueueRoute: ApiQueueRouteWithChildren,
   ApiRankingRoute: ApiRankingRouteWithChildren,
