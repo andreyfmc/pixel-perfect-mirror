@@ -1106,6 +1106,8 @@ function ListView({
   onReconnect,
   onRemove,
   onStatus,
+  models,
+  onAssignModel,
 }: RowHandlers) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-bg2">
