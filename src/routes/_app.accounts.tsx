@@ -325,6 +325,21 @@ function AccountsPage() {
     await api.setAccountModel(accountId, modelId);
     qc.invalidateQueries({ queryKey: ["accounts"] });
   }
+  async function bulkAssignModel(modelId: string | null) {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    const label =
+      modelId === null
+        ? "Sem modelo"
+        : models.find((m) => m.id === modelId)?.name ?? "modelo";
+    try {
+      await Promise.all(ids.map((id) => api.setAccountModel(id, modelId)));
+      toast.success(`${ids.length} conta(s) atribuída(s) a "${label}"`);
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+    } catch {
+      toast.error("Falha ao atribuir modelo em massa");
+    }
+  }
 
   // localStorage overrides
   const [roleMap, setRoleMap] = useState<Record<string, Role>>({});
