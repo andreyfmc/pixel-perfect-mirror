@@ -944,6 +944,8 @@ function AccountsPage() {
           onReconnect={(a) => handleConnect(a.provider ?? "facebook")}
           onRemove={removeAccount}
           onStatus={openStatus}
+          models={models}
+          onAssignModel={assignModel}
         />
       ) : (
         <GridView
