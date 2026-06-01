@@ -67,32 +67,6 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   return brandedErrorResponse();
 }
 
-function isPublicPath(pathname: string): boolean {
-  if (pathname === "/login") return true;
-  if (pathname.startsWith("/api/auth/")) return true;
-  if (pathname.startsWith("/api/public/")) return true;
-  if (pathname.startsWith("/_build/") || pathname.startsWith("/_server/")) return true;
-  if (pathname.startsWith("/assets/") || pathname.startsWith("/@")) return true;
-  // arquivos estáticos (têm extensão no último segmento)
-  const last = pathname.split("/").pop() ?? "";
-  if (last.includes(".")) return true;
-  return false;
-}
-
-async function guardAuth(request: Request): Promise<Response | null> {
-  const url = new URL(request.url);
-  if (isPublicPath(url.pathname)) return null;
-  const { isRequestAuthenticated } = await import("./lib/auth.server");
-  if (await isRequestAuthenticated(request)) return null;
-  const accept = request.headers.get("accept") ?? "";
-  if (accept.includes("text/html")) {
-    return new Response(null, { status: 302, headers: { Location: "/login" } });
-  }
-  return new Response(JSON.stringify({ error: "Não autenticado" }), {
-    status: 401,
-    headers: { "Content-Type": "application/json" },
-  });
-}
 
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
@@ -105,8 +79,6 @@ export default {
         const { rememberOrigin } = await import("./lib/scheduler.server");
         rememberOrigin(`${u.protocol}//${u.host}`);
       } catch {}
-      const blocked = await guardAuth(request);
-      if (blocked) return blocked;
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as ApiRankingRouteImport } from './routes/api/ranking'
@@ -35,8 +34,6 @@ import { Route as ApiLoopsIdRouteImport } from './routes/api/loops.$id'
 import { Route as ApiHistoryRefreshRouteImport } from './routes/api/history.refresh'
 import { Route as ApiCronTickRouteImport } from './routes/api/cron.tick'
 import { Route as ApiContingencyIdRouteImport } from './routes/api/contingency.$id'
-import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth.logout'
-import { Route as ApiAuthLoginRouteImport } from './routes/api/auth.login'
 import { Route as ApiAuthInstagramRouteImport } from './routes/api/auth.instagram'
 import { Route as ApiAuthCallbackIgRouteImport } from './routes/api/auth.callback-ig'
 import { Route as ApiAuthCallbackRouteImport } from './routes/api/auth.callback'
@@ -48,11 +45,6 @@ import { Route as ApiAuthInstagramCallbackRouteImport } from './routes/api/auth.
 import { Route as ApiAccountsIdValidateRouteImport } from './routes/api/accounts.$id.validate'
 import { Route as ApiAccountsIdStatusRouteImport } from './routes/api/accounts.$id.status'
 
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
@@ -177,16 +169,6 @@ const ApiContingencyIdRoute = ApiContingencyIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiContingencyRoute,
 } as any)
-const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
-  id: '/api/auth/logout',
-  path: '/api/auth/logout',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
-  id: '/api/auth/login',
-  path: '/api/auth/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAuthInstagramRoute = ApiAuthInstagramRouteImport.update({
   id: '/api/auth/instagram',
   path: '/api/auth/instagram',
@@ -241,7 +223,6 @@ const ApiAccountsIdStatusRoute = ApiAccountsIdStatusRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
-  '/login': typeof LoginRoute
   '/accounts': typeof AppAccountsRoute
   '/contingency': typeof AppContingencyRoute
   '/history': typeof AppHistoryRoute
@@ -259,8 +240,6 @@ export interface FileRoutesByFullPath {
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
-  '/api/auth/login': typeof ApiAuthLoginRoute
-  '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/contingency/$id': typeof ApiContingencyIdRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/history/refresh': typeof ApiHistoryRefreshRoute
@@ -279,7 +258,6 @@ export interface FileRoutesByFullPath {
   '/api/public/drive/$id': typeof ApiPublicDriveIdRoute
 }
 export interface FileRoutesByTo {
-  '/login': typeof LoginRoute
   '/accounts': typeof AppAccountsRoute
   '/contingency': typeof AppContingencyRoute
   '/history': typeof AppHistoryRoute
@@ -298,8 +276,6 @@ export interface FileRoutesByTo {
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
-  '/api/auth/login': typeof ApiAuthLoginRoute
-  '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/contingency/$id': typeof ApiContingencyIdRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/history/refresh': typeof ApiHistoryRefreshRoute
@@ -320,7 +296,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
-  '/login': typeof LoginRoute
   '/_app/accounts': typeof AppAccountsRoute
   '/_app/contingency': typeof AppContingencyRoute
   '/_app/history': typeof AppHistoryRoute
@@ -339,8 +314,6 @@ export interface FileRoutesById {
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
-  '/api/auth/login': typeof ApiAuthLoginRoute
-  '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/contingency/$id': typeof ApiContingencyIdRoute
   '/api/cron/tick': typeof ApiCronTickRoute
   '/api/history/refresh': typeof ApiHistoryRefreshRoute
@@ -362,7 +335,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/login'
     | '/accounts'
     | '/contingency'
     | '/history'
@@ -380,8 +352,6 @@ export interface FileRouteTypes {
     | '/api/auth/callback'
     | '/api/auth/callback-ig'
     | '/api/auth/instagram'
-    | '/api/auth/login'
-    | '/api/auth/logout'
     | '/api/contingency/$id'
     | '/api/cron/tick'
     | '/api/history/refresh'
@@ -400,7 +370,6 @@ export interface FileRouteTypes {
     | '/api/public/drive/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/login'
     | '/accounts'
     | '/contingency'
     | '/history'
@@ -419,8 +388,6 @@ export interface FileRouteTypes {
     | '/api/auth/callback'
     | '/api/auth/callback-ig'
     | '/api/auth/instagram'
-    | '/api/auth/login'
-    | '/api/auth/logout'
     | '/api/contingency/$id'
     | '/api/cron/tick'
     | '/api/history/refresh'
@@ -440,7 +407,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_app'
-    | '/login'
     | '/_app/accounts'
     | '/_app/contingency'
     | '/_app/history'
@@ -459,8 +425,6 @@ export interface FileRouteTypes {
     | '/api/auth/callback'
     | '/api/auth/callback-ig'
     | '/api/auth/instagram'
-    | '/api/auth/login'
-    | '/api/auth/logout'
     | '/api/contingency/$id'
     | '/api/cron/tick'
     | '/api/history/refresh'
@@ -481,7 +445,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
-  LoginRoute: typeof LoginRoute
   ApiAccountsRoute: typeof ApiAccountsRouteWithChildren
   ApiContingencyRoute: typeof ApiContingencyRouteWithChildren
   ApiHistoryRoute: typeof ApiHistoryRouteWithChildren
@@ -492,8 +455,6 @@ export interface RootRouteChildren {
   ApiAuthCallbackRoute: typeof ApiAuthCallbackRoute
   ApiAuthCallbackIgRoute: typeof ApiAuthCallbackIgRoute
   ApiAuthInstagramRoute: typeof ApiAuthInstagramRouteWithChildren
-  ApiAuthLoginRoute: typeof ApiAuthLoginRoute
-  ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiCronTickRoute: typeof ApiCronTickRoute
   ApiMediaUploadRoute: typeof ApiMediaUploadRoute
   ApiVariantsBuildRoute: typeof ApiVariantsBuildRoute
@@ -503,13 +464,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_app': {
       id: '/_app'
       path: ''
@@ -684,20 +638,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/contingency/$id'
       preLoaderRoute: typeof ApiContingencyIdRouteImport
       parentRoute: typeof ApiContingencyRoute
-    }
-    '/api/auth/logout': {
-      id: '/api/auth/logout'
-      path: '/api/auth/logout'
-      fullPath: '/api/auth/logout'
-      preLoaderRoute: typeof ApiAuthLogoutRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/auth/login': {
-      id: '/api/auth/login'
-      path: '/api/auth/login'
-      fullPath: '/api/auth/login'
-      preLoaderRoute: typeof ApiAuthLoginRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/api/auth/instagram': {
       id: '/api/auth/instagram'
@@ -909,7 +849,6 @@ const ApiAuthInstagramRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
-  LoginRoute: LoginRoute,
   ApiAccountsRoute: ApiAccountsRouteWithChildren,
   ApiContingencyRoute: ApiContingencyRouteWithChildren,
   ApiHistoryRoute: ApiHistoryRouteWithChildren,
@@ -920,8 +859,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthCallbackRoute: ApiAuthCallbackRoute,
   ApiAuthCallbackIgRoute: ApiAuthCallbackIgRoute,
   ApiAuthInstagramRoute: ApiAuthInstagramRouteWithChildren,
-  ApiAuthLoginRoute: ApiAuthLoginRoute,
-  ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiCronTickRoute: ApiCronTickRoute,
   ApiMediaUploadRoute: ApiMediaUploadRoute,
   ApiVariantsBuildRoute: ApiVariantsBuildRoute,
@@ -931,3 +868,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
