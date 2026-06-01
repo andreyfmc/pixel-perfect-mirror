@@ -363,6 +363,7 @@ function AccountsPage() {
 
   // UI state
   const [tab, setTab] = useState<Role>("active");
+  const [modelFilter, setModelFilter] = useState<"all" | "none" | string>("all");
   const [view, setView] = useState<View>("list");
   const [sortKey, setSortKey] = useState<SortKey>("followers");
   const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
