@@ -40,6 +40,16 @@ export function AppSidebar() {
     queryFn: () => api.listAccounts(),
   });
 
+  // Lê os role overrides do localStorage (mesmo formato de _app.accounts.tsx)
+  const roleMap: Record<string, string> = (() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(localStorage.getItem("accounts.roleOverrides.v1") || "{}"); } catch { return {}; }
+  })();
+
+  const visibleAccounts = accounts.filter((a) => {
+    const role = roleMap[a.id] ?? (a as { role?: string }).role ?? "active";
+    return role !== "discarded";
+  });
 
   return (
     <aside className="hidden md:flex sticky top-0 h-screen w-64 shrink-0 flex-col border-r border-border bg-bg2">
@@ -82,8 +92,14 @@ export function AppSidebar() {
 
       <div className="mt-6 px-5">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted2">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted2 flex items-center gap-1.5">
             Contas
+            <span
+              className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none"
+              style={{ background: "color-mix(in oklab, var(--accent2) 15%, transparent)", color: "var(--accent2)" }}
+            >
+              {visibleAccounts.length}
+            </span>
           </span>
           <button
             type="button"
@@ -96,7 +112,7 @@ export function AppSidebar() {
       </div>
 
       <ul className="mt-3 space-y-1 px-3 overflow-y-auto flex-1">
-        {accounts.map((a) => (
+        {visibleAccounts.map((a) => (
           <li key={a.id}>
             <button className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-bg3">
               <div className="relative">
