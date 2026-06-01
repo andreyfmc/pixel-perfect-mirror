@@ -1230,6 +1230,8 @@ function ListView({
                 onTogglePaused={() => onTogglePaused(a.id)}
                 onRemove={() => onRemove(a)}
                 onStatus={() => onStatus(a)}
+                models={models}
+                onAssignModel={onAssignModel}
               />
             )}
           </div>
