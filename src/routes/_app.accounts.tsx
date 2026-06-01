@@ -455,7 +455,7 @@ function AccountsPage() {
         break;
     }
     return arr;
-  }, [accounts, tab, query, healthFilter, sortKey]);
+  }, [accounts, tab, modelFilter, query, healthFilter, sortKey]);
 
   // Reset selection when tab/filters change drastically
   const tabRef = useRef(tab);
