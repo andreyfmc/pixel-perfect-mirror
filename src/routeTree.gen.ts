@@ -14,13 +14,13 @@ import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as ApiRankingRouteImport } from './routes/api/ranking'
 import { Route as ApiQueueRouteImport } from './routes/api/queue'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
+import { Route as ApiMetaAppsRouteImport } from './routes/api/meta-apps'
 import { Route as ApiLoopsRouteImport } from './routes/api/loops'
 import { Route as ApiHistoryRouteImport } from './routes/api/history'
 import { Route as ApiContingencyRouteImport } from './routes/api/contingency'
 import { Route as ApiAccountsRouteImport } from './routes/api/accounts'
-import { Route as ApiMetaAppsRouteImport } from './routes/api/meta-apps'
-import { Route as ApiMetaAppsIdRouteImport } from './routes/api/meta-apps.$id'
 import { Route as AppWarmupRouteImport } from './routes/_app.warmup'
+import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppRankingRouteImport } from './routes/_app.ranking'
 import { Route as AppQueueRouteImport } from './routes/_app.queue'
 import { Route as AppHistoryRouteImport } from './routes/_app.history'
@@ -31,6 +31,7 @@ import { Route as ApiRankingDailyRouteImport } from './routes/api/ranking.daily'
 import { Route as ApiQueueClearRouteImport } from './routes/api/queue.clear'
 import { Route as ApiQueueIdRouteImport } from './routes/api/queue.$id'
 import { Route as ApiModelsIdRouteImport } from './routes/api/models.$id'
+import { Route as ApiMetaAppsIdRouteImport } from './routes/api/meta-apps.$id'
 import { Route as ApiMediaUploadRouteImport } from './routes/api/media.upload'
 import { Route as ApiLoopsIdRouteImport } from './routes/api/loops.$id'
 import { Route as ApiHistoryRefreshRouteImport } from './routes/api/history.refresh'
@@ -71,6 +72,11 @@ const ApiModelsRoute = ApiModelsRouteImport.update({
   path: '/api/models',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMetaAppsRoute = ApiMetaAppsRouteImport.update({
+  id: '/api/meta-apps',
+  path: '/api/meta-apps',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiLoopsRoute = ApiLoopsRouteImport.update({
   id: '/api/loops',
   path: '/api/loops',
@@ -91,19 +97,14 @@ const ApiAccountsRoute = ApiAccountsRouteImport.update({
   path: '/api/accounts',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiMetaAppsRoute = ApiMetaAppsRouteImport.update({
-  id: '/api/meta-apps',
-  path: '/api/meta-apps',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiMetaAppsIdRoute = ApiMetaAppsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => ApiMetaAppsRoute,
-} as any)
 const AppWarmupRoute = AppWarmupRouteImport.update({
   id: '/warmup',
   path: '/warmup',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
 const AppRankingRoute = AppRankingRouteImport.update({
@@ -155,6 +156,11 @@ const ApiModelsIdRoute = ApiModelsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => ApiModelsRoute,
+} as any)
+const ApiMetaAppsIdRoute = ApiMetaAppsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiMetaAppsRoute,
 } as any)
 const ApiMediaUploadRoute = ApiMediaUploadRouteImport.update({
   id: '/api/media/upload',
@@ -240,6 +246,7 @@ export interface FileRoutesByFullPath {
   '/history': typeof AppHistoryRoute
   '/queue': typeof AppQueueRoute
   '/ranking': typeof AppRankingRoute
+  '/settings': typeof AppSettingsRoute
   '/warmup': typeof AppWarmupRoute
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
@@ -250,7 +257,6 @@ export interface FileRoutesByFullPath {
   '/api/queue': typeof ApiQueueRouteWithChildren
   '/api/ranking': typeof ApiRankingRouteWithChildren
   '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
-  '/api/meta-apps/$id': typeof ApiMetaAppsIdRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
@@ -259,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/api/history/refresh': typeof ApiHistoryRefreshRoute
   '/api/loops/$id': typeof ApiLoopsIdRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
+  '/api/meta-apps/$id': typeof ApiMetaAppsIdRoute
   '/api/models/$id': typeof ApiModelsIdRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
@@ -277,6 +284,7 @@ export interface FileRoutesByTo {
   '/history': typeof AppHistoryRoute
   '/queue': typeof AppQueueRoute
   '/ranking': typeof AppRankingRoute
+  '/settings': typeof AppSettingsRoute
   '/warmup': typeof AppWarmupRoute
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
@@ -288,7 +296,6 @@ export interface FileRoutesByTo {
   '/api/ranking': typeof ApiRankingRouteWithChildren
   '/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
-  '/api/meta-apps/$id': typeof ApiMetaAppsIdRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
@@ -297,6 +304,7 @@ export interface FileRoutesByTo {
   '/api/history/refresh': typeof ApiHistoryRefreshRoute
   '/api/loops/$id': typeof ApiLoopsIdRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
+  '/api/meta-apps/$id': typeof ApiMetaAppsIdRoute
   '/api/models/$id': typeof ApiModelsIdRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
@@ -317,6 +325,7 @@ export interface FileRoutesById {
   '/_app/history': typeof AppHistoryRoute
   '/_app/queue': typeof AppQueueRoute
   '/_app/ranking': typeof AppRankingRoute
+  '/_app/settings': typeof AppSettingsRoute
   '/_app/warmup': typeof AppWarmupRoute
   '/api/accounts': typeof ApiAccountsRouteWithChildren
   '/api/contingency': typeof ApiContingencyRouteWithChildren
@@ -328,7 +337,6 @@ export interface FileRoutesById {
   '/api/ranking': typeof ApiRankingRouteWithChildren
   '/_app/': typeof AppIndexRoute
   '/api/accounts/$id': typeof ApiAccountsIdRouteWithChildren
-  '/api/meta-apps/$id': typeof ApiMetaAppsIdRoute
   '/api/auth/callback': typeof ApiAuthCallbackRoute
   '/api/auth/callback-ig': typeof ApiAuthCallbackIgRoute
   '/api/auth/instagram': typeof ApiAuthInstagramRouteWithChildren
@@ -337,6 +345,7 @@ export interface FileRoutesById {
   '/api/history/refresh': typeof ApiHistoryRefreshRoute
   '/api/loops/$id': typeof ApiLoopsIdRoute
   '/api/media/upload': typeof ApiMediaUploadRoute
+  '/api/meta-apps/$id': typeof ApiMetaAppsIdRoute
   '/api/models/$id': typeof ApiModelsIdRoute
   '/api/queue/$id': typeof ApiQueueIdRoute
   '/api/queue/clear': typeof ApiQueueClearRoute
@@ -358,17 +367,17 @@ export interface FileRouteTypes {
     | '/history'
     | '/queue'
     | '/ranking'
+    | '/settings'
     | '/warmup'
     | '/api/accounts'
     | '/api/contingency'
     | '/api/history'
     | '/api/loops'
+    | '/api/meta-apps'
     | '/api/models'
     | '/api/queue'
     | '/api/ranking'
-    | '/api/meta-apps'
     | '/api/accounts/$id'
-    | '/api/meta-apps/$id'
     | '/api/auth/callback'
     | '/api/auth/callback-ig'
     | '/api/auth/instagram'
@@ -377,6 +386,7 @@ export interface FileRouteTypes {
     | '/api/history/refresh'
     | '/api/loops/$id'
     | '/api/media/upload'
+    | '/api/meta-apps/$id'
     | '/api/models/$id'
     | '/api/queue/$id'
     | '/api/queue/clear'
@@ -395,18 +405,18 @@ export interface FileRouteTypes {
     | '/history'
     | '/queue'
     | '/ranking'
+    | '/settings'
     | '/warmup'
     | '/api/accounts'
     | '/api/contingency'
     | '/api/history'
     | '/api/loops'
+    | '/api/meta-apps'
     | '/api/models'
     | '/api/queue'
     | '/api/ranking'
-    | '/api/meta-apps'
     | '/'
     | '/api/accounts/$id'
-    | '/api/meta-apps/$id'
     | '/api/auth/callback'
     | '/api/auth/callback-ig'
     | '/api/auth/instagram'
@@ -415,6 +425,7 @@ export interface FileRouteTypes {
     | '/api/history/refresh'
     | '/api/loops/$id'
     | '/api/media/upload'
+    | '/api/meta-apps/$id'
     | '/api/models/$id'
     | '/api/queue/$id'
     | '/api/queue/clear'
@@ -434,18 +445,18 @@ export interface FileRouteTypes {
     | '/_app/history'
     | '/_app/queue'
     | '/_app/ranking'
+    | '/_app/settings'
     | '/_app/warmup'
     | '/api/accounts'
     | '/api/contingency'
     | '/api/history'
     | '/api/loops'
+    | '/api/meta-apps'
     | '/api/models'
     | '/api/queue'
     | '/api/ranking'
-    | '/api/meta-apps'
     | '/_app/'
     | '/api/accounts/$id'
-    | '/api/meta-apps/$id'
     | '/api/auth/callback'
     | '/api/auth/callback-ig'
     | '/api/auth/instagram'
@@ -454,6 +465,7 @@ export interface FileRouteTypes {
     | '/api/history/refresh'
     | '/api/loops/$id'
     | '/api/media/upload'
+    | '/api/meta-apps/$id'
     | '/api/models/$id'
     | '/api/queue/$id'
     | '/api/queue/clear'
@@ -531,13 +543,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMetaAppsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/meta-apps/$id': {
-      id: '/api/meta-apps/$id'
-      path: '/$id'
-      fullPath: '/api/meta-apps/$id'
-      preLoaderRoute: typeof ApiMetaAppsIdRouteImport
-      parentRoute: typeof ApiMetaAppsRoute
-    }
     '/api/loops': {
       id: '/api/loops'
       path: '/api/loops'
@@ -571,6 +576,13 @@ declare module '@tanstack/react-router' {
       path: '/warmup'
       fullPath: '/warmup'
       preLoaderRoute: typeof AppWarmupRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/ranking': {
@@ -642,6 +654,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/models/$id'
       preLoaderRoute: typeof ApiModelsIdRouteImport
       parentRoute: typeof ApiModelsRoute
+    }
+    '/api/meta-apps/$id': {
+      id: '/api/meta-apps/$id'
+      path: '/$id'
+      fullPath: '/api/meta-apps/$id'
+      preLoaderRoute: typeof ApiMetaAppsIdRouteImport
+      parentRoute: typeof ApiMetaAppsRoute
     }
     '/api/media/upload': {
       id: '/api/media/upload'
@@ -757,6 +776,7 @@ interface AppRouteChildren {
   AppHistoryRoute: typeof AppHistoryRoute
   AppQueueRoute: typeof AppQueueRoute
   AppRankingRoute: typeof AppRankingRoute
+  AppSettingsRoute: typeof AppSettingsRoute
   AppWarmupRoute: typeof AppWarmupRoute
   AppIndexRoute: typeof AppIndexRoute
 }
@@ -767,6 +787,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppHistoryRoute: AppHistoryRoute,
   AppQueueRoute: AppQueueRoute,
   AppRankingRoute: AppRankingRoute,
+  AppSettingsRoute: AppSettingsRoute,
   AppWarmupRoute: AppWarmupRoute,
   AppIndexRoute: AppIndexRoute,
 }
@@ -835,6 +856,18 @@ const ApiLoopsRouteWithChildren = ApiLoopsRoute._addFileChildren(
   ApiLoopsRouteChildren,
 )
 
+interface ApiMetaAppsRouteChildren {
+  ApiMetaAppsIdRoute: typeof ApiMetaAppsIdRoute
+}
+
+const ApiMetaAppsRouteChildren: ApiMetaAppsRouteChildren = {
+  ApiMetaAppsIdRoute: ApiMetaAppsIdRoute,
+}
+
+const ApiMetaAppsRouteWithChildren = ApiMetaAppsRoute._addFileChildren(
+  ApiMetaAppsRouteChildren,
+)
+
 interface ApiModelsRouteChildren {
   ApiModelsIdRoute: typeof ApiModelsIdRoute
 }
@@ -886,18 +919,6 @@ const ApiAuthInstagramRouteChildren: ApiAuthInstagramRouteChildren = {
 const ApiAuthInstagramRouteWithChildren =
   ApiAuthInstagramRoute._addFileChildren(ApiAuthInstagramRouteChildren)
 
-interface ApiMetaAppsRouteChildren {
-  ApiMetaAppsIdRoute: typeof ApiMetaAppsIdRoute
-}
-
-const ApiMetaAppsRouteChildren: ApiMetaAppsRouteChildren = {
-  ApiMetaAppsIdRoute: ApiMetaAppsIdRoute,
-}
-
-const ApiMetaAppsRouteWithChildren = ApiMetaAppsRoute._addFileChildren(
-  ApiMetaAppsRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   ApiAccountsRoute: ApiAccountsRouteWithChildren,
@@ -920,13 +941,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

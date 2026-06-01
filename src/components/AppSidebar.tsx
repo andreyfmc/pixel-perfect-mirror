@@ -10,6 +10,7 @@ import {
   Plus,
   Sparkles,
   Trophy,
+  Settings,
   
 } from "lucide-react";
 import { api } from "@/lib/api-client";
@@ -23,6 +24,7 @@ const nav = [
   { to: "/history", label: "Histórico", icon: History, emoji: "📚" },
   { to: "/warmup", label: "Warmup", icon: Flame, emoji: "🔥" },
   { to: "/contingency", label: "Contingência", icon: ShieldAlert, emoji: "🛡️" },
+  { to: "/settings", label: "Configurações", icon: Settings, emoji: "⚙️" },
 ] as const;
 
 function healthColor(score: number) {
