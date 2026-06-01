@@ -1381,6 +1381,8 @@ function AccountMenu({
   onTogglePaused,
   onRemove,
   onStatus,
+  models,
+  onAssignModel,
 }: {
   a: Account;
   tab: Role;
@@ -1391,6 +1393,8 @@ function AccountMenu({
   onTogglePaused: () => void;
   onRemove: () => void;
   onStatus: () => void;
+  models: Model[];
+  onAssignModel: (accountId: string, modelId: string | null) => void;
 }) {
   return (
     <DropdownMenu>
