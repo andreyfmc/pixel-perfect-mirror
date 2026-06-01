@@ -1463,9 +1463,6 @@ function AccountMenu({
           {(a.provider ?? "facebook") === "facebook" ? "Facebook" : "Instagram"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem
-          className="text-danger focus:text-danger"
-        <DropdownMenuSeparator />
         <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted2">
           Atribuir a modelo
         </div>
