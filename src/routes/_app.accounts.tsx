@@ -1299,11 +1299,14 @@ function GridView({
             </div>
 
             <div className="mt-auto flex items-center justify-between gap-1.5">
-              {a.paused && (
-                <span className="rounded-full border border-muted/40 bg-muted/10 px-1.5 py-0.5 text-[10px] font-semibold text-text2">
-                  Pausada
-                </span>
-              )}
+              <div className="flex flex-wrap items-center gap-1">
+                {a.paused && (
+                  <span className="rounded-full border border-muted/40 bg-muted/10 px-1.5 py-0.5 text-[10px] font-semibold text-text2">
+                    Pausada
+                  </span>
+                )}
+                <ModelBadge model={models.find((m) => m.id === a.model_id)} />
+              </div>
               {!isConfirming && (
                 <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                   <Link
