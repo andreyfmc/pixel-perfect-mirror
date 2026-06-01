@@ -2,14 +2,13 @@
 // Valida o state, troca code → token curto → token longo, busca perfil e
 // salva a conta. Redireciona para /accounts?connected=@username em caso
 // de sucesso, ou devolve uma página de erro clara.
+//
+// ATUALIZADO: lê meta_app_id do oauth_state e usa o app correto para trocar o code.
 
 import { createFileRoute } from "@tanstack/react-router";
 import { ensureEnv } from "@/lib/cf.server";
 import { db } from "@/lib/db.server";
-import {
-  getInstagramClientId,
-  getInstagramClientSecret,
-} from "@/lib/instagram.server";
+import { resolveAppCredentials } from "@/lib/oauth.server";
 
 function errorPage(title: string, message: string): Response {
   const html = `<!doctype html><meta charset="utf-8"><title>${title}</title>
@@ -70,10 +69,7 @@ async function fetchProfile(token: string): Promise<{
   profilePicture: string;
 }> {
   const u = new URL("https://graph.instagram.com/me");
-  u.searchParams.set(
-    "fields",
-    "id,username,profile_picture_url,account_type",
-  );
+  u.searchParams.set("fields", "id,username,profile_picture_url,account_type");
   u.searchParams.set("access_token", token);
   const r = await fetch(u);
   const j = (await r.json()) as {
@@ -106,14 +102,8 @@ export const Route = createFileRoute("/api/auth/instagram/callback")({
         }
         try {
           await ensureEnv();
-          const clientId = getInstagramClientId();
-          const clientSecret = getInstagramClientSecret();
-          if (!clientId || !clientSecret) {
-            return errorPage(
-              "Configuração ausente",
-              "META_IG_APP_ID/META_IG_APP_SECRET não estão definidos no worker.",
-            );
-          }
+
+          // Valida e consome o state OAuth
           const stateRow = await db.takeOAuthState(state);
           if (!stateRow.ok) {
             return errorPage(
@@ -121,20 +111,29 @@ export const Route = createFileRoute("/api/auth/instagram/callback")({
               "Este link de conexão não é mais válido. Gere um novo link no painel e tente de novo.",
             );
           }
-          const redirectUri = stateRow.redirectUri!;
+
+          // Recupera o meta_app_id gravado no state (pode ser null em contas antigas)
+          const metaAppId = await db.getOAuthStateMeta(state).catch(() => null);
+
+          // Resolve credenciais do app: usa o app do state, ou o menos carregado, ou env
+          const creds = await resolveAppCredentials("instagram", metaAppId);
+
+          const redirectUriUsed = stateRow.redirectUri!;
+
           const short = await exchangeCodeForShortToken({
-            clientId,
-            clientSecret,
-            redirectUri,
+            clientId: creds.client_id,
+            clientSecret: creds.client_secret,
+            redirectUri: redirectUriUsed,
             code,
           });
           const long = await exchangeForLongToken({
-            clientId,
-            clientSecret,
+            clientId: creds.client_id,
+            clientSecret: creds.client_secret,
             shortToken: short.accessToken,
           });
           const profile = await fetchProfile(long.accessToken);
           const expiresAt = new Date(Date.now() + long.expiresIn * 1000).toISOString();
+
           await db.createAccount({
             id: crypto.randomUUID(),
             username: profile.username,
@@ -146,7 +145,10 @@ export const Route = createFileRoute("/api/auth/instagram/callback")({
             provider: "instagram",
             followers: 0,
             health_score: 90,
-          });
+            // Vincula ao app usado neste fluxo OAuth
+            meta_app_id: creds.app_id.startsWith("env-") ? undefined : creds.app_id,
+          } as Parameters<typeof db.createAccount>[0]);
+
           return new Response(null, {
             status: 302,
             headers: {
