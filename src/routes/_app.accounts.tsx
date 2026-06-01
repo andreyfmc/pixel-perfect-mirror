@@ -196,6 +196,23 @@ function StatusBadge({ status }: { status: AccountStatusReport["status"] }) {
   );
 }
 
+function ModelBadge({ model }: { model: Model | undefined }) {
+  if (!model) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap"
+      style={{
+        background: `color-mix(in oklab, ${model.color} 18%, transparent)`,
+        color: model.color,
+        border: `1px solid ${model.color}`,
+      }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: model.color }} />
+      {model.name}
+    </span>
+  );
+}
+
 // -------------- Connect Modal --------------
 function ConnectDialog({
   loading,
