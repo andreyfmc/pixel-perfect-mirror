@@ -196,6 +196,23 @@ function StatusBadge({ status }: { status: AccountStatusReport["status"] }) {
   );
 }
 
+function ModelBadge({ model }: { model: Model | undefined }) {
+  if (!model) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap"
+      style={{
+        background: `color-mix(in oklab, ${model.color} 18%, transparent)`,
+        color: model.color,
+        border: `1px solid ${model.color}`,
+      }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: model.color }} />
+      {model.name}
+    </span>
+  );
+}
+
 // -------------- Connect Modal --------------
 function ConnectDialog({
   loading,
@@ -346,6 +363,7 @@ function AccountsPage() {
 
   // UI state
   const [tab, setTab] = useState<Role>("active");
+  const [modelFilter, setModelFilter] = useState<"all" | "none" | string>("all");
   const [view, setView] = useState<View>("list");
   const [sortKey, setSortKey] = useState<SortKey>("followers");
   const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
@@ -403,6 +421,11 @@ function AccountsPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = accounts.filter((a) => a.role === tab);
+    if (modelFilter === "none") {
+      list = list.filter((a) => !a.model_id);
+    } else if (modelFilter !== "all") {
+      list = list.filter((a) => a.model_id === modelFilter);
+    }
     if (q) {
       list = list.filter(
         (a) =>
@@ -432,7 +455,7 @@ function AccountsPage() {
         break;
     }
     return arr;
-  }, [accounts, tab, query, healthFilter, sortKey]);
+  }, [accounts, tab, modelFilter, query, healthFilter, sortKey]);
 
   // Reset selection when tab/filters change drastically
   const tabRef = useRef(tab);
@@ -760,6 +783,46 @@ function AccountsPage() {
         </div>
       </div>
 
+      {/* ============ Model filter ============ */}
+      {(models.length > 0 || accounts.some((a) => !a.model_id)) && (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          {([
+            { id: "all" as const, label: "Todas", color: null, count: accounts.filter((a) => a.role === tab).length },
+            ...models.map((m) => ({
+              id: m.id,
+              label: m.name,
+              color: m.color,
+              count: accounts.filter((a) => a.role === tab && a.model_id === m.id).length,
+            })),
+            { id: "none" as const, label: "Sem modelo", color: null, count: accounts.filter((a) => a.role === tab && !a.model_id).length },
+          ]).map((f) => {
+            const active = modelFilter === f.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setModelFilter(f.id)}
+                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
+                style={{
+                  borderColor: active
+                    ? f.color ?? "var(--accent2)"
+                    : "var(--border)",
+                  background: active
+                    ? `color-mix(in oklab, ${f.color ?? "var(--accent2)"} 18%, transparent)`
+                    : "var(--bg3)",
+                  color: active ? f.color ?? "var(--accent2)" : "var(--text2)",
+                }}
+              >
+                {f.color && (
+                  <span className="h-2 w-2 rounded-full" style={{ background: f.color }} />
+                )}
+                {f.label}
+                <span className="tabular-nums text-[10px] opacity-70">{f.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* ============ Filters ============ */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <label className="relative block min-w-[220px] flex-1">
@@ -881,6 +944,8 @@ function AccountsPage() {
           onReconnect={(a) => handleConnect(a.provider ?? "facebook")}
           onRemove={removeAccount}
           onStatus={openStatus}
+          models={models}
+          onAssignModel={assignModel}
         />
       ) : (
         <GridView
@@ -899,6 +964,8 @@ function AccountsPage() {
           onRemove={removeAccount}
           onTogglePaused={togglePaused}
           onStatus={openStatus}
+          models={models}
+          onAssignModel={assignModel}
         />
       )}
 
@@ -1021,6 +1088,8 @@ type RowHandlers = {
   onReconnect: (a: Account) => void;
   onRemove: (a: Account) => void;
   onStatus: (a: Account) => void;
+  models: Model[];
+  onAssignModel: (accountId: string, modelId: string | null) => void;
 };
 
 function ListView({
@@ -1037,6 +1106,8 @@ function ListView({
   onReconnect,
   onRemove,
   onStatus,
+  models,
+  onAssignModel,
 }: RowHandlers) {
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-bg2">
@@ -1078,6 +1149,7 @@ function ListView({
                     Token expirado
                   </span>
                 )}
+                <ModelBadge model={models.find((m) => m.id === a.model_id)} />
               </div>
               <p className="truncate text-[11px] text-muted2">{a.name}</p>
             </div>
@@ -1158,6 +1230,8 @@ function ListView({
                 onTogglePaused={() => onTogglePaused(a.id)}
                 onRemove={() => onRemove(a)}
                 onStatus={() => onStatus(a)}
+                models={models}
+                onAssignModel={onAssignModel}
               />
             )}
           </div>
@@ -1181,6 +1255,8 @@ function GridView({
   onRemove,
   onTogglePaused,
   onStatus,
+  models,
+  onAssignModel,
 }: Omit<RowHandlers, "now">) {
   return (
     <div
@@ -1223,11 +1299,14 @@ function GridView({
             </div>
 
             <div className="mt-auto flex items-center justify-between gap-1.5">
-              {a.paused && (
-                <span className="rounded-full border border-muted/40 bg-muted/10 px-1.5 py-0.5 text-[10px] font-semibold text-text2">
-                  Pausada
-                </span>
-              )}
+              <div className="flex flex-wrap items-center gap-1">
+                {a.paused && (
+                  <span className="rounded-full border border-muted/40 bg-muted/10 px-1.5 py-0.5 text-[10px] font-semibold text-text2">
+                    Pausada
+                  </span>
+                )}
+                <ModelBadge model={models.find((m) => m.id === a.model_id)} />
+              </div>
               {!isConfirming && (
                 <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                   <Link
@@ -1252,6 +1331,8 @@ function GridView({
                     onTogglePaused={() => onTogglePaused(a.id)}
                     onRemove={() => onRemove(a)}
                     onStatus={() => onStatus(a)}
+                    models={models}
+                    onAssignModel={onAssignModel}
                   />
                 </div>
               )}
@@ -1300,6 +1381,8 @@ function AccountMenu({
   onTogglePaused,
   onRemove,
   onStatus,
+  models,
+  onAssignModel,
 }: {
   a: Account;
   tab: Role;
@@ -1310,6 +1393,8 @@ function AccountMenu({
   onTogglePaused: () => void;
   onRemove: () => void;
   onStatus: () => void;
+  models: Model[];
+  onAssignModel: (accountId: string, modelId: string | null) => void;
 }) {
   return (
     <DropdownMenu>
@@ -1377,6 +1462,42 @@ function AccountMenu({
           <RefreshCw className="mr-2 h-4 w-4" /> Reconectar via{" "}
           {(a.provider ?? "facebook") === "facebook" ? "Facebook" : "Instagram"}
         </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted2">
+          Atribuir a modelo
+        </div>
+        {models.length === 0 && (
+          <div className="px-2 pb-1 text-[11px] text-muted2">Nenhuma modelo criada</div>
+        )}
+        {models.map((m) => {
+          const selectedModel = a.model_id === m.id;
+          return (
+            <DropdownMenuItem
+              key={m.id}
+              onSelect={(e) => {
+                e.preventDefault();
+                onAssignModel(a.id, selectedModel ? null : m.id);
+              }}
+            >
+              <span
+                className="mr-2 inline-block h-3 w-3 rounded-full"
+                style={{ background: m.color }}
+              />
+              {m.name}
+              {selectedModel && <Check className="ml-auto h-3.5 w-3.5" />}
+            </DropdownMenuItem>
+          );
+        })}
+        {a.model_id && (
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              onAssignModel(a.id, null);
+            }}
+          >
+            <X className="mr-2 h-4 w-4" /> Remover da modelo
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-danger focus:text-danger"
