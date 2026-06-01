@@ -23,6 +23,7 @@ import {
   Trash2,
   CalendarDays,
   ExternalLink,
+  Server,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -102,6 +103,24 @@ function AccountAvatar({
     >
       {initialsOf(name)}
     </div>
+  );
+}
+
+function MetaAppNameBadge({ name }: { name: string | null | undefined }) {
+  if (!name) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
+      style={{
+        background: "color-mix(in oklab, var(--accent2) 12%, transparent)",
+        color: "var(--accent2)",
+        border: "1px solid color-mix(in oklab, var(--accent2) 25%, transparent)",
+      }}
+      title={`App usado: ${name}`}
+    >
+      <Server className="h-2.5 w-2.5" />
+      {name}
+    </span>
   );
 }
 
@@ -516,6 +535,11 @@ function HistoryPage() {
                     {h.caption || <em className="text-muted2">sem legenda</em>}
                   </p>
                   <div className="mt-1 text-[10px] text-muted2">{fmtDateTime(h.published_at)}</div>
+                  {(h as { meta_app_name?: string | null }).meta_app_name && (
+                    <div className="mt-1">
+                      <MetaAppNameBadge name={(h as { meta_app_name?: string | null }).meta_app_name} />
+                    </div>
+                  )}
                   <div className="mt-2 flex items-center gap-4 text-[12px] tabular-nums text-text2">
                     <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{h.reach}</span>
                     <span className="inline-flex items-center gap-1"><Heart className="h-3.5 w-3.5" />{h.likes}</span>
@@ -568,6 +592,7 @@ function HistoryPage() {
                     )}
                   </button>
                 </th>
+                <th className="px-4 py-3 text-left font-medium">App</th>
                 <th className="px-4 py-3 text-right font-medium">
                   <SortBtn k="reach" label="Alcance" />
                 </th>
@@ -582,7 +607,7 @@ function HistoryPage() {
             <tbody>
               {pageItems.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-12 text-center text-sm text-text2">
+                  <td colSpan={8} className="px-4 py-12 text-center text-sm text-text2">
                     Nenhum post encontrado com os filtros atuais.
                   </td>
                 </tr>
@@ -626,6 +651,9 @@ function HistoryPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-text2">{fmtDateTime(h.published_at)}</td>
+                      <td className="px-4 py-3">
+                        <MetaAppNameBadge name={(h as { meta_app_name?: string | null }).meta_app_name} />
+                      </td>
                       <td className="px-4 py-3 text-right tabular-nums">
                         <MetricCell value={h.reach} icon={Eye} tooltip={syncTooltip} />
                       </td>
