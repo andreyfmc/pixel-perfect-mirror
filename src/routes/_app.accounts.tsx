@@ -964,6 +964,8 @@ function AccountsPage() {
           onRemove={removeAccount}
           onTogglePaused={togglePaused}
           onStatus={openStatus}
+          models={models}
+          onAssignModel={assignModel}
         />
       )}
 
