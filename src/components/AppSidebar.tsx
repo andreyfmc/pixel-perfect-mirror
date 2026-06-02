@@ -41,6 +41,9 @@ export function AppSidebar() {
   });
   const [hideData] = useHideData();
 
+  // Filtra descartadas no frontend também (segurança dupla)
+  const activeAccounts = accounts.filter((a: any) => a.role !== "discarded");
+
   return (
     <aside className="hidden md:flex sticky top-0 h-screen w-64 shrink-0 flex-col border-r border-border bg-bg2">
       <div className="flex items-center gap-2.5 px-5 py-5">
@@ -82,8 +85,18 @@ export function AppSidebar() {
 
       <div className="mt-6 px-5">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted2">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted2 flex items-center gap-1.5">
             Contas
+            <span
+              className="rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+              style={{
+                background: "rgba(34,197,94,0.15)",
+                border: "1px solid rgba(34,197,94,0.35)",
+                color: "var(--success)",
+              }}
+            >
+              {activeAccounts.length}
+            </span>
           </span>
           <button
             type="button"
@@ -96,34 +109,33 @@ export function AppSidebar() {
       </div>
 
       <ul className="mt-3 space-y-1 px-3 overflow-y-auto flex-1">
-        {accounts
-          .map((a) => (
-            <li key={a.id}>
-              <button className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-bg3">
-                <div className="relative">
-                  <SidebarAvatar
-                    src={a.profile_picture}
-                    username={a.username}
-                    hide={hideData}
+        {activeAccounts.map((a: any) => (
+          <li key={a.id}>
+            <button className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-bg3">
+              <div className="relative">
+                <SidebarAvatar
+                  src={a.profile_picture}
+                  username={a.username}
+                  hide={hideData}
+                />
+                {!hideData && (
+                  <span
+                    className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2"
+                    style={{ background: healthColor(a.health_score) }}
                   />
-                  {!hideData && (
-                    <span
-                      className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2"
-                      style={{ background: healthColor(a.health_score) }}
-                    />
-                  )}
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">
+                  {hideData ? "••••••••" : `@${a.username}`}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">
-                    {hideData ? "••••••••" : `@${a.username}`}
-                  </div>
-                  <div className="text-[11px] text-muted2">
-                    {hideData ? "•••" : `saúde ${a.health_score}`}
-                  </div>
+                <div className="text-[11px] text-muted2">
+                  {hideData ? "•••" : `saúde ${a.health_score}`}
                 </div>
-              </button>
-            </li>
-          ))}
+              </div>
+            </button>
+          </li>
+        ))}
       </ul>
 
     </aside>
