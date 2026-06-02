@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { api, type AccountStatusReport, type Model, type MetaApp } from "@/lib/api-client";
+import { api, type AccountStatusReport, type Model } from "@/lib/api-client";
 import type { Account } from "@/lib/mock";
 import {
   Plus,
@@ -19,7 +19,8 @@ import {
   Clock,
   List,
   LayoutGrid,
-  Grid3x3,
+  Eye,
+  EyeOff,
   ArrowRightLeft,
   ArrowLeftToLine,
   Pause,
@@ -62,7 +63,7 @@ export const Route = createFileRoute("/_app/accounts")({
 });
 
 type Role = "active" | "reserve" | "discarded";
-type View = "list" | "grid" | "compact";
+type View = "list" | "compact";
 type SortKey = "followers" | "health-asc" | "recent" | "name";
 type HealthFilter = "all" | "good" | "warn" | "bad";
 
@@ -84,6 +85,7 @@ const ROLE_KEY = "accounts.roleOverrides.v1";
 const PAUSED_KEY = "accounts.pausedOverrides.v1";
 const TAB_KEY = "accounts.activeTab.v1";
 const VIEW_KEY = "accounts.view.v1";
+const HIDE_DATA_KEY = "accounts.hideData.v1";
 
 // -------------- overrides (localStorage, until backend has role column) --------------
 function loadMap(key: string): Record<string, boolean | Role> {
@@ -174,48 +176,6 @@ function HealthBadge({ score, size = 32 }: { score: number; size?: number }) {
   );
 }
 
-// -------------- Avatar with fallback --------------
-function Avatar({
-  src,
-  size,
-  ringColor,
-  iconSize,
-}: {
-  src?: string | null;
-  size: number;
-  ringColor?: string;
-  iconSize?: number;
-}) {
-  const [err, setErr] = useState(false);
-  const ok = src && !err;
-  return (
-    <div
-      className="flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-bg3"
-      style={{
-        width: size,
-        height: size,
-        border: ringColor ? `2px solid ${ringColor}` : undefined,
-      }}
-    >
-      {ok ? (
-        <img
-          src={src!}
-          alt=""
-          className="h-full w-full object-cover"
-          onError={() => setErr(true)}
-        />
-      ) : (
-        <Instagram
-          className="text-muted2"
-          style={{ width: iconSize ?? Math.round(size * 0.45), height: iconSize ?? Math.round(size * 0.45) }}
-        />
-      )}
-    </div>
-  );
-}
-
-
-
 const STATUS_META: Record<
   AccountStatusReport["status"],
   { label: string; color: string; bg: string }
@@ -256,34 +216,6 @@ function ModelBadge({ model }: { model: Model | undefined }) {
     </span>
   );
 }
-
-function MetaAppBadge({ app }: { app: MetaApp | undefined }) {
-  if (!app) return null;
-  const inactive = app.is_active === 0;
-  return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium whitespace-nowrap"
-      style={
-        inactive
-          ? {
-              background: "color-mix(in oklab, var(--danger) 15%, transparent)",
-              color: "var(--danger)",
-              border: "1px solid color-mix(in oklab, var(--danger) 30%, transparent)",
-            }
-          : {
-              background: "color-mix(in oklab, var(--accent2) 12%, transparent)",
-              color: "var(--accent2)",
-              border: "1px solid color-mix(in oklab, var(--accent2) 25%, transparent)",
-            }
-      }
-      title={inactive ? "App inativo — reconecte a conta" : `App: ${app.name}`}
-    >
-      {inactive && <span className="h-1.5 w-1.5 rounded-full bg-current" />}
-      {inactive ? "App inativo" : app.name}
-    </span>
-  );
-}
-
 
 // -------------- Connect Modal --------------
 function ConnectDialog({
@@ -373,10 +305,6 @@ function AccountsPage() {
     queryKey: ["models"],
     queryFn: () => api.listModels(),
   });
-  const { data: metaApps = [] } = useQuery({
-    queryKey: ["meta-apps"],
-    queryFn: () => api.listMetaApps(),
-  });
   const [newModelName, setNewModelName] = useState("");
   const [newModelColor, setNewModelColor] = useState("#6366f1");
   const MODEL_COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444", "#8b5cf6", "#14b8a6"];
@@ -465,8 +393,6 @@ function AccountsPage() {
       saveMap(ROLE_KEY, n);
       return n;
     });
-    // Persiste no banco para que o scheduler server-side respeite o role
-    api.setAccountRole(id, role).catch(() => {});
     if (role === "discarded") {
       const acc = accountsRaw.find((a) => a.id === id);
       if (acc?.username) syncToContingency(acc.username);
@@ -485,6 +411,7 @@ function AccountsPage() {
   const [tab, setTab] = useState<Role>("active");
   const [modelFilter, setModelFilter] = useState<"all" | "none" | string>("all");
   const [view, setView] = useState<View>("list");
+  const [hideData, setHideData] = useState<boolean>(false);
   const [sortKey, setSortKey] = useState<SortKey>("followers");
   const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
   const [query, setQuery] = useState("");
@@ -524,7 +451,10 @@ function AccountsPage() {
     const t = localStorage.getItem(TAB_KEY);
     if (t === "active" || t === "reserve" || t === "discarded") setTab(t);
     const v = localStorage.getItem(VIEW_KEY);
-    if (v === "list" || v === "grid" || v === "compact") setView(v);
+    if (v === "list" || v === "compact") setView(v);
+    else if (v === "grid") setView("compact");
+    const h = localStorage.getItem(HIDE_DATA_KEY);
+    if (h === "1") setHideData(true);
   }, []);
   useEffect(() => {
     localStorage.setItem(TAB_KEY, tab);
@@ -899,24 +829,34 @@ function AccountsPage() {
             <List className="h-3.5 w-3.5" /> Lista
           </button>
           <button
-            onClick={() => setView("grid")}
-            className={[
-              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-              view === "grid" ? "bg-bg3 text-foreground" : "text-muted2 hover:text-text2",
-            ].join(" ")}
-          >
-            <LayoutGrid className="h-3.5 w-3.5" /> Grid
-          </button>
-          <button
             onClick={() => setView("compact")}
             className={[
               "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
               view === "compact" ? "bg-bg3 text-foreground" : "text-muted2 hover:text-text2",
             ].join(" ")}
           >
-            <Grid3x3 className="h-3.5 w-3.5" /> Compacto
+            <LayoutGrid className="h-3.5 w-3.5" /> Compacto
           </button>
         </div>
+        <button
+          onClick={() => {
+            const next = !hideData;
+            setHideData(next);
+            if (typeof window !== "undefined") {
+              localStorage.setItem(HIDE_DATA_KEY, next ? "1" : "0");
+            }
+          }}
+          title={hideData ? "Mostrar fotos e dados" : "Ocultar fotos e dados"}
+          className={[
+            "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+            hideData
+              ? "border-accent2/50 bg-accent2/15 text-accent2"
+              : "border-border bg-bg2 text-text2 hover:text-foreground",
+          ].join(" ")}
+        >
+          {hideData ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          {hideData ? "Ocultas" : "Ocultar fotos"}
+        </button>
       </div>
 
       {/* ============ Model filter ============ */}
@@ -1129,6 +1069,7 @@ function AccountsPage() {
           onToggleSelect={toggleSelect}
           tab={tab}
           now={now}
+          hideData={hideData}
           confirmMove={confirmMove}
           setConfirmMove={setConfirmMove}
           onMove={(id, role) => {
@@ -1142,29 +1083,6 @@ function AccountsPage() {
           onRemove={removeAccount}
           onStatus={openStatus}
           models={models}
-          metaApps={metaApps}
-          onAssignModel={assignModel}
-        />
-      ) : view === "grid" ? (
-        <GridView
-          items={filtered}
-          selected={selected}
-          onToggleSelect={toggleSelect}
-          tab={tab}
-          confirmMove={confirmMove}
-          setConfirmMove={setConfirmMove}
-          onMove={(id, role) => {
-            setRole(id, role);
-            const label = role === "reserve" ? "Reservas" : role === "discarded" ? "Descartadas" : "Ativas";
-            toast.success(`Conta movida para ${label}`);
-          }}
-          onValidate={validateOne}
-          onReconnect={(a) => handleConnect(a.provider ?? "facebook")}
-          onRemove={removeAccount}
-          onTogglePaused={togglePaused}
-          onStatus={openStatus}
-          models={models}
-          metaApps={metaApps}
           onAssignModel={assignModel}
         />
       ) : (
@@ -1173,7 +1091,7 @@ function AccountsPage() {
           selected={selected}
           onToggleSelect={toggleSelect}
           tab={tab}
-          now={now}
+          hideData={hideData}
           confirmMove={confirmMove}
           setConfirmMove={setConfirmMove}
           onMove={(id, role) => {
@@ -1187,7 +1105,6 @@ function AccountsPage() {
           onTogglePaused={togglePaused}
           onStatus={openStatus}
           models={models}
-          metaApps={metaApps}
           onAssignModel={assignModel}
         />
       )}
@@ -1303,6 +1220,7 @@ type RowHandlers = {
   onToggleSelect: (id: string) => void;
   tab: Role;
   now: number;
+  hideData: boolean;
   confirmMove: string | null;
   setConfirmMove: (id: string | null) => void;
   onMove: (id: string, role: Role) => void;
@@ -1312,7 +1230,6 @@ type RowHandlers = {
   onRemove: (a: Account) => void;
   onStatus: (a: Account) => void;
   models: Model[];
-  metaApps: MetaApp[];
   onAssignModel: (accountId: string, modelId: string | null) => void;
 };
 
@@ -1322,6 +1239,7 @@ function ListView({
   onToggleSelect,
   tab,
   now,
+  hideData,
   confirmMove,
   setConfirmMove,
   onMove,
@@ -1331,7 +1249,6 @@ function ListView({
   onRemove,
   onStatus,
   models,
-  metaApps,
   onAssignModel,
 }: RowHandlers) {
   return (
@@ -1356,7 +1273,7 @@ function ListView({
               onChange={() => onToggleSelect(a.id)}
               className="shrink-0 accent-accent"
             />
-            <Avatar src={a.profile_picture} size={36} />
+            <AccountAvatar account={a} size={36} hideData={hideData} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <span className="truncate text-sm font-semibold">@{a.username}</span>
@@ -1371,19 +1288,23 @@ function ListView({
                   </span>
                 )}
                 <ModelBadge model={models.find((m) => m.id === a.model_id)} />
-                <MetaAppBadge app={metaApps.find((p) => p.id === a.meta_app_id)} />
               </div>
               <p className="truncate text-[11px] text-muted2">{a.name}</p>
             </div>
 
-            <HealthBadge score={a.health_score} size={28} />
-            <StatusBadge status={token.expired ? "token_expired" : a.health_score < 40 ? "restricted" : a.health_score < 70 ? "limited" : "healthy"} />
+            {!hideData && <HealthBadge score={a.health_score} size={28} />}
+            {!hideData && (
+              <StatusBadge status={token.expired ? "token_expired" : a.health_score < 40 ? "restricted" : a.health_score < 70 ? "limited" : "healthy"} />
+            )}
 
+            {!hideData && (
             <div className="hidden w-20 shrink-0 items-center gap-1 text-xs text-text2 md:flex">
               <Users className="h-3.5 w-3.5" />
               <span className="tabular-nums">{compact(a.followers)}</span>
             </div>
+            )}
 
+            {!hideData && (
             <TooltipProvider delayDuration={150}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1395,7 +1316,9 @@ function ListView({
                 <TooltipContent className="text-xs">{posts} posts</TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            )}
 
+            {!hideData && (
             <TooltipProvider delayDuration={150}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1413,6 +1336,7 @@ function ListView({
                 )}
               </Tooltip>
             </TooltipProvider>
+            )}
 
             <Link
               to="/queue"
@@ -1454,7 +1378,6 @@ function ListView({
                 onRemove={() => onRemove(a)}
                 onStatus={() => onStatus(a)}
                 models={models}
-                metaApps={metaApps}
                 onAssignModel={onAssignModel}
               />
             )}
@@ -1465,12 +1388,50 @@ function ListView({
   );
 }
 
-// -------------- Grid view --------------
-function GridView({
+// -------------- Avatar with fallback --------------
+function AccountAvatar({
+  account,
+  size,
+  hideData,
+}: {
+  account: Account;
+  size: number;
+  hideData: boolean;
+}) {
+  const [errored, setErrored] = useState(false);
+  const showFallback = hideData || errored || !account.profile_picture;
+  if (showFallback) {
+    return (
+      <div
+        className="flex shrink-0 items-center justify-center rounded-full text-white"
+        style={{
+          width: size,
+          height: size,
+          background: "linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",
+        }}
+      >
+        <Instagram style={{ width: size * 0.55, height: size * 0.55 }} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={account.profile_picture}
+      alt=""
+      onError={() => setErrored(true)}
+      className="shrink-0 rounded-full bg-bg3"
+      style={{ width: size, height: size }}
+    />
+  );
+}
+
+// -------------- Compact view --------------
+function CompactView({
   items,
   selected,
   onToggleSelect,
   tab,
+  hideData,
   confirmMove,
   setConfirmMove,
   onMove,
@@ -1480,7 +1441,6 @@ function GridView({
   onTogglePaused,
   onStatus,
   models,
-  metaApps,
   onAssignModel,
 }: Omit<RowHandlers, "now">) {
   return (
@@ -1495,9 +1455,9 @@ function GridView({
         return (
           <div
             key={a.id}
-            className={`acc-card group relative flex min-h-[140px] flex-col gap-2 rounded-xl border bg-bg2 p-3.5 transition-all hover:-translate-y-0.5${tab === "discarded" ? " opacity-60" : ""}`}
+            className={`acc-card group relative flex min-h-[150px] flex-col gap-2 rounded-xl border bg-bg2 p-3.5 transition-all hover:-translate-y-0.5${tab === "discarded" ? " opacity-60" : ""}`}
             style={{
-              borderColor: color,
+              borderColor: hideData ? "var(--border)" : color,
               animationDelay: `${Math.min(i, 20) * 30}ms`,
             }}
           >
@@ -1508,16 +1468,31 @@ function GridView({
                 onChange={() => onToggleSelect(a.id)}
                 className="mt-1 accent-accent"
               />
-              <Avatar src={a.profile_picture} size={48} />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold">@{a.username}</div>
-                <div className="truncate text-[11px] text-muted2">
-                  {compact(a.followers)} seg.
-                </div>
+              <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
+                <AccountAvatar account={a} size={48} hideData={hideData} />
+                <span className="max-w-full truncate text-center text-[11px] font-mono text-muted2">
+                  @{a.username}
+                </span>
               </div>
-              <HealthBadge score={a.health_score} size={32} />
-              <StatusBadge status={(a.token_status === "expired") ? "token_expired" : a.health_score < 40 ? "restricted" : a.health_score < 70 ? "limited" : "healthy"} />
+              {!hideData && <HealthBadge score={a.health_score} size={32} />}
             </div>
+
+            {!hideData && (
+              <div className="flex flex-wrap items-center justify-center gap-1 text-[12px] text-text2">
+                <span className="inline-flex items-center gap-1 tabular-nums">
+                  <Users className="h-3 w-3" /> {compact(a.followers)}
+                </span>
+                <span className="inline-flex items-center gap-1 tabular-nums">
+                  <ImageIcon className="h-3 w-3" /> {a.posts ?? 0}
+                </span>
+              </div>
+            )}
+
+            {!hideData && (
+              <div className="flex items-center justify-center">
+                <StatusBadge status={(a.token_status === "expired") ? "token_expired" : a.health_score < 40 ? "restricted" : a.health_score < 70 ? "limited" : "healthy"} />
+              </div>
+            )}
 
             <div className="mt-auto flex items-center justify-between gap-1.5">
               <div className="flex flex-wrap items-center gap-1">
@@ -1527,7 +1502,6 @@ function GridView({
                   </span>
                 )}
                 <ModelBadge model={models.find((m) => m.id === a.model_id)} />
-                <MetaAppBadge app={metaApps.find((p) => p.id === a.meta_app_id)} />
               </div>
               {!isConfirming && (
                 <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -1555,7 +1529,6 @@ function GridView({
                     onRemove={() => onRemove(a)}
                     onStatus={() => onStatus(a)}
                     models={models}
-                    metaApps={metaApps}
                     onAssignModel={onAssignModel}
                   />
                 </div>
@@ -1607,7 +1580,6 @@ function AccountMenu({
   onRemove,
   onStatus,
   models,
-  metaApps,
   onAssignModel,
 }: {
   a: Account;
@@ -1621,10 +1593,8 @@ function AccountMenu({
   onRemove: () => void;
   onStatus: () => void;
   models: Model[];
-  metaApps: MetaApp[];
   onAssignModel: (accountId: string, modelId: string | null) => void;
 }) {
-  const qc = useQueryClient();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -1748,41 +1718,6 @@ function AccountMenu({
           </DropdownMenuItem>
         )}
         <DropdownMenuSeparator />
-        <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted2">
-          App Meta vinculado
-        </div>
-        {metaApps.filter((p) => p.is_active === 1).length === 0 && (
-          <div className="px-2 pb-1 text-[11px] text-muted2">Nenhum app ativo</div>
-        )}
-        {metaApps
-          .filter((p) => p.is_active === 1)
-          .map((p) => {
-            const selected = a.meta_app_id === p.id;
-            return (
-              <DropdownMenuItem
-                key={p.id}
-                onSelect={async (e) => {
-                  e.preventDefault();
-                  if (selected) return;
-                  await api.setAccountMetaApp(a.id, p.id);
-                  toast.success("App atualizado");
-                  qc.invalidateQueries({ queryKey: ["accounts"] });
-                  qc.invalidateQueries({ queryKey: ["meta-apps"] });
-                }}
-              >
-                <span
-                  className="mr-2 inline-block h-2 w-2 rounded-full"
-                  style={{ background: "var(--accent2)" }}
-                />
-                {p.name}
-                {selected && <Check className="ml-auto h-3.5 w-3.5" />}
-              </DropdownMenuItem>
-            );
-          })}
-        <div className="px-2 py-1 text-[10px] italic" style={{ color: "var(--warning)" }}>
-          Trocar o app não invalida o token atual.
-        </div>
-        <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-danger focus:text-danger"
           onSelect={(e) => {
@@ -1796,99 +1731,3 @@ function AccountMenu({
     </DropdownMenu>
   );
 }
-
-// -------------- Compact view --------------
-function CompactView({
-  items,
-  selected,
-  onToggleSelect,
-  tab,
-  now,
-  onMove,
-  onValidate,
-  onReconnect,
-  onRemove,
-  onTogglePaused,
-  onStatus,
-  models,
-  metaApps,
-  onAssignModel,
-}: RowHandlers) {
-  return (
-    <div
-      className="grid gap-2"
-      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}
-    >
-      {items.map((a, i) => {
-        const color = ringForHealth(a.health_score);
-        const isSelected = selected.has(a.id);
-        const lastHM = a.last_post_at
-          ? new Date(a.last_post_at).toLocaleTimeString("pt-BR", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          : "—";
-        // Use `now` to avoid unused param lint
-        void now;
-        return (
-          <div
-            key={a.id}
-            title={`@${a.username}`}
-            className={`acc-card group relative flex min-h-[130px] flex-col items-center justify-between gap-1.5 rounded-xl border bg-bg2 p-2.5 transition-all hover:-translate-y-0.5${tab === "discarded" ? " opacity-60" : ""}`}
-            style={{
-              borderColor: color,
-              animationDelay: `${Math.min(i, 20) * 30}ms`,
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={isSelected}
-              onChange={() => onToggleSelect(a.id)}
-              className="absolute left-1.5 top-1.5 accent-accent opacity-0 transition-opacity group-hover:opacity-100"
-              style={isSelected ? { opacity: 1 } : undefined}
-            />
-            <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100">
-              <AccountMenu
-                a={a}
-                tab={tab}
-                compact
-                onAskMove={() => onMove(a.id, tab === "active" ? "reserve" : "active")}
-                onDirectMove={(role) => onMove(a.id, role)}
-                onValidate={() => onValidate(a)}
-                onReconnect={() => onReconnect(a)}
-                onTogglePaused={() => onTogglePaused(a.id)}
-                onRemove={() => onRemove(a)}
-                onStatus={() => onStatus(a)}
-                models={models}
-                metaApps={metaApps}
-                onAssignModel={onAssignModel}
-              />
-            </div>
-
-            <Avatar src={a.profile_picture} size={40} ringColor={color} iconSize={16} />
-
-            <div className="flex flex-wrap items-center justify-center gap-1">
-              <span
-                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
-                style={{
-                  background: "color-mix(in oklab, var(--accent2) 14%, transparent)",
-                  color: "var(--accent2)",
-                  border: "1px solid color-mix(in oklab, var(--accent2) 30%, transparent)",
-                }}
-              >
-                <span className="h-1 w-1 rounded-full bg-current" />
-                Instagram
-              </span>
-              <ModelBadge model={models.find((m) => m.id === a.model_id)} />
-            </div>
-
-            <div className="text-center text-[10px] tabular-nums text-text2">
-              {compact(a.followers)} seg. · último post {lastHM}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
