@@ -1,13 +1,12 @@
 // Gera um link OAuth único (state) para conectar uma conta Instagram.
-// Seleciona automaticamente o app Meta com menos contas vinculadas (load balancing).
-// O state é salvo na tabela `oauth_states` com expiração de 30 minutos,
-// incluindo o meta_app_id escolhido para que o callback use as credenciais certas.
+// Aceita meta_app_id opcional no body — se informado, usa aquele app.
+// Se não informado, seleciona automaticamente o app com menos contas.
 
 import { createFileRoute } from "@tanstack/react-router";
 import { ensureEnv, env } from "@/lib/cf.server";
 import { db } from "@/lib/db.server";
 import { originFromRequest } from "@/lib/oauth.server";
-import { getLeastLoadedApp } from "@/lib/meta-apps.server";
+import { getLeastLoadedApp, getMetaAppById } from "@/lib/meta-apps.server";
 import { getInstagramClientId } from "@/lib/instagram.server";
 
 const SCOPES = "instagram_business_basic,instagram_business_content_publish";
@@ -19,11 +18,38 @@ export const Route = createFileRoute("/api/auth/instagram/link")({
         try {
           await ensureEnv();
 
-          // Escolhe o app Instagram com menos contas (load balancing automático).
-          // Fallback para variável de ambiente se não houver apps cadastrados.
-          const app = await getLeastLoadedApp("instagram");
-          const clientId = app?.client_id ?? getInstagramClientId();
-          const metaAppId = app?.id ?? null;
+          // Lê meta_app_id opcional do body
+          let requestedAppId: string | null = null;
+          try {
+            const body = await request.json() as { meta_app_id?: string };
+            requestedAppId = body.meta_app_id ?? null;
+          } catch {
+            // body vazio ou não-JSON: tudo bem, usa automático
+          }
+
+          // Resolve o app a usar: explícito → automático (menor carga) → env
+          let clientId: string | null = null;
+          let metaAppId: string | null = null;
+
+          if (requestedAppId) {
+            const app = await getMetaAppById(requestedAppId);
+            if (app && app.is_active) {
+              clientId = app.client_id;
+              metaAppId = app.id;
+            }
+          }
+
+          if (!clientId) {
+            const app = await getLeastLoadedApp("instagram");
+            if (app) {
+              clientId = app.client_id;
+              metaAppId = app.id;
+            }
+          }
+
+          if (!clientId) {
+            clientId = getInstagramClientId() ?? null;
+          }
 
           if (!clientId) {
             return Response.json(
@@ -36,14 +62,12 @@ export const Route = createFileRoute("/api/auth/instagram/link")({
           const redirectUri = `${base}/api/auth/instagram/callback`;
           const state = crypto.randomUUID();
 
-          // Cria o state OAuth
           const { expiresAt } = await db.createOAuthState({
             state,
             redirectUri,
             ttlMinutes: 30,
           });
 
-          // Grava o app escolhido no state para o callback usar as credenciais certas
           if (metaAppId) {
             await db.updateOAuthStateMeta(state, metaAppId);
           }
@@ -59,7 +83,6 @@ export const Route = createFileRoute("/api/auth/instagram/link")({
             url: url.toString(),
             state,
             expiresAt,
-            // Retorna qual app foi escolhido (útil para debug no frontend)
             meta_app_id: metaAppId,
           });
         } catch (e) {
