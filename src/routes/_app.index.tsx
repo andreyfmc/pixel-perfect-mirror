@@ -185,8 +185,8 @@ function MetricCard({
 // ---------- Dashboard ----------
 function Dashboard() {
   const greeting = useGreet();
-  const [now, setNow] = useState(Date.now());
-  const [lastRefresh, setLastRefresh] = useState(Date.now());
+  const [now, setNow] = useState(0);
+  const [lastRefresh, setLastRefresh] = useState(0);
   const [tick, setTick] = useState(0);
 
   const accountsQ = useQuery({
@@ -224,6 +224,8 @@ function Dashboard() {
     if (accountsQ.dataUpdatedAt) setLastRefresh(accountsQ.dataUpdatedAt);
   }, [accountsQ.dataUpdatedAt]);
   useEffect(() => {
+    setNow(Date.now());
+    setLastRefresh(Date.now());
     const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
@@ -287,7 +289,7 @@ function Dashboard() {
 
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const secondsAgo = Math.max(0, Math.round((Date.now() - lastRefresh) / 1000));
+  const secondsAgo = lastRefresh === 0 ? 0 : Math.max(0, Math.round((Date.now() - lastRefresh) / 1000));
   void tick;
 
   return (

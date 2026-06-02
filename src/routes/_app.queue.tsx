@@ -733,9 +733,10 @@ function QueuePage() {
   const [cleaningOld, setCleaningOld] = useState(false);
 
   // Live clock and refresh countdown
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(0);
   const [refreshIn, setRefreshIn] = useState(30);
   useEffect(() => {
+    setNow(Date.now());
     const id = setInterval(() => {
       setNow(Date.now());
       setRefreshIn((s) => (s <= 1 ? 30 : s - 1));
