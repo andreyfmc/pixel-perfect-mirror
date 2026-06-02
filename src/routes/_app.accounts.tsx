@@ -907,6 +907,15 @@ function AccountsPage() {
           >
             <LayoutGrid className="h-3.5 w-3.5" /> Grid
           </button>
+          <button
+            onClick={() => setView("compact")}
+            className={[
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              view === "compact" ? "bg-bg3 text-foreground" : "text-muted2 hover:text-text2",
+            ].join(" ")}
+          >
+            <Grid3x3 className="h-3.5 w-3.5" /> Compacto
+          </button>
         </div>
       </div>
 
