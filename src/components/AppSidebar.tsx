@@ -40,7 +40,6 @@ export function AppSidebar() {
     queryFn: () => api.listAccounts(),
   });
   const [hideData] = useHideData();
-  const activeAccounts = accounts.filter((a) => a.role !== "discarded").length;
 
   return (
     <aside className="hidden md:flex sticky top-0 h-screen w-64 shrink-0 flex-col border-r border-border bg-bg2">
@@ -84,7 +83,7 @@ export function AppSidebar() {
       <div className="mt-6 px-5">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-medium uppercase tracking-wider text-muted2">
-            Contas {activeAccounts > 0 && <span className="ml-1 rounded-full bg-bg3 border border-border px-1.5 py-0.5 text-[10px] font-semibold text-text2">{activeAccounts}</span>}
+            Contas
           </span>
           <button
             type="button"
@@ -98,7 +97,6 @@ export function AppSidebar() {
 
       <ul className="mt-3 space-y-1 px-3 overflow-y-auto flex-1">
         {accounts
-          .filter((a) => a.role !== "discarded")
           .map((a) => (
             <li key={a.id}>
               <button className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-bg3">

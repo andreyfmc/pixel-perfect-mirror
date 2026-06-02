@@ -355,6 +355,7 @@ const rawDb = {
       SELECT a.*,
         (SELECT COUNT(*) FROM history h WHERE h.account_id = a.id) AS posts
       FROM accounts a
+      WHERE a.role != 'discarded'
       ORDER BY a.created_at DESC`;
     const { results } = await requireDb().prepare(sql).all<AccountRow & { posts: number }>();
     const accounts = results ?? [];
