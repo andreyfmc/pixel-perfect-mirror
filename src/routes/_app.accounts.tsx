@@ -19,6 +19,7 @@ import {
   Clock,
   List,
   LayoutGrid,
+  Grid3x3,
   ArrowRightLeft,
   ArrowLeftToLine,
   Pause,
