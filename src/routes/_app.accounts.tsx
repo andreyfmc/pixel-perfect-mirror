@@ -1356,11 +1356,7 @@ function ListView({
               onChange={() => onToggleSelect(a.id)}
               className="shrink-0 accent-accent"
             />
-            <img
-              src={a.profile_picture}
-              alt=""
-              className="h-9 w-9 shrink-0 rounded-full bg-bg3"
-            />
+            <Avatar src={a.profile_picture} size={36} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <span className="truncate text-sm font-semibold">@{a.username}</span>
