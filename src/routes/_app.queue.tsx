@@ -77,6 +77,7 @@ type AccountMeta = {
   token_status?: "valid" | "expired";
   token_expires_at?: string | null;
   provider?: "facebook" | "instagram";
+  model_id?: string | null;
 };
 
 type QueueGroup = {
@@ -466,6 +467,10 @@ function QueuePage() {
     queryFn: () => api.listAccounts(),
     refetchInterval: 60_000,
   });
+  const { data: models = [] } = useQuery({
+    queryKey: ["models"],
+    queryFn: () => api.listModels(),
+  });
 
   const accountById = useMemo(() => {
     const m = new Map<string, AccountMeta>();
@@ -478,6 +483,7 @@ function QueuePage() {
         token_status: a.token_status,
         token_expires_at: a.token_expires_at,
         provider: a.provider,
+        model_id: a.model_id ?? null,
       });
     }
     return m;
@@ -489,6 +495,7 @@ function QueuePage() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [density, setDensity] = useState<Density>("expanded");
+  const [modelFilter, setModelFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [confirmClear, setConfirmClear] = useState<null | {
     statuses: StatusKey[];
@@ -571,6 +578,11 @@ function QueuePage() {
       .filter((item) => filter === "all" || item.status === filter)
       .filter((item) => matchesDate(item.scheduled_at))
       .filter((item) => {
+        if (!modelFilter) return true;
+        const account = accountById.get(item.account);
+        return account?.model_id === modelFilter;
+      })
+      .filter((item) => {
         if (!q) return true;
         const account = accountById.get(item.account);
         return [
@@ -592,7 +604,7 @@ function QueuePage() {
         return sort === "asc" ? diff : -diff;
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accountById, dateFilter, filter, query, queue, sort]);
+  }, [accountById, dateFilter, filter, modelFilter, query, queue, sort]);
 
   const groups = useMemo<QueueGroup[]>(() => {
     const map = new Map<string, QueueItem[]>();
@@ -668,6 +680,22 @@ function QueuePage() {
       const n = new Set(s);
       if (allSelected) visibleIds.forEach((id) => n.delete(id));
       else visibleIds.forEach((id) => n.add(id));
+      return n;
+    });
+  }
+
+  function selectByModel(modelId: string) {
+    const idsForModel = visibleItems
+      .filter((item) => accountById.get(item.account)?.model_id === modelId)
+      .map((item) => item.id);
+    const allAlreadySelected = idsForModel.length > 0 && idsForModel.every((id) => selected.has(id));
+    setSelected((s) => {
+      const n = new Set(s);
+      if (allAlreadySelected) {
+        idsForModel.forEach((id) => n.delete(id));
+      } else {
+        idsForModel.forEach((id) => n.add(id));
+      }
       return n;
     });
   }
@@ -810,27 +838,24 @@ function QueuePage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Density toggle */}
             <button
               onClick={() => setDensity(density === "expanded" ? "compact" : "expanded")}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm hover:border-accent"
               title="Alternar densidade"
             >
               {density === "expanded" ? (
-                <>
-                  <Rows3 className="h-4 w-4" /> Compacto
-                </>
+                <><Rows3 className="h-4 w-4" /> Compacto</>
               ) : (
-                <>
-                  <Layers className="h-4 w-4" /> Expandido
-                </>
+                <><Layers className="h-4 w-4" /> Expandido</>
               )}
             </button>
+
+            {/* Refresh */}
             <button
               onClick={() => {
                 setRefreshIn(30);
-                singleAction("Atualizando scheduler", async () => {
-                  await api.runScheduler();
-                });
+                singleAction("Atualizando scheduler", async () => { await api.runScheduler(); });
               }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm hover:border-accent"
               title="Atualizar agora (auto a cada 30s)"
@@ -838,79 +863,53 @@ function QueuePage() {
               <RefreshCw className="h-4 w-4" /> Atualizar
               <span className="ml-1 tabular-nums text-[11px] text-muted2">({refreshIn}s)</span>
             </button>
+
+            {/* Select / deselect all */}
             <button
               onClick={toggleAllVisible}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm hover:border-accent"
             >
               <CheckCircle2 className="h-4 w-4" /> {allSelected ? "Desmarcar" : "Selecionar"}
             </button>
-            <button
-              onClick={() => setConfirmCleanOld(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-danger/35 bg-danger/10 px-3 py-2 text-sm text-danger hover:border-danger"
-              title="Remover posts publicados antes de hoje"
-            >
-              <Trash2 className="h-4 w-4" /> Limpar posts anteriores
-            </button>
+
+            {/* Limpar posts anteriores + Limpar → merged into one dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground">
-                  <Eraser className="h-4 w-4" /> Limpar
+                <button className="inline-flex items-center gap-1.5 rounded-lg border border-danger/35 bg-danger/10 px-3 py-2 text-sm text-danger hover:border-danger">
+                  <Trash2 className="h-4 w-4" /> Remover
+                  <ChevronDown className="h-3 w-3 opacity-70" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuItem onSelect={() => setConfirmCleanOld(true)}>
+                  <Trash2 className="mr-2 h-4 w-4 text-danger" />
+                  <span>Limpar posts anteriores</span>
+                  <span className="ml-auto text-[11px] text-muted2">publicados antes de hoje</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onSelect={() =>
-                    setConfirmClear({
-                      statuses: ["scheduled"],
-                      label: "Remover agendados",
-                      count: counts.scheduled,
-                    })
-                  }
+                  onSelect={() => setConfirmClear({ statuses: ["scheduled"], label: "Remover agendados", count: counts.scheduled })}
                 >
                   Remover agendados ({counts.scheduled})
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onSelect={() =>
-                    setConfirmClear({
-                      statuses: ["failed"],
-                      label: "Remover erros",
-                      count: counts.failed,
-                    })
-                  }
+                  onSelect={() => setConfirmClear({ statuses: ["failed"], label: "Remover erros", count: counts.failed })}
                 >
                   Remover erros ({counts.failed})
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onSelect={() =>
-                    setConfirmClear({
-                      statuses: ["canceled"],
-                      label: "Remover pausados",
-                      count: counts.canceled,
-                    })
-                  }
+                  onSelect={() => setConfirmClear({ statuses: ["canceled"], label: "Remover pausados", count: counts.canceled })}
                 >
                   Remover pausados ({counts.canceled})
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onSelect={() =>
-                    setConfirmClear({
-                      statuses: ["published"],
-                      label: "Limpar publicados",
-                      count: counts.published,
-                    })
-                  }
+                  onSelect={() => setConfirmClear({ statuses: ["published"], label: "Limpar publicados", count: counts.published })}
                 >
                   Limpar publicados ({counts.published})
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onSelect={() =>
-                    setConfirmClear({
-                      statuses: ["scheduled", "processing", "failed", "canceled", "published"],
-                      label: "Limpar tudo",
-                      count: queue.length,
-                    })
-                  }
+                  onSelect={() => setConfirmClear({ statuses: ["scheduled", "processing", "failed", "canceled", "published"], label: "Limpar tudo", count: queue.length })}
                   className="text-danger focus:text-danger"
                 >
                   Limpar tudo ({queue.length})
@@ -1029,44 +1028,130 @@ function QueuePage() {
             );
           })}
         </div>
+
+        {/* Model filter chips — only shown when models exist */}
+        {models.length > 0 && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-muted2">Modelo:</span>
+            <button
+              onClick={() => setModelFilter(null)}
+              className={[
+                "shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold transition",
+                modelFilter === null
+                  ? "border-accent bg-accent text-primary-foreground"
+                  : "border-border2 bg-bg2 text-text2 hover:text-foreground",
+              ].join(" ")}
+            >
+              Todos
+            </button>
+            {models.map((m) => {
+              const countForModel = queue.filter(
+                (item) => accountById.get(item.account)?.model_id === m.id
+              ).length;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setModelFilter(modelFilter === m.id ? null : m.id)}
+                  className={[
+                    "shrink-0 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition",
+                    modelFilter === m.id
+                      ? "text-primary-foreground"
+                      : "bg-bg2 text-text2 hover:text-foreground",
+                  ].join(" ")}
+                  style={
+                    modelFilter === m.id
+                      ? { background: m.color, borderColor: m.color }
+                      : { borderColor: `${m.color}55` }
+                  }
+                >
+                  <span
+                    className="h-2 w-2 rounded-full shrink-0"
+                    style={{ background: m.color, opacity: modelFilter === m.id ? 0.8 : 1 }}
+                  />
+                  {m.name}
+                  <span className="opacity-70">({countForModel})</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </section>
 
-      {someSelected && (
-        <div className="sticky top-3 z-20 mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-accent/40 bg-bg3 px-3 py-2 text-sm shadow-lg shadow-bg/40">
-          <span className="font-semibold">{selected.size} selecionado(s)</span>
-          <span className="text-xs text-muted2">{selectedVisibleCount} visível(is)</span>
-          <button
-            onClick={() => runBulk("Pausando", (id) => api.updateQueueStatus(id, "canceled"))}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
-          >
-            <Pause className="h-3.5 w-3.5" /> Pausar
-          </button>
-          <button
-            onClick={() => runBulk("Retomando", (id) => api.updateQueueStatus(id, "scheduled"))}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
-          >
-            <Play className="h-3.5 w-3.5" /> Retomar
-          </button>
-          <button
-            onClick={() => publishSelectedNow()}
-            className="inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning hover:border-warning"
-          >
-            <Zap className="h-3.5 w-3.5" /> Tentar agora
-          </button>
-          <button
-            onClick={() => setSelected(new Set())}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-text2 hover:text-foreground"
-          >
-            <X className="h-3.5 w-3.5" /> Limpar seleção
-          </button>
-          <button
-            onClick={() => runBulk("Removendo", (id) => api.deleteQueue(id))}
-            className="inline-flex items-center gap-1.5 rounded-md border border-danger/35 bg-danger/10 px-2.5 py-1.5 text-xs text-danger hover:border-danger"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Remover
-          </button>
-        </div>
-      )}
+      {/* Floating bulk-action bar — shows when nothing is selected too, for "select by model" shortcut */}
+      <div
+        className={[
+          "sticky top-3 z-20 mb-4 rounded-xl border bg-bg3 px-3 py-2 text-sm shadow-lg shadow-bg/40 transition-all duration-200",
+          someSelected
+            ? "flex flex-wrap items-center gap-2 border-accent/40"
+            : models.length > 0
+              ? "flex flex-wrap items-center gap-2 border-border2"
+              : "hidden",
+        ].join(" ")}
+      >
+        {someSelected ? (
+          <>
+            <span className="font-semibold">{selected.size} selecionado(s)</span>
+            <span className="text-xs text-muted2">{selectedVisibleCount} visível(is)</span>
+            <div className="mx-1 h-4 w-px bg-border2" />
+            <button
+              onClick={() => runBulk("Pausando", (id) => api.updateQueueStatus(id, "canceled"))}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
+            >
+              <Pause className="h-3.5 w-3.5" /> Pausar
+            </button>
+            <button
+              onClick={() => runBulk("Retomando", (id) => api.updateQueueStatus(id, "scheduled"))}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
+            >
+              <Play className="h-3.5 w-3.5" /> Retomar
+            </button>
+            <button
+              onClick={() => publishSelectedNow()}
+              className="inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning hover:border-warning"
+            >
+              <Zap className="h-3.5 w-3.5" /> Tentar agora
+            </button>
+            <button
+              onClick={() => setSelected(new Set())}
+              className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-text2 hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" /> Limpar seleção
+            </button>
+            <button
+              onClick={() => runBulk("Removendo", (id) => api.deleteQueue(id))}
+              className="inline-flex items-center gap-1.5 rounded-md border border-danger/35 bg-danger/10 px-2.5 py-1.5 text-xs text-danger hover:border-danger"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Remover selecionados
+            </button>
+          </>
+        ) : (
+          /* Quick "select by model" shortcuts when nothing is selected */
+          models.length > 0 && (
+            <>
+              <Users className="h-3.5 w-3.5 shrink-0 text-muted2" />
+              <span className="text-xs text-muted2">Selecionar por modelo:</span>
+              {models.map((m) => {
+                const idsForModel = visibleItems
+                  .filter((item) => accountById.get(item.account)?.model_id === m.id)
+                  .map((item) => item.id);
+                if (idsForModel.length === 0) return null;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => selectByModel(m.id)}
+                    className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition hover:opacity-90"
+                    style={{ borderColor: `${m.color}55`, color: m.color, background: `${m.color}12` }}
+                  >
+                    <span className="h-2 w-2 rounded-full shrink-0" style={{ background: m.color }} />
+                    {m.name}
+                    <span className="opacity-60">({idsForModel.length})</span>
+                  </button>
+                );
+              })}
+            </>
+          )
+        )}
+      </div>
 
       <div className={density === "compact" ? "space-y-2" : "space-y-4"}>
         {groups.length === 0 ? (
