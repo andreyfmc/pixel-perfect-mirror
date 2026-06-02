@@ -174,6 +174,45 @@ function HealthBadge({ score, size = 32 }: { score: number; size?: number }) {
   );
 }
 
+// -------------- Avatar with fallback --------------
+function Avatar({
+  src,
+  size,
+  ringColor,
+  iconSize,
+}: {
+  src?: string | null;
+  size: number;
+  ringColor?: string;
+  iconSize?: number;
+}) {
+  const [err, setErr] = useState(false);
+  const ok = src && !err;
+  return (
+    <div
+      className="flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-bg3"
+      style={{
+        width: size,
+        height: size,
+        border: ringColor ? `2px solid ${ringColor}` : undefined,
+      }}
+    >
+      {ok ? (
+        <img
+          src={src!}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={() => setErr(true)}
+        />
+      ) : (
+        <Instagram
+          className="text-muted2"
+          style={{ width: iconSize ?? Math.round(size * 0.45), height: iconSize ?? Math.round(size * 0.45) }}
+        />
+      )}
+    </div>
+  );
+
 const STATUS_META: Record<
   AccountStatusReport["status"],
   { label: string; color: string; bg: string }
