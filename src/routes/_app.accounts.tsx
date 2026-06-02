@@ -1796,3 +1796,99 @@ function AccountMenu({
     </DropdownMenu>
   );
 }
+
+// -------------- Compact view --------------
+function CompactView({
+  items,
+  selected,
+  onToggleSelect,
+  tab,
+  now,
+  onMove,
+  onValidate,
+  onReconnect,
+  onRemove,
+  onTogglePaused,
+  onStatus,
+  models,
+  metaApps,
+  onAssignModel,
+}: RowHandlers) {
+  return (
+    <div
+      className="grid gap-2"
+      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}
+    >
+      {items.map((a, i) => {
+        const color = ringForHealth(a.health_score);
+        const isSelected = selected.has(a.id);
+        const lastHM = a.last_post_at
+          ? new Date(a.last_post_at).toLocaleTimeString("pt-BR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "—";
+        // Use `now` to avoid unused param lint
+        void now;
+        return (
+          <div
+            key={a.id}
+            title={`@${a.username}`}
+            className={`acc-card group relative flex min-h-[130px] flex-col items-center justify-between gap-1.5 rounded-xl border bg-bg2 p-2.5 transition-all hover:-translate-y-0.5${tab === "discarded" ? " opacity-60" : ""}`}
+            style={{
+              borderColor: color,
+              animationDelay: `${Math.min(i, 20) * 30}ms`,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => onToggleSelect(a.id)}
+              className="absolute left-1.5 top-1.5 accent-accent opacity-0 transition-opacity group-hover:opacity-100"
+              style={isSelected ? { opacity: 1 } : undefined}
+            />
+            <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <AccountMenu
+                a={a}
+                tab={tab}
+                compact
+                onAskMove={() => onMove(a.id, tab === "active" ? "reserve" : "active")}
+                onDirectMove={(role) => onMove(a.id, role)}
+                onValidate={() => onValidate(a)}
+                onReconnect={() => onReconnect(a)}
+                onTogglePaused={() => onTogglePaused(a.id)}
+                onRemove={() => onRemove(a)}
+                onStatus={() => onStatus(a)}
+                models={models}
+                metaApps={metaApps}
+                onAssignModel={onAssignModel}
+              />
+            </div>
+
+            <Avatar src={a.profile_picture} size={40} ringColor={color} iconSize={16} />
+
+            <div className="flex flex-wrap items-center justify-center gap-1">
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                style={{
+                  background: "color-mix(in oklab, var(--accent2) 14%, transparent)",
+                  color: "var(--accent2)",
+                  border: "1px solid color-mix(in oklab, var(--accent2) 30%, transparent)",
+                }}
+              >
+                <span className="h-1 w-1 rounded-full bg-current" />
+                Instagram
+              </span>
+              <ModelBadge model={models.find((m) => m.id === a.model_id)} />
+            </div>
+
+            <div className="text-center text-[10px] tabular-nums text-text2">
+              {compact(a.followers)} seg. · último post {lastHM}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
