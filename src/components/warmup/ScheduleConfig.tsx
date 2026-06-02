@@ -1,4 +1,4 @@
-import { CalendarDays, Clock, RefreshCw, Shuffle } from "lucide-react";
+import { CalendarDays, Clock, Layers, RefreshCw, Shuffle } from "lucide-react";
 
 type LoopMode = "once" | "snapshot" | "live_folder";
 type OrderMode = "sequential" | "random";
@@ -9,11 +9,13 @@ type Props = {
   jitter: number;
   loopMode: LoopMode;
   order: OrderMode;
+  videosPerCycle: number;
   onStartChange: (v: string) => void;
   onGapChange: (v: number) => void;
   onJitterChange: (v: number) => void;
   onLoopModeChange: (v: LoopMode) => void;
   onOrderChange: (v: OrderMode) => void;
+  onVideosPerCycleChange: (v: number) => void;
 };
 
 export function ScheduleConfig({
@@ -22,11 +24,13 @@ export function ScheduleConfig({
   jitter,
   loopMode,
   order,
+  videosPerCycle,
   onStartChange,
   onGapChange,
   onJitterChange,
   onLoopModeChange,
   onOrderChange,
+  onVideosPerCycleChange,
 }: Props) {
   const startInPast =
     Number.isFinite(new Date(start).getTime()) &&
@@ -127,6 +131,42 @@ export function ScheduleConfig({
           {loopMode === "live_folder" &&
             "Loop infinito que relê a pasta atual do Drive antes de cada ciclo — novos vídeos entram, deletados saem. Pausa se a pasta ficar vazia."}
         </p>
+
+        {loopMode !== "once" && (
+          <div className="mt-2 space-y-2 rounded-[8px] border border-border2 bg-bg3/50 p-3">
+            <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-text2">
+              <Layers className="h-3.5 w-3.5" /> Posts por ciclo
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={1}
+                max={10}
+                step={1}
+                value={videosPerCycle}
+                onChange={(e) => onVideosPerCycleChange(Number(e.target.value))}
+                className="h-1.5 flex-1 cursor-pointer accent-[var(--accent2)]"
+              />
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={videosPerCycle}
+                onChange={(e) =>
+                  onVideosPerCycleChange(
+                    Math.min(10, Math.max(1, Number(e.target.value) || 1)),
+                  )
+                }
+                className="w-16 rounded-[8px] border border-border2 bg-bg3 px-2 py-1.5 text-center text-xs outline-none focus:border-[var(--accent2)]"
+              />
+            </div>
+            <p className="text-[11px] text-muted2">Quantos reels postar por rodada</p>
+            <p className="text-[10px] text-muted2">
+              ex: {videosPerCycle} reels com jitter entre eles, depois aguarda o intervalo para o
+              próximo ciclo
+            </p>
+          </div>
+        )}
       </section>
 
       {/* Ordem dos vídeos */}

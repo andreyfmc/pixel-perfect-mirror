@@ -85,6 +85,8 @@ export type QueueItem = {
   variant_processed?: boolean;
   variant_method?: string | null;
   variant_error?: string | null;
+  loop_id?: string | null;
+  cycle_number?: number | null;
 };
 
 export const mockQueue: QueueItem[] = [

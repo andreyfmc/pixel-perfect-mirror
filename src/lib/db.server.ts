@@ -141,6 +141,11 @@ async function ensureSchema(): Promise<void> {
           .prepare("ALTER TABLE loops ADD COLUMN media_type TEXT NOT NULL DEFAULT 'REEL'")
           .run();
       }
+      if (!loopColsSet.has("videos_per_cycle")) {
+        await db
+          .prepare("ALTER TABLE loops ADD COLUMN videos_per_cycle INTEGER NOT NULL DEFAULT 1")
+          .run();
+      }
       await db
         .prepare("CREATE INDEX IF NOT EXISTS idx_loops_active ON loops(status, next_cycle_at)")
         .run();
@@ -290,6 +295,7 @@ export type LoopRow = {
   gap_min: number;
   jitter_min: number;
   order_mode: "sequential" | "random";
+  videos_per_cycle: number;
   status: "active" | "paused" | "stopped";
   cycle_number: number;
   next_cycle_at: string;
@@ -1145,8 +1151,8 @@ const rawDb = {
   async createLoop(input: Omit<LoopRow, "created_at" | "updated_at" | "cycle_number" | "last_error" | "status"> & { status?: LoopRow["status"] }) {
     await requireDb()
       .prepare(
-        `INSERT INTO loops (id, source_type, media_type, folder_id, folder_name, video_ids_json, account_ids_json, caption, gap_min, jitter_min, order_mode, status, cycle_number, next_cycle_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
+        `INSERT INTO loops (id, source_type, media_type, folder_id, folder_name, video_ids_json, account_ids_json, caption, gap_min, jitter_min, order_mode, videos_per_cycle, status, cycle_number, next_cycle_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
       )
       .bind(
         input.id,
@@ -1160,6 +1166,7 @@ const rawDb = {
         input.gap_min,
         input.jitter_min,
         input.order_mode,
+        input.videos_per_cycle ?? 1,
         input.status ?? "active",
         input.next_cycle_at,
       )

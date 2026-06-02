@@ -24,6 +24,7 @@ type PostPersist = {
   jitter?: number;
   order?: "sequential" | "random";
   mediaType?: "REEL" | "IMAGE" | "STORY";
+  videosPerCycle?: number;
 };
 
 function loadPost(): PostPersist {
@@ -100,6 +101,9 @@ export function DistributeTab() {
   const [loopMode, setLoopMode] = useState<"once" | "snapshot" | "live_folder">(
     "once",
   );
+  const [videosPerCycle, setVideosPerCycle] = useState<number>(
+    persisted.videosPerCycle ?? 3,
+  );
 
   const [enqueueing, setEnqueueing] = useState(false);
   const [enqueueOk, setEnqueueOk] = useState(false);
@@ -163,10 +167,10 @@ export function DistributeTab() {
     try {
       window.localStorage.setItem(
         POST_STORAGE_KEY,
-        JSON.stringify({ selectedAccounts, caption, gap, jitter, order, mediaType }),
+        JSON.stringify({ selectedAccounts, caption, gap, jitter, order, mediaType, videosPerCycle }),
       );
     } catch {}
-  }, [selectedAccounts, caption, gap, jitter, order, mediaType]);
+  }, [selectedAccounts, caption, gap, jitter, order, mediaType, videosPerCycle]);
 
   // --- Validação -------------------------------------------------------------
   const selectedList = Array.from(selectedVideos.values());
@@ -222,6 +226,7 @@ export function DistributeTab() {
           gap_min: Math.max(1, gap),
           jitter_min: Math.max(0, jitter),
           order_mode: order,
+          videos_per_cycle: Math.min(10, Math.max(1, videosPerCycle)),
           next_cycle_at: new Date(start).toISOString(),
         });
         if (res && "id" in res) {
@@ -366,11 +371,13 @@ export function DistributeTab() {
         jitter={jitter}
         loopMode={loopMode}
         order={order}
+        videosPerCycle={videosPerCycle}
         onStartChange={setStart}
         onGapChange={setGap}
         onJitterChange={setJitter}
         onLoopModeChange={setLoopMode}
         onOrderChange={setOrder}
+        onVideosPerCycleChange={setVideosPerCycle}
       />
 
       <ActiveLoopsPanel />

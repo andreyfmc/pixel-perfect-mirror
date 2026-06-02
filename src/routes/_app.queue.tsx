@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api-client";
 import { fmtDateTime } from "@/lib/format";
 import type { QueueItem } from "@/lib/mock";
+import type { LoopRow } from "@/lib/db.server";
 import { useOAuthPopup } from "@/hooks/use-oauth-popup";
 import {
   AlertTriangle,
@@ -26,8 +27,10 @@ import {
   Pause,
   Play,
   RefreshCw,
+  Repeat,
   Rows3,
   Search,
+  Square,
   Trash2,
   Users,
   X,
@@ -64,7 +67,7 @@ export const Route = createFileRoute("/_app/queue")({
 });
 
 type StatusKey = QueueItem["status"];
-type FilterKey = "all" | StatusKey;
+type FilterKey = "all" | StatusKey | "loop";
 type DateFilterKey = "all" | "today" | "tomorrow" | "after-tomorrow" | "this-week" | string;
 type SortKey = "asc" | "desc";
 type Density = "expanded" | "compact";
@@ -140,6 +143,7 @@ const FILTERS: { id: FilterKey; label: string; key: string }[] = [
   { id: "published", label: "Publicados", key: "U" },
   { id: "failed", label: "Erros", key: "E" },
   { id: "canceled", label: "Pausados", key: "S" },
+  { id: "loop", label: "🔁 Loop", key: "L" },
 ];
 
 const STATUS_PRIORITY: StatusKey[] = ["failed", "processing", "scheduled", "canceled", "published"];
@@ -483,6 +487,189 @@ function AvatarStack({
   );
 }
 
+const LOOP_STATUS_META: Record<
+  LoopRow["status"],
+  { bg: string; fg: string; label: string }
+> = {
+  active: {
+    bg: "color-mix(in oklab, var(--success) 18%, transparent)",
+    fg: "var(--success)",
+    label: "Ativo",
+  },
+  paused: {
+    bg: "color-mix(in oklab, var(--warning) 18%, transparent)",
+    fg: "var(--warning)",
+    label: "Pausado",
+  },
+  stopped: {
+    bg: "color-mix(in oklab, var(--danger) 18%, transparent)",
+    fg: "var(--danger)",
+    label: "Parado",
+  },
+};
+
+function parseAccountIds(json: string): string[] {
+  try {
+    const v = JSON.parse(json);
+    return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function LoopView({
+  loops,
+  queue,
+  accountById,
+  now,
+  onAction,
+}: {
+  loops: LoopRow[];
+  queue: QueueItem[];
+  accountById: Map<string, AccountMeta>;
+  now: number;
+  onAction: (loopId: string, status: LoopRow["status"]) => void;
+}) {
+  const itemsByLoop = useMemo(() => {
+    const m = new Map<string, QueueItem[]>();
+    for (const item of queue) {
+      if (!item.loop_id) continue;
+      m.set(item.loop_id, [...(m.get(item.loop_id) ?? []), item]);
+    }
+    return m;
+  }, [queue]);
+
+  if (!loops.length) {
+    return (
+      <div className="flex min-h-[240px] flex-col items-center justify-center rounded-xl border border-border bg-bg2 p-10 text-center text-sm text-text2">
+        <Repeat className="mb-2 h-7 w-7 text-muted2" />
+        Nenhum loop em execução.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {loops.map((loop) => {
+        const meta = LOOP_STATUS_META[loop.status];
+        const items = itemsByLoop.get(loop.id) ?? [];
+        const accountIds = parseAccountIds(loop.account_ids_json);
+        // Próximo post agendado por conta
+        const nextByAccount = new Map<string, string>();
+        for (const it of items) {
+          if (it.status !== "scheduled") continue;
+          const cur = nextByAccount.get(it.account);
+          if (!cur || new Date(it.scheduled_at).getTime() < new Date(cur).getTime()) {
+            nextByAccount.set(it.account, it.scheduled_at);
+          }
+        }
+        return (
+          <article
+            key={loop.id}
+            className="overflow-hidden rounded-xl border border-border bg-bg2"
+          >
+            <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
+              <Repeat className="h-4 w-4 text-accent2" />
+              <span className="font-mono text-sm font-semibold">
+                {loop.id.slice(0, 8)}
+              </span>
+              <span
+                className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase"
+                style={{ background: meta.bg, color: meta.fg }}
+              >
+                {meta.label}
+              </span>
+              <span className="text-xs text-muted2">
+                {loop.source_type === "live_folder" ? "🔄 ao vivo" : "📌 snapshot"}
+              </span>
+              {loop.folder_name && (
+                <span className="text-xs font-medium text-foreground">📁 {loop.folder_name}</span>
+              )}
+              <span className="text-xs text-muted2">
+                · ciclo #{loop.cycle_number} · {loop.videos_per_cycle ?? 1}/ciclo
+              </span>
+              <span className="text-xs text-muted2">
+                · próximo ciclo{" "}
+                <span className="text-foreground">{fmtDateTime(loop.next_cycle_at)}</span>{" "}
+                ({relativeFromNow(loop.next_cycle_at, now)})
+              </span>
+              <div className="ml-auto flex items-center gap-1">
+                {loop.status !== "active" && (
+                  <button
+                    onClick={() => onAction(loop.id, "active")}
+                    className="inline-flex items-center gap-1 rounded-md border border-border2 bg-bg3 px-2 py-1 text-[11px] hover:border-accent"
+                  >
+                    <Play className="h-3 w-3" /> Retomar
+                  </button>
+                )}
+                {loop.status === "active" && (
+                  <button
+                    onClick={() => onAction(loop.id, "paused")}
+                    className="inline-flex items-center gap-1 rounded-md border border-border2 bg-bg3 px-2 py-1 text-[11px] hover:border-warning"
+                  >
+                    <Pause className="h-3 w-3" /> Pausar
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    if (
+                      confirm(
+                        "Encerrar este loop? Itens agendados ainda não publicados serão removidos.",
+                      )
+                    ) {
+                      onAction(loop.id, "stopped");
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md border border-border2 bg-bg3 px-2 py-1 text-[11px] hover:border-danger"
+                >
+                  <Square className="h-3 w-3" /> Parar
+                </button>
+              </div>
+            </div>
+
+            {loop.last_error && (
+              <div className="border-b border-border bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-300">
+                ⚠ {loop.last_error}
+              </div>
+            )}
+
+            <div className="divide-y divide-border/60">
+              {accountIds.map((accId) => {
+                const account = accountById.get(accId);
+                const nextAt = nextByAccount.get(accId);
+                return (
+                  <div
+                    key={accId}
+                    className="flex items-center gap-2 px-3 py-2 text-sm"
+                  >
+                    {account?.profile_picture ? (
+                      <img
+                        src={account.profile_picture}
+                        alt=""
+                        className="h-6 w-6 rounded-full object-cover"
+                      />
+                    ) : (
+                      <Users className="h-4 w-4 text-muted2" />
+                    )}
+                    <span className="min-w-0 flex-1 truncate font-semibold">
+                      @{account?.username ?? accId.slice(0, 12)}
+                    </span>
+                    <span className="text-[11px] text-muted2 tabular-nums">
+                      {nextAt
+                        ? `Próximo ${timeHHmm(nextAt)} · ${relativeFromNow(nextAt, now)}`
+                        : "Sem post agendado"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
 function QueuePage() {
   const qc = useQueryClient();
   const { connect, loading } = useOAuthPopup();
@@ -500,6 +687,11 @@ function QueuePage() {
     queryKey: ["models"],
     queryFn: () => api.listModels(),
     refetchInterval: 120_000,
+  });
+  const { data: loops = [] } = useQuery({
+    queryKey: ["loops"],
+    queryFn: () => api.listLoops(),
+    refetchInterval: 30_000,
   });
 
   const modelById = useMemo(() => {
@@ -577,8 +769,12 @@ function QueuePage() {
       canceled: 0,
       failed: 0,
       published: 0,
+      loop: 0,
     };
-    for (const q of queue) c[q.status]++;
+    for (const q of queue) {
+      c[q.status]++;
+      if (q.loop_id) c.loop++;
+    }
     return c;
   }, [queue]);
 
@@ -777,6 +973,15 @@ function QueuePage() {
     } finally {
       toast.dismiss(t);
     }
+  }
+
+  async function onLoopAction(loopId: string, status: LoopRow["status"]) {
+    const label =
+      status === "active" ? "Retomando loop" : status === "paused" ? "Pausando loop" : "Parando loop";
+    await singleAction(label, async () => {
+      await api.patchLoop(loopId, { status, cancel_pending: status !== "active" });
+      qc.invalidateQueries({ queryKey: ["loops"] });
+    });
   }
 
   async function publishSelectedNow(ids = [...selected]) {
@@ -1184,7 +1389,15 @@ function QueuePage() {
       )}
 
       <div className={density === "compact" ? "space-y-2" : "space-y-4"}>
-        {groups.length === 0 ? (
+        {filter === "loop" ? (
+          <LoopView
+            loops={loops}
+            queue={queue}
+            accountById={accountById}
+            now={now}
+            onAction={onLoopAction}
+          />
+        ) : groups.length === 0 ? (
           <div className="flex min-h-[240px] flex-col items-center justify-center rounded-xl border border-border bg-bg2 p-10 text-center text-sm text-text2">
             <CheckCircle2 className="mb-2 h-7 w-7 text-muted2" />
             Nada por aqui.
@@ -1477,6 +1690,20 @@ function QueuePage() {
                               now={now}
                               retryCount={item.retry_count}
                             />
+                            {item.loop_id && (
+                              <TooltipProvider delayDuration={150}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent2/40 bg-accent2/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent2">
+                                      <Repeat className="h-3 w-3" />
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                    <p className="text-xs">Loop · Ciclo {item.cycle_number ?? 0}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
                             <VariantBadge item={item} />
                             {item.status === "published" && (
                               <ExternalLink className="h-3 w-3 shrink-0 text-muted2" />

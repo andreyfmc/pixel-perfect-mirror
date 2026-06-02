@@ -95,33 +95,51 @@ export async function materializeLoop(
   const groupScheduledAt = new Date(baseStart).toISOString();
   const jitterMs = Math.max(0, loop.jitter_min) * 60_000;
   const cycle = loop.cycle_number; // ciclo atual a materializar
+  const perCycle = Math.max(1, loop.videos_per_cycle ?? 1);
 
   let enqueued = 0;
   for (const accId of accountIds) {
     const list = loop.order_mode === "random" ? shuffleSeeded(videoIds, accId) : videoIds;
-    const videoId = list[cycle % list.length];
-    const jitterOffset = jitterMs ? Math.floor(Math.random() * (jitterMs + 1)) : 0;
-    const scheduledAt = new Date(baseStart + jitterOffset).toISOString();
-    const uniqueCaption = variateCaption(loop.caption, `${accId}|${videoId}`);
-    try {
-      await db.enqueue({
-        id: crypto.randomUUID(),
-        account_id: accId,
-        caption: uniqueCaption,
-        media_type: loop.media_type ?? "REEL",
-        media_key: `drive:${videoId}`,
-        thumb_key: null,
-        scheduled_at: scheduledAt,
-        group_id: groupId,
-        group_scheduled_at: groupScheduledAt,
-        loop_id: loop.id,
-        cycle_number: cycle,
-      });
-      enqueued++;
-    } catch (err) {
-      console.warn(
-        `[loops] falha ao enfileirar loop=${loop.id} acc=${accId}: ${err instanceof Error ? err.message : String(err)}`,
-      );
+    // Posta `perCycle` vídeos consecutivos por conta neste ciclo, escolhidos
+    // sequencialmente a partir de `cycle * perCycle` (ou já embaralhados se random).
+    // O 1º post recebe jitter aleatório (0, jitter); cada post seguinte acumula
+    // jitter aleatório (2min, jitter + 2min) sobre o horário do anterior.
+    let prevScheduledMs = baseStart;
+    for (let i = 0; i < perCycle; i++) {
+      const videoId = list[(cycle * perCycle + i) % list.length];
+      let scheduledMs: number;
+      if (i === 0) {
+        const jitterOffset = jitterMs ? Math.floor(Math.random() * (jitterMs + 1)) : 0;
+        scheduledMs = baseStart + jitterOffset;
+      } else {
+        const minMs = 2 * 60_000;
+        const maxMs = jitterMs + 2 * 60_000;
+        const step = minMs + Math.floor(Math.random() * (maxMs - minMs + 1));
+        scheduledMs = prevScheduledMs + step;
+      }
+      prevScheduledMs = scheduledMs;
+      const scheduledAt = new Date(scheduledMs).toISOString();
+      const uniqueCaption = variateCaption(loop.caption, `${accId}|${videoId}`);
+      try {
+        await db.enqueue({
+          id: crypto.randomUUID(),
+          account_id: accId,
+          caption: uniqueCaption,
+          media_type: loop.media_type ?? "REEL",
+          media_key: `drive:${videoId}`,
+          thumb_key: null,
+          scheduled_at: scheduledAt,
+          group_id: groupId,
+          group_scheduled_at: groupScheduledAt,
+          loop_id: loop.id,
+          cycle_number: cycle,
+        });
+        enqueued++;
+      } catch (err) {
+        console.warn(
+          `[loops] falha ao enfileirar loop=${loop.id} acc=${accId}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     }
   }
 

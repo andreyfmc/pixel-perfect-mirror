@@ -19,6 +19,7 @@ const CreateLoopSchema = z.object({
   gap_min: z.number().int().min(1).max(24 * 60),
   jitter_min: z.number().int().min(0).max(120),
   order_mode: z.enum(["sequential", "random"]),
+  videos_per_cycle: z.number().int().min(1).max(10).default(3),
   next_cycle_at: z.string(), // ISO
 });
 
@@ -47,6 +48,7 @@ export const Route = createFileRoute("/api/loops")({
           gap_min: body.gap_min,
           jitter_min: body.jitter_min,
           order_mode: body.order_mode,
+          videos_per_cycle: body.videos_per_cycle,
           next_cycle_at: body.next_cycle_at,
           status: "active",
         });

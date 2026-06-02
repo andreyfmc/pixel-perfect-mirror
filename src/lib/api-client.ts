@@ -86,6 +86,8 @@ function queueFromRow(r: QueueRow): QueueItem {
     variant_processed: !!r.variant_processed,
     variant_method: r.variant_method,
     variant_error: r.variant_error,
+    loop_id: r.loop_id,
+    cycle_number: r.cycle_number,
   };
 }
 
@@ -296,6 +298,7 @@ export const api = {
     gap_min: number;
     jitter_min: number;
     order_mode: "sequential" | "random";
+    videos_per_cycle?: number;
     next_cycle_at: string;
   }): Promise<{ id: string } | { error: string } | null> {
     try {
