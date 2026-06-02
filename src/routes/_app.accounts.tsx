@@ -1443,95 +1443,116 @@ function CompactView({
   models,
   onAssignModel,
 }: Omit<RowHandlers, "now">) {
+  const tabLabel = tab === "active" ? "ATIVA" : tab === "reserve" ? "RESERVA" : "DESCARTADA";
+  const tabColor =
+    tab === "active"
+      ? "var(--success)"
+      : tab === "reserve"
+        ? "var(--info)"
+        : "var(--danger)";
   return (
     <div
       className="grid gap-3"
-      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))" }}
+      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}
     >
       {items.map((a, i) => {
         const color = ringForHealth(a.health_score);
         const isSelected = selected.has(a.id);
         const isConfirming = confirmMove === a.id;
+        const model = models.find((m) => m.id === a.model_id);
         return (
           <div
             key={a.id}
-            className={`acc-card group relative flex min-h-[150px] flex-col gap-2 rounded-xl border bg-bg2 p-3.5 transition-all hover:-translate-y-0.5${tab === "discarded" ? " opacity-60" : ""}`}
+            className={`acc-card group relative flex items-center gap-3 rounded-xl border bg-bg2 px-3 py-2.5 transition-all hover:-translate-y-0.5${tab === "discarded" ? " opacity-60" : ""}`}
             style={{
               borderColor: hideData ? "var(--border)" : color,
               animationDelay: `${Math.min(i, 20) * 30}ms`,
             }}
           >
-            <div className="flex items-start gap-2">
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={() => onToggleSelect(a.id)}
-                className="mt-1 accent-accent"
-              />
-              <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
-                <AccountAvatar account={a} size={48} hideData={hideData} />
-                <span className="max-w-full truncate text-center text-[11px] font-mono text-muted2">
-                  @{a.username}
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => onToggleSelect(a.id)}
+              className="shrink-0 accent-accent"
+            />
+            <AccountAvatar account={a} size={40} hideData={hideData} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-[13px] font-medium text-foreground">
+                  {hideData ? "••••••••" : `@${a.username}`}
+                </span>
+                <span className="hidden text-[11px] text-muted2 sm:inline">·</span>
+                <span className="hidden text-[11px] text-muted2 sm:inline">Instagram</span>
+                <span
+                  className="rounded px-1.5 py-[1px] text-[9px] font-bold leading-none tracking-wider"
+                  style={{
+                    color: tabColor,
+                    background: `color-mix(in oklab, ${tabColor} 18%, transparent)`,
+                  }}
+                >
+                  {tabLabel}
                 </span>
               </div>
-              {!hideData && <HealthBadge score={a.health_score} size={32} />}
-            </div>
-
-            {!hideData && (
-              <div className="flex flex-wrap items-center justify-center gap-1 text-[12px] text-text2">
-                <span className="inline-flex items-center gap-1 tabular-nums">
-                  <Users className="h-3 w-3" /> {compact(a.followers)}
-                </span>
-                <span className="inline-flex items-center gap-1 tabular-nums">
-                  <ImageIcon className="h-3 w-3" /> {a.posts ?? 0}
-                </span>
-              </div>
-            )}
-
-            {!hideData && (
-              <div className="flex items-center justify-center">
-                <StatusBadge status={(a.token_status === "expired") ? "token_expired" : a.health_score < 40 ? "restricted" : a.health_score < 70 ? "limited" : "healthy"} />
-              </div>
-            )}
-
-            <div className="mt-auto flex items-center justify-between gap-1.5">
-              <div className="flex flex-wrap items-center gap-1">
-                {a.paused && (
-                  <span className="rounded-full border border-muted/40 bg-muted/10 px-1.5 py-0.5 text-[10px] font-semibold text-text2">
-                    Pausada
+              {!hideData ? (
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted2">
+                  <span className="inline-flex items-center gap-1 tabular-nums">
+                    <Users className="h-3 w-3" /> {compact(a.followers)} seguidores
                   </span>
-                )}
-                <ModelBadge model={models.find((m) => m.id === a.model_id)} />
-              </div>
-              {!isConfirming && (
-                <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  <Link
-                    to="/queue"
-                    className="rounded-md border border-border2 bg-bg2 px-1.5 py-1 text-[10px] font-medium text-text2 hover:border-accent hover:text-foreground"
-                  >
-                    Fila
-                  </Link>
-                  <button
-                    onClick={() => setConfirmMove(a.id)}
-                    className="rounded-md border border-border2 bg-bg2 px-1.5 py-1 text-[10px] font-medium text-text2 hover:border-accent hover:text-foreground"
-                  >
-                    {tab === "active" ? "Desativar" : "Ativar"}
-                  </button>
-                  <AccountMenu
-                    a={a}
-                    tab={tab}
-                    compact
-                    onAskMove={() => setConfirmMove(a.id)}
-                    onDirectMove={(role) => onMove(a.id, role)}
-                    onValidate={() => onValidate(a)}
-                    onReconnect={() => onReconnect(a)}
-                    onTogglePaused={() => onTogglePaused(a.id)}
-                    onRemove={() => onRemove(a)}
-                    onStatus={() => onStatus(a)}
-                    models={models}
-                    onAssignModel={onAssignModel}
-                  />
+                  <span className="inline-flex items-center gap-1 tabular-nums">
+                    <ImageIcon className="h-3 w-3" /> {a.posts ?? 0} posts
+                  </span>
+                  {a.last_post_at && (
+                    <span className="inline-flex items-center gap-1 tabular-nums">
+                      <Clock className="h-3 w-3" />
+                      {new Date(a.last_post_at).toLocaleTimeString("pt-BR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}{" "}
+                      <span className="text-muted2/70">último post</span>
+                    </span>
+                  )}
                 </div>
+              ) : (
+                <div className="mt-1 flex items-center gap-2">
+                  {model && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-muted2">
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: model.color }}
+                      />
+                      {model.name}
+                    </span>
+                  )}
+                </div>
+              )}
+              {!hideData && (model || a.paused) && (
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  {a.paused && (
+                    <span className="rounded-full border border-muted/40 bg-muted/10 px-1.5 py-0.5 text-[10px] font-semibold text-text2">
+                      Pausada
+                    </span>
+                  )}
+                  <ModelBadge model={model} />
+                </div>
+              )}
+            </div>
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              {!hideData && <HealthBadge score={a.health_score} size={26} />}
+              {!isConfirming && (
+                <AccountMenu
+                  a={a}
+                  tab={tab}
+                  compact
+                  onAskMove={() => setConfirmMove(a.id)}
+                  onDirectMove={(role) => onMove(a.id, role)}
+                  onValidate={() => onValidate(a)}
+                  onReconnect={() => onReconnect(a)}
+                  onTogglePaused={() => onTogglePaused(a.id)}
+                  onRemove={() => onRemove(a)}
+                  onStatus={() => onStatus(a)}
+                  models={models}
+                  onAssignModel={onAssignModel}
+                />
               )}
             </div>
 
