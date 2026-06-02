@@ -355,7 +355,6 @@ const rawDb = {
       SELECT a.*,
         (SELECT COUNT(*) FROM history h WHERE h.account_id = a.id) AS posts
       FROM accounts a
-      WHERE a.role != 'discarded'
       ORDER BY a.created_at DESC`;
     const { results } = await requireDb().prepare(sql).all<AccountRow & { posts: number }>();
     const accounts = results ?? [];
@@ -624,11 +623,14 @@ const rawDb = {
         `UPDATE accounts
          SET token_status = 'expired',
              health_score = 0,
+             role = 'discarded',
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
       )
       .bind(id)
       .run();
+    // Cancela automaticamente todos os posts pendentes desta conta
+    await rawDb.cancelPendingForAccount(id);
   },
   async deleteAccount(id: string) {
     await requireDb().prepare("DELETE FROM accounts WHERE id = ?").bind(id).run();
@@ -1212,6 +1214,17 @@ const rawDb = {
       .bind(nextCycleAt, cycleNumber, id)
       .run();
   },
+  async cancelPendingForAccount(accountId: string): Promise<number> {
+    const { meta } = await requireDb()
+      .prepare(
+        `UPDATE queue SET status = 'canceled', last_error = 'Conta descartada — posts cancelados automaticamente'
+         WHERE account_id = ? AND status IN ('pending', 'processing')`,
+      )
+      .bind(accountId)
+      .run();
+    return meta?.changes ?? 0;
+  },
+
   async cancelPendingForLoop(id: string): Promise<number> {
     const res = await requireDb()
       .prepare(`DELETE FROM queue WHERE loop_id = ? AND status = 'scheduled'`)
