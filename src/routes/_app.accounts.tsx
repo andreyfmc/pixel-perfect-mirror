@@ -19,6 +19,7 @@ import {
   Clock,
   List,
   LayoutGrid,
+  Grid3x3,
   ArrowRightLeft,
   ArrowLeftToLine,
   Pause,
@@ -61,7 +62,7 @@ export const Route = createFileRoute("/_app/accounts")({
 });
 
 type Role = "active" | "reserve" | "discarded";
-type View = "list" | "grid";
+type View = "list" | "grid" | "compact";
 type SortKey = "followers" | "health-asc" | "recent" | "name";
 type HealthFilter = "all" | "good" | "warn" | "bad";
 
@@ -172,6 +173,48 @@ function HealthBadge({ score, size = 32 }: { score: number; size?: number }) {
     </TooltipProvider>
   );
 }
+
+// -------------- Avatar with fallback --------------
+function Avatar({
+  src,
+  size,
+  ringColor,
+  iconSize,
+}: {
+  src?: string | null;
+  size: number;
+  ringColor?: string;
+  iconSize?: number;
+}) {
+  const [err, setErr] = useState(false);
+  const ok = src && !err;
+  return (
+    <div
+      className="flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-bg3"
+      style={{
+        width: size,
+        height: size,
+        border: ringColor ? `2px solid ${ringColor}` : undefined,
+      }}
+    >
+      {ok ? (
+        <img
+          src={src!}
+          alt=""
+          className="h-full w-full object-cover"
+          onError={() => setErr(true)}
+        />
+      ) : (
+        <Instagram
+          className="text-muted2"
+          style={{ width: iconSize ?? Math.round(size * 0.45), height: iconSize ?? Math.round(size * 0.45) }}
+        />
+      )}
+    </div>
+  );
+}
+
+
 
 const STATUS_META: Record<
   AccountStatusReport["status"],
@@ -481,7 +524,7 @@ function AccountsPage() {
     const t = localStorage.getItem(TAB_KEY);
     if (t === "active" || t === "reserve" || t === "discarded") setTab(t);
     const v = localStorage.getItem(VIEW_KEY);
-    if (v === "list" || v === "grid") setView(v);
+    if (v === "list" || v === "grid" || v === "compact") setView(v);
   }, []);
   useEffect(() => {
     localStorage.setItem(TAB_KEY, tab);
@@ -864,6 +907,15 @@ function AccountsPage() {
           >
             <LayoutGrid className="h-3.5 w-3.5" /> Grid
           </button>
+          <button
+            onClick={() => setView("compact")}
+            className={[
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              view === "compact" ? "bg-bg3 text-foreground" : "text-muted2 hover:text-text2",
+            ].join(" ")}
+          >
+            <Grid3x3 className="h-3.5 w-3.5" /> Compacto
+          </button>
         </div>
       </div>
 
@@ -1093,12 +1145,35 @@ function AccountsPage() {
           metaApps={metaApps}
           onAssignModel={assignModel}
         />
-      ) : (
+      ) : view === "grid" ? (
         <GridView
           items={filtered}
           selected={selected}
           onToggleSelect={toggleSelect}
           tab={tab}
+          confirmMove={confirmMove}
+          setConfirmMove={setConfirmMove}
+          onMove={(id, role) => {
+            setRole(id, role);
+            const label = role === "reserve" ? "Reservas" : role === "discarded" ? "Descartadas" : "Ativas";
+            toast.success(`Conta movida para ${label}`);
+          }}
+          onValidate={validateOne}
+          onReconnect={(a) => handleConnect(a.provider ?? "facebook")}
+          onRemove={removeAccount}
+          onTogglePaused={togglePaused}
+          onStatus={openStatus}
+          models={models}
+          metaApps={metaApps}
+          onAssignModel={assignModel}
+        />
+      ) : (
+        <CompactView
+          items={filtered}
+          selected={selected}
+          onToggleSelect={toggleSelect}
+          tab={tab}
+          now={now}
           confirmMove={confirmMove}
           setConfirmMove={setConfirmMove}
           onMove={(id, role) => {
@@ -1281,11 +1356,7 @@ function ListView({
               onChange={() => onToggleSelect(a.id)}
               className="shrink-0 accent-accent"
             />
-            <img
-              src={a.profile_picture}
-              alt=""
-              className="h-9 w-9 shrink-0 rounded-full bg-bg3"
-            />
+            <Avatar src={a.profile_picture} size={36} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
                 <span className="truncate text-sm font-semibold">@{a.username}</span>
@@ -1424,7 +1495,7 @@ function GridView({
         return (
           <div
             key={a.id}
-            className={`acc-card group relative flex h-[140px] flex-col gap-2 rounded-xl border bg-bg2 p-3.5 transition-all hover:-translate-y-0.5${tab === "discarded" ? " opacity-60" : ""}`}
+            className={`acc-card group relative flex min-h-[140px] flex-col gap-2 rounded-xl border bg-bg2 p-3.5 transition-all hover:-translate-y-0.5${tab === "discarded" ? " opacity-60" : ""}`}
             style={{
               borderColor: color,
               animationDelay: `${Math.min(i, 20) * 30}ms`,
@@ -1437,11 +1508,7 @@ function GridView({
                 onChange={() => onToggleSelect(a.id)}
                 className="mt-1 accent-accent"
               />
-              <img
-                src={a.profile_picture}
-                alt=""
-                className="h-12 w-12 shrink-0 rounded-full bg-bg3"
-              />
+              <Avatar src={a.profile_picture} size={48} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold">@{a.username}</div>
                 <div className="truncate text-[11px] text-muted2">
@@ -1729,3 +1796,99 @@ function AccountMenu({
     </DropdownMenu>
   );
 }
+
+// -------------- Compact view --------------
+function CompactView({
+  items,
+  selected,
+  onToggleSelect,
+  tab,
+  now,
+  onMove,
+  onValidate,
+  onReconnect,
+  onRemove,
+  onTogglePaused,
+  onStatus,
+  models,
+  metaApps,
+  onAssignModel,
+}: RowHandlers) {
+  return (
+    <div
+      className="grid gap-2"
+      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}
+    >
+      {items.map((a, i) => {
+        const color = ringForHealth(a.health_score);
+        const isSelected = selected.has(a.id);
+        const lastHM = a.last_post_at
+          ? new Date(a.last_post_at).toLocaleTimeString("pt-BR", {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "—";
+        // Use `now` to avoid unused param lint
+        void now;
+        return (
+          <div
+            key={a.id}
+            title={`@${a.username}`}
+            className={`acc-card group relative flex min-h-[130px] flex-col items-center justify-between gap-1.5 rounded-xl border bg-bg2 p-2.5 transition-all hover:-translate-y-0.5${tab === "discarded" ? " opacity-60" : ""}`}
+            style={{
+              borderColor: color,
+              animationDelay: `${Math.min(i, 20) * 30}ms`,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => onToggleSelect(a.id)}
+              className="absolute left-1.5 top-1.5 accent-accent opacity-0 transition-opacity group-hover:opacity-100"
+              style={isSelected ? { opacity: 1 } : undefined}
+            />
+            <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover:opacity-100">
+              <AccountMenu
+                a={a}
+                tab={tab}
+                compact
+                onAskMove={() => onMove(a.id, tab === "active" ? "reserve" : "active")}
+                onDirectMove={(role) => onMove(a.id, role)}
+                onValidate={() => onValidate(a)}
+                onReconnect={() => onReconnect(a)}
+                onTogglePaused={() => onTogglePaused(a.id)}
+                onRemove={() => onRemove(a)}
+                onStatus={() => onStatus(a)}
+                models={models}
+                metaApps={metaApps}
+                onAssignModel={onAssignModel}
+              />
+            </div>
+
+            <Avatar src={a.profile_picture} size={40} ringColor={color} iconSize={16} />
+
+            <div className="flex flex-wrap items-center justify-center gap-1">
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+                style={{
+                  background: "color-mix(in oklab, var(--accent2) 14%, transparent)",
+                  color: "var(--accent2)",
+                  border: "1px solid color-mix(in oklab, var(--accent2) 30%, transparent)",
+                }}
+              >
+                <span className="h-1 w-1 rounded-full bg-current" />
+                Instagram
+              </span>
+              <ModelBadge model={models.find((m) => m.id === a.model_id)} />
+            </div>
+
+            <div className="text-center text-[10px] tabular-nums text-text2">
+              {compact(a.followers)} seg. · último post {lastHM}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
