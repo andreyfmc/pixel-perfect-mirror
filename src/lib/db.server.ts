@@ -63,6 +63,22 @@ async function ensureSchema(): Promise<void> {
           .prepare("CREATE INDEX IF NOT EXISTS idx_accounts_role ON accounts(role)")
           .run();
       }
+      // Migração: descarta contas com health_score = 0 que ainda estão como 'active'
+      // e cancela os posts pendentes delas.
+      await db
+        .prepare(
+          `UPDATE accounts SET role = 'discarded', updated_at = CURRENT_TIMESTAMP
+           WHERE health_score = 0 AND role = 'active'`,
+        )
+        .run();
+      await db
+        .prepare(
+          `UPDATE queue SET status = 'canceled',
+                            last_error = 'Conta descartada — posts cancelados automaticamente'
+           WHERE status IN ('pending','processing')
+             AND account_id IN (SELECT id FROM accounts WHERE role = 'discarded')`,
+        )
+        .run();
       // models — agrupamento de contas por "modelo" (ex: Valentina)
       await db
         .prepare(
