@@ -62,7 +62,7 @@ export const Route = createFileRoute("/_app/accounts")({
 });
 
 type Role = "active" | "reserve" | "discarded";
-type View = "list" | "grid";
+type View = "list" | "grid" | "compact";
 type SortKey = "followers" | "health-asc" | "recent" | "name";
 type HealthFilter = "all" | "good" | "warn" | "bad";
 
