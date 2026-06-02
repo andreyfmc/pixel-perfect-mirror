@@ -73,9 +73,22 @@ export async function runScheduler(
 
   let processed = 0;
   let errors = 0;
+  let variantsBuiltThisTick = 0;
 
   for (const item of due) {
     try {
+      if (
+        item.variant_processed === 0 &&
+        (item.media_key.startsWith("drive:") || item.original_media_key?.startsWith("drive:"))
+      ) {
+        if (variantsBuiltThisTick >= 1) continue;
+        console.log(`[scheduler] gerando variante antes de publicar queue=${item.id}`);
+        const r = await buildVariantFor(item.id);
+        variantsBuiltThisTick++;
+        if (!r.ok) throw new Error(`Variante MP4 falhou: ${r.error}`);
+        continue;
+      }
+
       const account = await db.resolveAccountForPublishing(item.account_id);
       if (!account?.ig_user_id || !account?.access_token) {
         throw new Error(
@@ -243,6 +256,18 @@ export async function runScheduler(
       // tocar nos demais. Backoff: 5min → 15min → 30min, máx 3 tentativas.
       const RETRY_DELAYS_MIN = [5, 15, 30];
       const currentRetry = item.retry_count ?? 0;
+      if (msg.startsWith("Variante MP4 falhou:") && currentRetry < RETRY_DELAYS_MIN.length) {
+        const nextRetry = currentRetry + 1;
+        const delayMs = RETRY_DELAYS_MIN[currentRetry] * 60_000;
+        const nextAt = new Date(Date.now() + delayMs).toISOString();
+        await db.scheduleRetry(item.id, {
+          scheduledAt: nextAt,
+          retryCount: nextRetry,
+          lastError: `Retry ${nextRetry}/3 em ${RETRY_DELAYS_MIN[currentRetry]}min — ${msg}`,
+        });
+        console.warn(`[scheduler] queue=${item.id} retry de variante ${nextRetry}/3 para ${nextAt}`);
+        continue;
+      }
       if (isTransientGraphError(err) && currentRetry < RETRY_DELAYS_MIN.length) {
         const nextRetry = currentRetry + 1;
         // Cancela retry quando há outro post da mesma conta muito próximo
@@ -363,19 +388,6 @@ export async function runScheduler(
     } catch (err) {
       console.warn("[scheduler] auto-validate: varredura falhou:", err);
     }
-  }
-
-  // Processa variantes pendentes (1 por tick — cada build pode consumir
-  // boa parte do orçamento de CPU do Worker).
-  try {
-    const pending = await db.listPendingVariantItems(1);
-    for (const item of pending) {
-      console.log(`[scheduler] gerando variante queue=${item.id}`);
-      const r = await buildVariantFor(item.id);
-      if (!r.ok) console.warn(`[scheduler] variante falhou queue=${item.id}: ${r.error}`);
-    }
-  } catch (err) {
-    console.warn("[scheduler] build de variantes falhou:", err);
   }
 
   // Marca como failed qualquer item 'processing' que estourou tentativas.

@@ -346,7 +346,6 @@ export function DistributeTab() {
         for (const res of results) {
           if (res) {
             ok++;
-            void api.buildVariant(res.id);
           } else {
             fail++;
           }
