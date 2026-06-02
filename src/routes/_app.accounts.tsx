@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useOAuthPopup } from "@/hooks/use-oauth-popup";
 import { ConnectLinkButton } from "@/components/ConnectLinkButton";
+import { useHideData } from "@/hooks/use-hide-data";
 
 export const Route = createFileRoute("/_app/accounts")({
   component: AccountsPage,
@@ -85,7 +86,6 @@ const ROLE_KEY = "accounts.roleOverrides.v1";
 const PAUSED_KEY = "accounts.pausedOverrides.v1";
 const TAB_KEY = "accounts.activeTab.v1";
 const VIEW_KEY = "accounts.view.v1";
-const HIDE_DATA_KEY = "accounts.hideData.v1";
 
 // -------------- overrides (localStorage, until backend has role column) --------------
 function loadMap(key: string): Record<string, boolean | Role> {
@@ -411,7 +411,7 @@ function AccountsPage() {
   const [tab, setTab] = useState<Role>("active");
   const [modelFilter, setModelFilter] = useState<"all" | "none" | string>("all");
   const [view, setView] = useState<View>("list");
-  const [hideData, setHideData] = useState<boolean>(false);
+  const [hideData, setHideData] = useHideData();
   const [sortKey, setSortKey] = useState<SortKey>("followers");
   const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
   const [query, setQuery] = useState("");
@@ -453,8 +453,6 @@ function AccountsPage() {
     const v = localStorage.getItem(VIEW_KEY);
     if (v === "list" || v === "compact") setView(v);
     else if (v === "grid") setView("compact");
-    const h = localStorage.getItem(HIDE_DATA_KEY);
-    if (h === "1") setHideData(true);
   }, []);
   useEffect(() => {
     localStorage.setItem(TAB_KEY, tab);
@@ -840,13 +838,9 @@ function AccountsPage() {
         </div>
         <button
           onClick={() => {
-            const next = !hideData;
-            setHideData(next);
-            if (typeof window !== "undefined") {
-              localStorage.setItem(HIDE_DATA_KEY, next ? "1" : "0");
-            }
+            setHideData(!hideData);
           }}
-          title={hideData ? "Mostrar fotos e dados" : "Ocultar fotos e dados"}
+          title={hideData ? "Mostrar tudo" : "Ocultar tudo"}
           className={[
             "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
             hideData
@@ -855,7 +849,7 @@ function AccountsPage() {
           ].join(" ")}
         >
           {hideData ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-          {hideData ? "Ocultas" : "Ocultar fotos"}
+          {hideData ? "Ocultas" : "Ocultar tudo"}
         </button>
       </div>
 
@@ -1276,20 +1270,26 @@ function ListView({
             <AccountAvatar account={a} size={36} hideData={hideData} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5">
-                <span className="truncate text-sm font-semibold">@{a.username}</span>
-                {a.paused && (
+                <span className="truncate text-sm font-semibold">
+                  {hideData ? "••••••••" : `@${a.username}`}
+                </span>
+                {!hideData && a.paused && (
                   <span className="rounded-full border border-muted/40 bg-muted/10 px-1.5 py-0.5 text-[10px] font-semibold text-text2">
                     Pausada
                   </span>
                 )}
-                {token.expired && (
+                {!hideData && token.expired && (
                   <span className="rounded-full border border-danger/40 bg-danger/10 px-1.5 py-0.5 text-[10px] font-semibold text-danger">
                     Token expirado
                   </span>
                 )}
-                <ModelBadge model={models.find((m) => m.id === a.model_id)} />
+                {!hideData && (
+                  <ModelBadge model={models.find((m) => m.id === a.model_id)} />
+                )}
               </div>
-              <p className="truncate text-[11px] text-muted2">{a.name}</p>
+              <p className="truncate text-[11px] text-muted2">
+                {hideData ? "••••••" : a.name}
+              </p>
             </div>
 
             {!hideData && <HealthBadge score={a.health_score} size={28} />}

@@ -10,10 +10,11 @@ import {
   Plus,
   Sparkles,
   Trophy,
-  Settings,
-  
+  Instagram,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
+import { useState } from "react";
+import { useHideData } from "@/hooks/use-hide-data";
 
 
 const nav = [
@@ -24,7 +25,6 @@ const nav = [
   { to: "/history", label: "Histórico", icon: History, emoji: "📚" },
   { to: "/warmup", label: "Warmup", icon: Flame, emoji: "🔥" },
   { to: "/contingency", label: "Contingência", icon: ShieldAlert, emoji: "🛡️" },
-  { to: "/settings", label: "Configurações", icon: Settings, emoji: "⚙️" },
 ] as const;
 
 function healthColor(score: number) {
@@ -39,17 +39,7 @@ export function AppSidebar() {
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
   });
-
-  // Lê os role overrides do localStorage (mesmo formato de _app.accounts.tsx)
-  const roleMap: Record<string, string> = (() => {
-    if (typeof window === "undefined") return {};
-    try { return JSON.parse(localStorage.getItem("accounts.roleOverrides.v1") || "{}"); } catch { return {}; }
-  })();
-
-  const visibleAccounts = accounts.filter((a) => {
-    const role = roleMap[a.id] ?? (a as { role?: string }).role ?? "active";
-    return role !== "discarded";
-  });
+  const [hideData] = useHideData();
 
   return (
     <aside className="hidden md:flex sticky top-0 h-screen w-64 shrink-0 flex-col border-r border-border bg-bg2">
@@ -92,14 +82,8 @@ export function AppSidebar() {
 
       <div className="mt-6 px-5">
         <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted2 flex items-center gap-1.5">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-muted2">
             Contas
-            <span
-              className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums leading-none"
-              style={{ background: "color-mix(in oklab, var(--accent2) 15%, transparent)", color: "var(--accent2)" }}
-            >
-              {visibleAccounts.length}
-            </span>
           </span>
           <button
             type="button"
@@ -112,23 +96,29 @@ export function AppSidebar() {
       </div>
 
       <ul className="mt-3 space-y-1 px-3 overflow-y-auto flex-1">
-        {visibleAccounts.map((a) => (
+        {accounts.map((a) => (
           <li key={a.id}>
             <button className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-bg3">
               <div className="relative">
-                <img
+                <SidebarAvatar
                   src={a.profile_picture}
-                  alt={a.username}
-                  className="h-8 w-8 rounded-full bg-bg3 ring-1 ring-border"
+                  username={a.username}
+                  hide={hideData}
                 />
-                <span
-                  className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2"
-                  style={{ background: healthColor(a.health_score) }}
-                />
+                {!hideData && (
+                  <span
+                    className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2"
+                    style={{ background: healthColor(a.health_score) }}
+                  />
+                )}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">@{a.username}</div>
-                <div className="text-[11px] text-muted2">saúde {a.health_score}</div>
+                <div className="truncate text-sm font-medium">
+                  {hideData ? "••••••••" : `@${a.username}`}
+                </div>
+                <div className="text-[11px] text-muted2">
+                  {hideData ? "•••" : `saúde ${a.health_score}`}
+                </div>
               </div>
             </button>
           </li>
@@ -136,5 +126,39 @@ export function AppSidebar() {
       </ul>
 
     </aside>
+  );
+}
+
+function SidebarAvatar({
+  src,
+  username,
+  hide,
+}: {
+  src?: string;
+  username: string;
+  hide: boolean;
+}) {
+  const [errored, setErrored] = useState(false);
+  const showFallback = hide || errored || !src;
+  if (showFallback) {
+    return (
+      <div
+        className="flex h-8 w-8 items-center justify-center rounded-full text-white ring-1 ring-border"
+        style={{
+          background: "linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",
+        }}
+        aria-label={username}
+      >
+        <Instagram className="h-4 w-4" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={username}
+      onError={() => setErrored(true)}
+      className="h-8 w-8 rounded-full bg-bg3 ring-1 ring-border object-cover"
+    />
   );
 }
