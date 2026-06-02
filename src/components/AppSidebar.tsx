@@ -14,7 +14,7 @@ import {
   ChevronsUpDown,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useHideData } from "@/hooks/use-hide-data";
 import {
   DropdownMenu,
@@ -65,7 +65,11 @@ export function AppSidebar() {
     queryFn: () => api.listAccounts(),
   });
   const [hideData] = useHideData();
-  const [sort, setSort] = useState<SortKey>(loadSort);
+  const [sort, setSort] = useState<SortKey>("recent");
+
+  useEffect(() => {
+    setSort(loadSort());
+  }, []);
 
   function changeSort(key: SortKey) {
     setSort(key);

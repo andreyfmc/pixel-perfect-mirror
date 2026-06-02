@@ -427,8 +427,9 @@ function AccountsPage() {
     error: string | null;
   } | null>(null);
   const [lastRefresh, setLastRefresh] = useState<number | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(0);
   useEffect(() => {
+    setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
