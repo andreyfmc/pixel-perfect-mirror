@@ -23,10 +23,6 @@ declare global {
       // Lovable connector gateway
       LOVABLE_API_KEY?: string;
       GOOGLE_DRIVE_API_KEY?: string;
-      // Auth single-user (login)
-      ADMIN_EMAIL?: string;
-      ADMIN_PASSWORD_HASH?: string;
-      JWT_SECRET?: string;
     }
   }
 }
