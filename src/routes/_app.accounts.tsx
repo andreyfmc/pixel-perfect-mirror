@@ -1145,12 +1145,35 @@ function AccountsPage() {
           metaApps={metaApps}
           onAssignModel={assignModel}
         />
-      ) : (
+      ) : view === "grid" ? (
         <GridView
           items={filtered}
           selected={selected}
           onToggleSelect={toggleSelect}
           tab={tab}
+          confirmMove={confirmMove}
+          setConfirmMove={setConfirmMove}
+          onMove={(id, role) => {
+            setRole(id, role);
+            const label = role === "reserve" ? "Reservas" : role === "discarded" ? "Descartadas" : "Ativas";
+            toast.success(`Conta movida para ${label}`);
+          }}
+          onValidate={validateOne}
+          onReconnect={(a) => handleConnect(a.provider ?? "facebook")}
+          onRemove={removeAccount}
+          onTogglePaused={togglePaused}
+          onStatus={openStatus}
+          models={models}
+          metaApps={metaApps}
+          onAssignModel={assignModel}
+        />
+      ) : (
+        <CompactView
+          items={filtered}
+          selected={selected}
+          onToggleSelect={toggleSelect}
+          tab={tab}
+          now={now}
           confirmMove={confirmMove}
           setConfirmMove={setConfirmMove}
           onMove={(id, role) => {
