@@ -11,11 +11,18 @@ import {
   Sparkles,
   Trophy,
   Instagram,
+  ChevronsUpDown,
 } from "lucide-react";
 import { api } from "@/lib/api-client";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useHideData } from "@/hooks/use-hide-data";
-
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, emoji: "📊" },
@@ -27,6 +34,24 @@ const nav = [
   { to: "/contingency", label: "Contingência", icon: ShieldAlert, emoji: "🛡️" },
 ] as const;
 
+type SortKey = "recent" | "oldest" | "followers" | "health" | "model" | "alpha";
+
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "recent",    label: "Mais recentes" },
+  { key: "oldest",    label: "Mais antigas" },
+  { key: "followers", label: "Seguidores" },
+  { key: "health",    label: "Saúde" },
+  { key: "model",     label: "Modelo" },
+  { key: "alpha",     label: "Alfabética" },
+];
+
+const SORT_STORAGE_KEY = "sidebar.sort.v1";
+
+function loadSort(): SortKey {
+  if (typeof window === "undefined") return "recent";
+  return (localStorage.getItem(SORT_STORAGE_KEY) as SortKey) ?? "recent";
+}
+
 function healthColor(score: number) {
   if (score >= 80) return "var(--success)";
   if (score >= 60) return "var(--warning)";
@@ -35,17 +60,44 @@ function healthColor(score: number) {
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { data: accounts = [] } = useQuery({
+  const { data: accountsRaw = [] } = useQuery({
     queryKey: ["accounts"],
     queryFn: () => api.listAccounts(),
   });
   const [hideData] = useHideData();
+  const [sort, setSort] = useState<SortKey>(loadSort);
 
-  // Filtra descartadas no frontend também (segurança dupla)
-  const activeAccounts = accounts.filter((a: any) => a.role !== "discarded");
+  function changeSort(key: SortKey) {
+    setSort(key);
+    localStorage.setItem(SORT_STORAGE_KEY, key);
+  }
+
+  const accounts = useMemo(() => {
+    const list = accountsRaw.filter((a: any) => a.role !== "discarded");
+    return [...list].sort((a: any, b: any) => {
+      switch (sort) {
+        case "oldest":
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        case "followers":
+          return (b.followers ?? 0) - (a.followers ?? 0);
+        case "health":
+          return (b.health_score ?? 0) - (a.health_score ?? 0);
+        case "model":
+          return (a.model_id ?? "zzz").localeCompare(b.model_id ?? "zzz");
+        case "alpha":
+          return a.username.localeCompare(b.username);
+        case "recent":
+        default:
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+    });
+  }, [accountsRaw, sort]);
+
+  const currentSortLabel = SORT_OPTIONS.find((o) => o.key === sort)?.label ?? "Recentes";
 
   return (
     <aside className="hidden md:flex sticky top-0 h-screen w-64 shrink-0 flex-col border-r border-border bg-bg2">
+      {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-5">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl im-grad-accent im-glow">
           <Sparkles className="h-4 w-4 text-white" />
@@ -56,6 +108,7 @@ export function AppSidebar() {
         </div>
       </div>
 
+      {/* Nav */}
       <nav className="px-3">
         <ul className="space-y-0.5">
           {nav.map(({ to, label, emoji }) => {
@@ -74,7 +127,10 @@ export function AppSidebar() {
                   <span className="text-base leading-none w-5 text-center">{emoji}</span>
                   <span>{label}</span>
                   {active && (
-                    <span className="ml-auto h-1.5 w-1.5 rounded-full" style={{ background: "var(--accent2)" }} />
+                    <span
+                      className="ml-auto h-1.5 w-1.5 rounded-full"
+                      style={{ background: "var(--accent2)" }}
+                    />
                   )}
                 </Link>
               </li>
@@ -83,36 +139,73 @@ export function AppSidebar() {
         </ul>
       </nav>
 
-      <div className="mt-6 px-5">
-        <div className="flex items-center justify-between">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-muted2 flex items-center gap-1.5">
+      {/* Header contas */}
+      <div className="mt-6 px-3">
+        <div className="flex items-center justify-between gap-1">
+          {/* Label + contador */}
+          <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-muted2 pl-2">
             Contas
             <span
-              className="rounded-full px-1.5 py-0.5 text-[10px] font-bold"
+              className="rounded-full px-1.5 py-0.5 text-[10px] font-bold tabular-nums"
               style={{
                 background: "rgba(34,197,94,0.15)",
                 border: "1px solid rgba(34,197,94,0.35)",
                 color: "var(--success)",
               }}
             >
-              {activeAccounts.length}
+              {accounts.length}
             </span>
           </span>
-          <button
-            type="button"
-            className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-bg3 text-text2 hover:text-foreground hover:border-border2"
-            aria-label="Conectar Instagram"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </button>
+
+          <div className="flex items-center gap-1">
+            {/* Ordenação */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 rounded-md border border-border bg-bg3 px-2 py-1 text-[10px] text-text2 hover:border-border2 hover:text-foreground"
+                  title={`Ordenar: ${currentSortLabel}`}
+                >
+                  <ChevronsUpDown className="h-3 w-3 shrink-0" />
+                  <span className="max-w-[56px] truncate">{currentSortLabel}</span>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted2">
+                  Ordenar por
+                </div>
+                <DropdownMenuSeparator />
+                {SORT_OPTIONS.map((o) => (
+                  <DropdownMenuItem
+                    key={o.key}
+                    onClick={() => changeSort(o.key)}
+                    className={sort === o.key ? "text-accent2 font-medium" : ""}
+                  >
+                    {sort === o.key && <span className="mr-1.5">✓</span>}
+                    {o.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Adicionar conta */}
+            <button
+              type="button"
+              className="flex h-6 w-6 items-center justify-center rounded-md border border-border bg-bg3 text-text2 hover:text-foreground hover:border-border2"
+              aria-label="Conectar Instagram"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 
-      <ul className="mt-3 space-y-1 px-3 overflow-y-auto flex-1">
-        {activeAccounts.map((a: any) => (
+      {/* Lista */}
+      <ul className="mt-3 space-y-1 px-3 overflow-y-auto flex-1 pb-4">
+        {accounts.map((a: any) => (
           <li key={a.id}>
             <button className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-bg3">
-              <div className="relative">
+              <div className="relative shrink-0">
                 <SidebarAvatar
                   src={a.profile_picture}
                   username={a.username}
@@ -130,14 +223,17 @@ export function AppSidebar() {
                   {hideData ? "••••••••" : `@${a.username}`}
                 </div>
                 <div className="text-[11px] text-muted2">
-                  {hideData ? "•••" : `saúde ${a.health_score}`}
+                  {hideData
+                    ? "•••"
+                    : sort === "followers" && a.followers > 0
+                    ? `${a.followers >= 1000 ? (a.followers / 1000).toFixed(1) + "k" : a.followers} seguidores`
+                    : `saúde ${a.health_score}`}
                 </div>
               </div>
             </button>
           </li>
         ))}
       </ul>
-
     </aside>
   );
 }
