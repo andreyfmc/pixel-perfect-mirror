@@ -1495,7 +1495,7 @@ function GridView({
         return (
           <div
             key={a.id}
-            className={`acc-card group relative flex h-[140px] flex-col gap-2 rounded-xl border bg-bg2 p-3.5 transition-all hover:-translate-y-0.5${tab === "discarded" ? " opacity-60" : ""}`}
+            className={`acc-card group relative flex min-h-[140px] flex-col gap-2 rounded-xl border bg-bg2 p-3.5 transition-all hover:-translate-y-0.5${tab === "discarded" ? " opacity-60" : ""}`}
             style={{
               borderColor: color,
               animationDelay: `${Math.min(i, 20) * 30}ms`,
@@ -1508,11 +1508,7 @@ function GridView({
                 onChange={() => onToggleSelect(a.id)}
                 className="mt-1 accent-accent"
               />
-              <img
-                src={a.profile_picture}
-                alt=""
-                className="h-12 w-12 shrink-0 rounded-full bg-bg3"
-              />
+              <Avatar src={a.profile_picture} size={48} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold">@{a.username}</div>
                 <div className="truncate text-[11px] text-muted2">
