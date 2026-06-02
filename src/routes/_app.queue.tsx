@@ -90,6 +90,7 @@ type QueueGroup = {
   status: StatusKey;
   counts: Record<StatusKey, number>;
   accounts: AccountMeta[];
+  models: { id: string; name: string; color: string; count: number }[];
 };
 
 const STATUS_META: Record<StatusKey, { bg: string; fg: string; label: string; short: string }> = {
@@ -327,6 +328,34 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
+function ModelBadge({
+  models,
+}: {
+  models: { id: string; name: string; color: string; count: number }[];
+}) {
+  if (!models.length) return null;
+  const primary = models[0];
+  const extra = models.length - 1;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+      style={{
+        borderColor: `color-mix(in oklab, ${primary.color} 45%, transparent)`,
+        background: `color-mix(in oklab, ${primary.color} 14%, transparent)`,
+        color: primary.color,
+      }}
+      title={models.map((m) => `${m.name} (${m.count})`).join(" · ")}
+    >
+      <span
+        className="inline-block h-1.5 w-1.5 rounded-full"
+        style={{ background: primary.color }}
+      />
+      {primary.name}
+      {extra > 0 && <span className="opacity-75">+{extra}</span>}
+    </span>
+  );
+}
+
 function VariantBadge({ item }: { item: QueueItem }) {
   if (item.variant_processed) {
     return (
@@ -470,7 +499,14 @@ function QueuePage() {
   const { data: models = [] } = useQuery({
     queryKey: ["models"],
     queryFn: () => api.listModels(),
+    refetchInterval: 120_000,
   });
+
+  const modelById = useMemo(() => {
+    const m = new Map<string, { id: string; name: string; color: string }>();
+    for (const md of models) m.set(md.id, { id: md.id, name: md.name, color: md.color });
+    return m;
+  }, [models]);
 
   const accountById = useMemo(() => {
     const m = new Map<string, AccountMeta>();
@@ -483,7 +519,7 @@ function QueuePage() {
         token_status: a.token_status,
         token_expires_at: a.token_expires_at,
         provider: a.provider,
-        model_id: a.model_id ?? null,
+        model_id: a.model_id,
       });
     }
     return m;
@@ -491,11 +527,11 @@ function QueuePage() {
 
   const [filter, setFilter] = useState<FilterKey>("all");
   const [dateFilter, setDateFilter] = useState<DateFilterKey>("all");
+  const [modelFilter, setModelFilter] = useState<string>("all");
   const [sort, setSort] = useState<SortKey>("asc");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [density, setDensity] = useState<Density>("expanded");
-  const [modelFilter, setModelFilter] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [confirmClear, setConfirmClear] = useState<null | {
     statuses: StatusKey[];
@@ -578,9 +614,10 @@ function QueuePage() {
       .filter((item) => filter === "all" || item.status === filter)
       .filter((item) => matchesDate(item.scheduled_at))
       .filter((item) => {
-        if (!modelFilter) return true;
-        const account = accountById.get(item.account);
-        return account?.model_id === modelFilter;
+        if (modelFilter === "all") return true;
+        const acc = accountById.get(item.account);
+        if (modelFilter === "none") return !acc?.model_id;
+        return acc?.model_id === modelFilter;
       })
       .filter((item) => {
         if (!q) return true;
@@ -645,9 +682,26 @@ function QueuePage() {
               id: item.account,
             },
         ),
+        models: (() => {
+          const counter = new Map<string, number>();
+          for (const it of items) {
+            const acc = accountById.get(it.account);
+            const mid = acc?.model_id;
+            if (!mid) continue;
+            counter.set(mid, (counter.get(mid) ?? 0) + 1);
+          }
+          return [...counter.entries()]
+            .map(([id, count]) => {
+              const md = modelById.get(id);
+              if (!md) return null;
+              return { id, name: md.name, color: md.color, count };
+            })
+            .filter((x): x is { id: string; name: string; color: string; count: number } => !!x)
+            .sort((a, b) => b.count - a.count);
+        })(),
       };
     });
-  }, [accountById, visibleItems]);
+  }, [accountById, modelById, visibleItems]);
 
   const visibleIds = visibleItems.map((q) => q.id);
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
@@ -680,22 +734,6 @@ function QueuePage() {
       const n = new Set(s);
       if (allSelected) visibleIds.forEach((id) => n.delete(id));
       else visibleIds.forEach((id) => n.add(id));
-      return n;
-    });
-  }
-
-  function selectByModel(modelId: string) {
-    const idsForModel = visibleItems
-      .filter((item) => accountById.get(item.account)?.model_id === modelId)
-      .map((item) => item.id);
-    const allAlreadySelected = idsForModel.length > 0 && idsForModel.every((id) => selected.has(id));
-    setSelected((s) => {
-      const n = new Set(s);
-      if (allAlreadySelected) {
-        idsForModel.forEach((id) => n.delete(id));
-      } else {
-        idsForModel.forEach((id) => n.add(id));
-      }
       return n;
     });
   }
@@ -838,24 +876,27 @@ function QueuePage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Density toggle */}
             <button
               onClick={() => setDensity(density === "expanded" ? "compact" : "expanded")}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm hover:border-accent"
               title="Alternar densidade"
             >
               {density === "expanded" ? (
-                <><Rows3 className="h-4 w-4" /> Compacto</>
+                <>
+                  <Rows3 className="h-4 w-4" /> Compacto
+                </>
               ) : (
-                <><Layers className="h-4 w-4" /> Expandido</>
+                <>
+                  <Layers className="h-4 w-4" /> Expandido
+                </>
               )}
             </button>
-
-            {/* Refresh */}
             <button
               onClick={() => {
                 setRefreshIn(30);
-                singleAction("Atualizando scheduler", async () => { await api.runScheduler(); });
+                singleAction("Atualizando scheduler", async () => {
+                  await api.runScheduler();
+                });
               }}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm hover:border-accent"
               title="Atualizar agora (auto a cada 30s)"
@@ -863,53 +904,79 @@ function QueuePage() {
               <RefreshCw className="h-4 w-4" /> Atualizar
               <span className="ml-1 tabular-nums text-[11px] text-muted2">({refreshIn}s)</span>
             </button>
-
-            {/* Select / deselect all */}
             <button
               onClick={toggleAllVisible}
               className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm hover:border-accent"
             >
               <CheckCircle2 className="h-4 w-4" /> {allSelected ? "Desmarcar" : "Selecionar"}
             </button>
-
-            {/* Limpar posts anteriores + Limpar → merged into one dropdown */}
+            <button
+              onClick={() => setConfirmCleanOld(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-danger/35 bg-danger/10 px-3 py-2 text-sm text-danger hover:border-danger"
+              title="Remover posts publicados antes de hoje"
+            >
+              <Trash2 className="h-4 w-4" /> Limpar posts anteriores
+            </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="inline-flex items-center gap-1.5 rounded-lg border border-danger/35 bg-danger/10 px-3 py-2 text-sm text-danger hover:border-danger">
-                  <Trash2 className="h-4 w-4" /> Remover
-                  <ChevronDown className="h-3 w-3 opacity-70" />
+                <button className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground">
+                  <Eraser className="h-4 w-4" /> Limpar
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72">
-                <DropdownMenuItem onSelect={() => setConfirmCleanOld(true)}>
-                  <Trash2 className="mr-2 h-4 w-4 text-danger" />
-                  <span>Limpar posts anteriores</span>
-                  <span className="ml-auto text-[11px] text-muted2">publicados antes de hoje</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+              <DropdownMenuContent align="end" className="w-64">
                 <DropdownMenuItem
-                  onSelect={() => setConfirmClear({ statuses: ["scheduled"], label: "Remover agendados", count: counts.scheduled })}
+                  onSelect={() =>
+                    setConfirmClear({
+                      statuses: ["scheduled"],
+                      label: "Remover agendados",
+                      count: counts.scheduled,
+                    })
+                  }
                 >
                   Remover agendados ({counts.scheduled})
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onSelect={() => setConfirmClear({ statuses: ["failed"], label: "Remover erros", count: counts.failed })}
+                  onSelect={() =>
+                    setConfirmClear({
+                      statuses: ["failed"],
+                      label: "Remover erros",
+                      count: counts.failed,
+                    })
+                  }
                 >
                   Remover erros ({counts.failed})
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onSelect={() => setConfirmClear({ statuses: ["canceled"], label: "Remover pausados", count: counts.canceled })}
+                  onSelect={() =>
+                    setConfirmClear({
+                      statuses: ["canceled"],
+                      label: "Remover pausados",
+                      count: counts.canceled,
+                    })
+                  }
                 >
                   Remover pausados ({counts.canceled})
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onSelect={() => setConfirmClear({ statuses: ["published"], label: "Limpar publicados", count: counts.published })}
+                  onSelect={() =>
+                    setConfirmClear({
+                      statuses: ["published"],
+                      label: "Limpar publicados",
+                      count: counts.published,
+                    })
+                  }
                 >
                   Limpar publicados ({counts.published})
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
-                  onSelect={() => setConfirmClear({ statuses: ["scheduled", "processing", "failed", "canceled", "published"], label: "Limpar tudo", count: queue.length })}
+                  onSelect={() =>
+                    setConfirmClear({
+                      statuses: ["scheduled", "processing", "failed", "canceled", "published"],
+                      label: "Limpar tudo",
+                      count: queue.length,
+                    })
+                  }
                   className="text-danger focus:text-danger"
                 >
                   Limpar tudo ({queue.length})
@@ -1029,15 +1096,16 @@ function QueuePage() {
           })}
         </div>
 
-        {/* Model filter chips — only shown when models exist */}
         {models.length > 0 && (
           <div className="flex items-center gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wider text-muted2">Modelo:</span>
+            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-muted2">
+              Modelo
+            </span>
             <button
-              onClick={() => setModelFilter(null)}
+              onClick={() => setModelFilter("all")}
               className={[
                 "shrink-0 rounded-lg border px-3 py-1.5 text-xs font-semibold transition",
-                modelFilter === null
+                modelFilter === "all"
                   ? "border-accent bg-accent text-primary-foreground"
                   : "border-border2 bg-bg2 text-text2 hover:text-foreground",
               ].join(" ")}
@@ -1045,31 +1113,32 @@ function QueuePage() {
               Todos
             </button>
             {models.map((m) => {
-              const countForModel = queue.filter(
-                (item) => accountById.get(item.account)?.model_id === m.id
+              const count = queue.filter(
+                (q) => accountById.get(q.account)?.model_id === m.id,
               ).length;
+              if (count === 0) return null;
+              const active = modelFilter === m.id;
               return (
                 <button
                   key={m.id}
-                  onClick={() => setModelFilter(modelFilter === m.id ? null : m.id)}
-                  className={[
-                    "shrink-0 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition",
-                    modelFilter === m.id
-                      ? "text-primary-foreground"
-                      : "bg-bg2 text-text2 hover:text-foreground",
-                  ].join(" ")}
-                  style={
-                    modelFilter === m.id
-                      ? { background: m.color, borderColor: m.color }
-                      : { borderColor: `${m.color}55` }
-                  }
+                  onClick={() => setModelFilter(active ? "all" : m.id)}
+                  className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition"
+                  style={{
+                    borderColor: active
+                      ? m.color
+                      : `color-mix(in oklab, ${m.color} 35%, transparent)`,
+                    background: active
+                      ? `color-mix(in oklab, ${m.color} 20%, transparent)`
+                      : `color-mix(in oklab, ${m.color} 8%, transparent)`,
+                    color: m.color,
+                  }}
                 >
                   <span
-                    className="h-2 w-2 rounded-full shrink-0"
-                    style={{ background: m.color, opacity: modelFilter === m.id ? 0.8 : 1 }}
+                    className="inline-block h-1.5 w-1.5 rounded-full"
+                    style={{ background: m.color }}
                   />
                   {m.name}
-                  <span className="opacity-70">({countForModel})</span>
+                  <span className="opacity-75">({count})</span>
                 </button>
               );
             })}
@@ -1077,81 +1146,42 @@ function QueuePage() {
         )}
       </section>
 
-      {/* Floating bulk-action bar — shows when nothing is selected too, for "select by model" shortcut */}
-      <div
-        className={[
-          "sticky top-3 z-20 mb-4 rounded-xl border bg-bg3 px-3 py-2 text-sm shadow-lg shadow-bg/40 transition-all duration-200",
-          someSelected
-            ? "flex flex-wrap items-center gap-2 border-accent/40"
-            : models.length > 0
-              ? "flex flex-wrap items-center gap-2 border-border2"
-              : "hidden",
-        ].join(" ")}
-      >
-        {someSelected ? (
-          <>
-            <span className="font-semibold">{selected.size} selecionado(s)</span>
-            <span className="text-xs text-muted2">{selectedVisibleCount} visível(is)</span>
-            <div className="mx-1 h-4 w-px bg-border2" />
-            <button
-              onClick={() => runBulk("Pausando", (id) => api.updateQueueStatus(id, "canceled"))}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
-            >
-              <Pause className="h-3.5 w-3.5" /> Pausar
-            </button>
-            <button
-              onClick={() => runBulk("Retomando", (id) => api.updateQueueStatus(id, "scheduled"))}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
-            >
-              <Play className="h-3.5 w-3.5" /> Retomar
-            </button>
-            <button
-              onClick={() => publishSelectedNow()}
-              className="inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning hover:border-warning"
-            >
-              <Zap className="h-3.5 w-3.5" /> Tentar agora
-            </button>
-            <button
-              onClick={() => setSelected(new Set())}
-              className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-text2 hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" /> Limpar seleção
-            </button>
-            <button
-              onClick={() => runBulk("Removendo", (id) => api.deleteQueue(id))}
-              className="inline-flex items-center gap-1.5 rounded-md border border-danger/35 bg-danger/10 px-2.5 py-1.5 text-xs text-danger hover:border-danger"
-            >
-              <Trash2 className="h-3.5 w-3.5" /> Remover selecionados
-            </button>
-          </>
-        ) : (
-          /* Quick "select by model" shortcuts when nothing is selected */
-          models.length > 0 && (
-            <>
-              <Users className="h-3.5 w-3.5 shrink-0 text-muted2" />
-              <span className="text-xs text-muted2">Selecionar por modelo:</span>
-              {models.map((m) => {
-                const idsForModel = visibleItems
-                  .filter((item) => accountById.get(item.account)?.model_id === m.id)
-                  .map((item) => item.id);
-                if (idsForModel.length === 0) return null;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => selectByModel(m.id)}
-                    className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition hover:opacity-90"
-                    style={{ borderColor: `${m.color}55`, color: m.color, background: `${m.color}12` }}
-                  >
-                    <span className="h-2 w-2 rounded-full shrink-0" style={{ background: m.color }} />
-                    {m.name}
-                    <span className="opacity-60">({idsForModel.length})</span>
-                  </button>
-                );
-              })}
-            </>
-          )
-        )}
-      </div>
+      {someSelected && (
+        <div className="sticky top-3 z-20 mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-accent/40 bg-bg3 px-3 py-2 text-sm shadow-lg shadow-bg/40">
+          <span className="font-semibold">{selected.size} selecionado(s)</span>
+          <span className="text-xs text-muted2">{selectedVisibleCount} visível(is)</span>
+          <button
+            onClick={() => runBulk("Pausando", (id) => api.updateQueueStatus(id, "canceled"))}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
+          >
+            <Pause className="h-3.5 w-3.5" /> Pausar
+          </button>
+          <button
+            onClick={() => runBulk("Retomando", (id) => api.updateQueueStatus(id, "scheduled"))}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
+          >
+            <Play className="h-3.5 w-3.5" /> Retomar
+          </button>
+          <button
+            onClick={() => publishSelectedNow()}
+            className="inline-flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-xs text-warning hover:border-warning"
+          >
+            <Zap className="h-3.5 w-3.5" /> Tentar agora
+          </button>
+          <button
+            onClick={() => setSelected(new Set())}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-text2 hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" /> Limpar seleção
+          </button>
+          <button
+            onClick={() => runBulk("Removendo", (id) => api.deleteQueue(id))}
+            className="inline-flex items-center gap-1.5 rounded-md border border-danger/35 bg-danger/10 px-2.5 py-1.5 text-xs text-danger hover:border-danger"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Remover
+          </button>
+        </div>
+      )}
 
       <div className={density === "compact" ? "space-y-2" : "space-y-4"}>
         {groups.length === 0 ? (
@@ -1212,9 +1242,12 @@ function QueuePage() {
                         }`}
                       />
                       <TypeBadge type={group.mediaType} />
-                      <span className="min-w-0 flex-1 truncate text-xs">
-                        {group.caption || "Sem legenda"}
-                      </span>
+                      <ModelBadge models={group.models} />
+                      {group.caption ? (
+                        <span className="min-w-0 flex-1 truncate text-xs">{group.caption}</span>
+                      ) : (
+                        <span className="min-w-0 flex-1" />
+                      )}
                       <CountPill done={group.counts.published} total={group.items.length} />
                       <StatusBadge
                         status={group.status}
@@ -1257,6 +1290,7 @@ function QueuePage() {
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-1.5">
                             <TypeBadge type={group.mediaType} />
+                            <ModelBadge models={group.models} />
                             <StatusBadge
                               status={group.status}
                               scheduledAt={group.scheduledAt}
@@ -1282,9 +1316,11 @@ function QueuePage() {
                               />
                             </div>
                           </div>
-                          <p className="mt-2 line-clamp-2 text-sm font-medium">
-                            {group.caption || "Sem legenda"}
-                          </p>
+                          {group.caption && (
+                            <p className="mt-2 line-clamp-2 text-sm font-medium">
+                              {group.caption}
+                            </p>
+                          )}
                           {group.items.some((item) => item.last_error) && (
                             <p className="mt-1 line-clamp-2 text-xs text-danger">
                               {group.items.find((item) => item.last_error)?.last_error}
