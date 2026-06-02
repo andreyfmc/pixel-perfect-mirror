@@ -482,7 +482,7 @@ function AccountsPage() {
     const t = localStorage.getItem(TAB_KEY);
     if (t === "active" || t === "reserve" || t === "discarded") setTab(t);
     const v = localStorage.getItem(VIEW_KEY);
-    if (v === "list" || v === "grid") setView(v);
+    if (v === "list" || v === "grid" || v === "compact") setView(v);
   }, []);
   useEffect(() => {
     localStorage.setItem(TAB_KEY, tab);
