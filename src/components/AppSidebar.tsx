@@ -96,33 +96,35 @@ export function AppSidebar() {
       </div>
 
       <ul className="mt-3 space-y-1 px-3 overflow-y-auto flex-1">
-        {accounts.map((a) => (
-          <li key={a.id}>
-            <button className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-bg3">
-              <div className="relative">
-                <SidebarAvatar
-                  src={a.profile_picture}
-                  username={a.username}
-                  hide={hideData}
-                />
-                {!hideData && (
-                  <span
-                    className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2"
-                    style={{ background: healthColor(a.health_score) }}
+        {accounts
+          .filter((a) => a.role !== "discarded")
+          .map((a) => (
+            <li key={a.id}>
+              <button className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left text-sm hover:bg-bg3">
+                <div className="relative">
+                  <SidebarAvatar
+                    src={a.profile_picture}
+                    username={a.username}
+                    hide={hideData}
                   />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">
-                  {hideData ? "••••••••" : `@${a.username}`}
+                  {!hideData && (
+                    <span
+                      className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-bg2"
+                      style={{ background: healthColor(a.health_score) }}
+                    />
+                  )}
                 </div>
-                <div className="text-[11px] text-muted2">
-                  {hideData ? "•••" : `saúde ${a.health_score}`}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">
+                    {hideData ? "••••••••" : `@${a.username}`}
+                  </div>
+                  <div className="text-[11px] text-muted2">
+                    {hideData ? "•••" : `saúde ${a.health_score}`}
+                  </div>
                 </div>
-              </div>
-            </button>
-          </li>
-        ))}
+              </button>
+            </li>
+          ))}
       </ul>
 
     </aside>
