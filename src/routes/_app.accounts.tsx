@@ -212,6 +212,9 @@ function Avatar({
       )}
     </div>
   );
+}
+
+
 
 const STATUS_META: Record<
   AccountStatusReport["status"],
