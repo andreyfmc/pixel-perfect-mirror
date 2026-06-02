@@ -143,7 +143,6 @@ const FILTERS: { id: FilterKey; label: string; key: string }[] = [
   { id: "published", label: "Publicados", key: "U" },
   { id: "failed", label: "Erros", key: "E" },
   { id: "canceled", label: "Pausados", key: "S" },
-  { id: "loop", label: "🔁 Loop", key: "L" },
 ];
 
 const STATUS_PRIORITY: StatusKey[] = ["failed", "processing", "scheduled", "canceled", "published"];
@@ -1389,15 +1388,7 @@ function QueuePage() {
       )}
 
       <div className={density === "compact" ? "space-y-2" : "space-y-4"}>
-        {filter === "loop" ? (
-          <LoopView
-            loops={loops}
-            queue={queue}
-            accountById={accountById}
-            now={now}
-            onAction={onLoopAction}
-          />
-        ) : groups.length === 0 ? (
+        {groups.length === 0 ? (
           <div className="flex min-h-[240px] flex-col items-center justify-center rounded-xl border border-border bg-bg2 p-10 text-center text-sm text-text2">
             <CheckCircle2 className="mb-2 h-7 w-7 text-muted2" />
             Nada por aqui.

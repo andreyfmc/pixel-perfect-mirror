@@ -1,6 +1,7 @@
-import { CalendarDays, Clock, Layers, RefreshCw, Shuffle } from "lucide-react";
+import { CalendarDays, Clock, Infinity as InfinityIcon, Layers, RefreshCw, Shuffle } from "lucide-react";
 
-type LoopMode = "once" | "snapshot" | "live_folder";
+type LoopMode = "once" | "loop";
+type LoopDuration = "infinite" | "days" | "cycles";
 type OrderMode = "sequential" | "random";
 
 type Props = {
@@ -8,12 +9,18 @@ type Props = {
   gap: number;
   jitter: number;
   loopMode: LoopMode;
+  loopDuration: LoopDuration;
+  loopDays: number;
+  loopCycles: number;
   order: OrderMode;
   videosPerCycle: number;
   onStartChange: (v: string) => void;
   onGapChange: (v: number) => void;
   onJitterChange: (v: number) => void;
   onLoopModeChange: (v: LoopMode) => void;
+  onLoopDurationChange: (v: LoopDuration) => void;
+  onLoopDaysChange: (v: number) => void;
+  onLoopCyclesChange: (v: number) => void;
   onOrderChange: (v: OrderMode) => void;
   onVideosPerCycleChange: (v: number) => void;
 };
@@ -23,12 +30,18 @@ export function ScheduleConfig({
   gap,
   jitter,
   loopMode,
+  loopDuration,
+  loopDays,
+  loopCycles,
   order,
   videosPerCycle,
   onStartChange,
   onGapChange,
   onJitterChange,
   onLoopModeChange,
+  onLoopDurationChange,
+  onLoopDaysChange,
+  onLoopCyclesChange,
   onOrderChange,
   onVideosPerCycleChange,
 }: Props) {
@@ -99,12 +112,11 @@ export function ScheduleConfig({
         <h3 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-text2">
           <RefreshCw className="h-3.5 w-3.5" /> Modo de execução
         </h3>
-        <div className="flex flex-wrap gap-1 rounded-full border border-border2 bg-bg3 p-1">
+        <div className="inline-grid grid-cols-2 gap-1 rounded-full border border-border2 bg-bg3 p-1">
           {(
             [
               { id: "once" as const, label: "Postagem única" },
-              { id: "snapshot" as const, label: "Loop (snapshot)" },
-              { id: "live_folder" as const, label: "Loop (pasta ao vivo)" },
+              { id: "loop" as const, label: "🔁 Loop contínuo" },
             ] as const
           ).map((opt) => {
             const active = loopMode === opt.id;
@@ -113,7 +125,7 @@ export function ScheduleConfig({
                 key={opt.id}
                 onClick={() => onLoopModeChange(opt.id)}
                 className={[
-                  "rounded-full px-3 py-1.5 text-xs font-medium transition",
+                  "rounded-full px-4 py-1.5 text-xs font-medium transition",
                   active ? "text-white shadow" : "text-text2 hover:text-foreground",
                 ].join(" ")}
                 style={active ? { background: "var(--accent2)" } : undefined}
@@ -124,16 +136,83 @@ export function ScheduleConfig({
           })}
         </div>
         <p className="text-[11px] text-muted2">
-          {loopMode === "once" &&
-            "Agenda os ciclos uma vez (todos os vídeos selecionados)."}
-          {loopMode === "snapshot" &&
-            "Loop infinito sobre a lista de vídeos atualmente selecionados (lista fixa)."}
-          {loopMode === "live_folder" &&
-            "Loop infinito que relê a pasta atual do Drive antes de cada ciclo — novos vídeos entram, deletados saem. Pausa se a pasta ficar vazia."}
+          {loopMode === "once"
+            ? "Agenda os ciclos uma vez (todos os vídeos selecionados)."
+            : "Repete a postagem automaticamente, materializando todos os ciclos na fila de uma vez."}
         </p>
 
-        {loopMode !== "once" && (
-          <div className="mt-2 space-y-2 rounded-[8px] border border-border2 bg-bg3/50 p-3">
+        {loopMode === "loop" && (
+          <div className="mt-2 space-y-3 rounded-[8px] border border-border2 bg-bg3/50 p-3">
+            <div className="space-y-2">
+              <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-text2">
+                <InfinityIcon className="h-3.5 w-3.5" /> Duração do loop
+              </label>
+              <div className="space-y-2">
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground">
+                  <input
+                    type="radio"
+                    name="loop-duration"
+                    checked={loopDuration === "infinite"}
+                    onChange={() => onLoopDurationChange("infinite")}
+                    className="accent-[var(--accent2)]"
+                  />
+                  Infinito (até eu parar manualmente)
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground">
+                  <input
+                    type="radio"
+                    name="loop-duration"
+                    checked={loopDuration === "days"}
+                    onChange={() => onLoopDurationChange("days")}
+                    className="accent-[var(--accent2)]"
+                  />
+                  Por
+                  <input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={loopDays}
+                    onFocus={() => onLoopDurationChange("days")}
+                    onChange={(e) =>
+                      onLoopDaysChange(
+                        Math.min(365, Math.max(1, Number(e.target.value) || 1)),
+                      )
+                    }
+                    className="w-16 rounded-[8px] border border-border2 bg-bg3 px-2 py-1 text-center text-xs outline-none focus:border-[var(--accent2)]"
+                  />
+                  dias
+                </label>
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground">
+                  <input
+                    type="radio"
+                    name="loop-duration"
+                    checked={loopDuration === "cycles"}
+                    onChange={() => onLoopDurationChange("cycles")}
+                    className="accent-[var(--accent2)]"
+                  />
+                  Por
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    value={loopCycles}
+                    onFocus={() => onLoopDurationChange("cycles")}
+                    onChange={(e) =>
+                      onLoopCyclesChange(
+                        Math.min(999, Math.max(1, Number(e.target.value) || 1)),
+                      )
+                    }
+                    className="w-16 rounded-[8px] border border-border2 bg-bg3 px-2 py-1 text-center text-xs outline-none focus:border-[var(--accent2)]"
+                  />
+                  ciclos
+                </label>
+              </div>
+              <p className="text-[10px] text-muted2">
+                Máx. 500 ciclos por agendamento. "Infinito" agenda ~30 dias de cada vez.
+              </p>
+            </div>
+
+            <div className="space-y-2 border-t border-border2 pt-3">
             <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-text2">
               <Layers className="h-3.5 w-3.5" /> Posts por ciclo
             </label>
@@ -165,6 +244,7 @@ export function ScheduleConfig({
               ex: {videosPerCycle} reels com jitter entre eles, depois aguarda o intervalo para o
               próximo ciclo
             </p>
+            </div>
           </div>
         )}
       </section>
