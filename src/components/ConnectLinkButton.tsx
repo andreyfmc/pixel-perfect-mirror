@@ -52,9 +52,10 @@ export function ConnectLinkButton({
     setLoadingApps(true);
     fetch("/api/meta-apps")
       .then((r) => r.json())
-      .then((list: MetaApp[]) => {
+      .then((list: unknown) => {
+        const arr = (list as MetaApp[]) ?? [];
         // Filtra somente apps Instagram ativos
-        const igApps = list.filter((a) => a.provider === "instagram" && a.is_active === 1);
+        const igApps = arr.filter((a) => a.provider === "instagram" && a.is_active === 1);
         setApps(igApps);
         setSelectedAppId("auto");
       })
