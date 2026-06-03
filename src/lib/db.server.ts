@@ -1193,8 +1193,15 @@ const rawDb = {
       .run();
   },
   async listLoops(): Promise<LoopRow[]> {
+    // Mostra ativos, pausados e stopped recentes (24h) — assim auto-stops
+    // (pasta vazia, snapshot vazio, etc.) ficam visíveis com last_error.
     const { results } = await requireDb()
-      .prepare(`SELECT * FROM loops WHERE status != 'stopped' ORDER BY created_at DESC`)
+      .prepare(
+        `SELECT * FROM loops
+         WHERE status IN ('active','paused')
+            OR (status = 'stopped' AND updated_at >= datetime('now','-1 day'))
+         ORDER BY created_at DESC`,
+      )
       .all<LoopRow>();
     return results ?? [];
   },
@@ -1231,6 +1238,31 @@ const rawDb = {
       .bind(nextCycleAt, cycleNumber, id)
       .run();
   },
+  /**
+   * Reivindica atomicamente o ciclo `expectedCycle` deste loop, avançando
+   * cycle_number e next_cycle_at em um único UPDATE com CAS. Retorna true
+   * se este worker ganhou a corrida; false se outro tick já materializou
+   * (ou o loop foi pausado/parado nesse meio-tempo). Previne dupla-postagem
+   * quando dois ticks do Cron Trigger se sobrepõem.
+   */
+  async claimLoopCycle(
+    id: string,
+    expectedCycle: number,
+    nextCycleAt: string,
+  ): Promise<boolean> {
+    const res = await requireDb()
+      .prepare(
+        `UPDATE loops
+           SET cycle_number = cycle_number + 1,
+               next_cycle_at = ?,
+               last_error = NULL,
+               updated_at = datetime('now')
+         WHERE id = ? AND status = 'active' AND cycle_number = ?`,
+      )
+      .bind(nextCycleAt, id, expectedCycle)
+      .run();
+    return ((res.meta?.changes as number) ?? 0) > 0;
+  },
   async cancelPendingForAccount(accountId: string): Promise<number> {
     const { meta } = await requireDb()
       .prepare(
@@ -1243,8 +1275,12 @@ const rawDb = {
   },
 
   async cancelPendingForLoop(id: string): Promise<number> {
+    // Inclui 'processing' — itens com container IG já criado são abortados
+    // ao parar/pausar o loop, evitando publicações fantasmas após cancelar.
     const res = await requireDb()
-      .prepare(`DELETE FROM queue WHERE loop_id = ? AND status IN ('scheduled', 'pending')`)
+      .prepare(
+        `DELETE FROM queue WHERE loop_id = ? AND status IN ('scheduled', 'pending', 'processing')`,
+      )
       .bind(id)
       .run();
     return (res.meta?.changes as number) ?? 0;

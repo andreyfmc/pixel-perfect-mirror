@@ -6,6 +6,7 @@ import { fmtDateTime } from "@/lib/format";
 export type LoopRowLite = {
   id: string;
   source_type: "snapshot" | "live_folder";
+  media_type: "REEL" | "IMAGE" | "STORY";
   folder_id: string | null;
   folder_name: string | null;
   video_ids_json: string | null;
@@ -14,6 +15,7 @@ export type LoopRowLite = {
   gap_min: number;
   jitter_min: number;
   order_mode: "sequential" | "random";
+  videos_per_cycle: number;
   status: "active" | "paused" | "stopped";
   cycle_number: number;
   next_cycle_at: string;
@@ -95,7 +97,8 @@ export function LoopCard({
         )}
         <span className="text-muted2">
           · {vidCount} vídeo{vidCount === 1 ? "" : "s"} · {accCount} conta
-          {accCount === 1 ? "" : "s"} · ciclo #{loop.cycle_number}
+          {accCount === 1 ? "" : "s"} · {loop.videos_per_cycle ?? 1} post/ciclo ·{" "}
+          {loop.media_type ?? "REEL"} · ciclo #{loop.cycle_number}
         </span>
       </div>
 
