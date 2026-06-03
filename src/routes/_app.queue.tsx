@@ -522,6 +522,7 @@ function LoopView({
   accountById,
   modelById,
   now,
+  density,
   onAction,
 }: {
   loops: LoopRow[];
@@ -529,9 +530,20 @@ function LoopView({
   accountById: Map<string, AccountMeta>;
   modelById: Map<string, { id: string; name: string; color: string }>;
   now: number;
+  density: Density;
   onAction: (loopId: string, status: LoopRow["status"]) => void;
 }) {
   const [expandedCycles, setExpandedCycles] = useState<Set<string>>(new Set());
+  const [expandedLoops, setExpandedLoops] = useState<Set<string>>(new Set());
+
+  function toggleLoop(id: string) {
+    setExpandedLoops((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
 
   function toggleCycle(key: string) {
     setExpandedCycles((s) => {
@@ -586,13 +598,23 @@ function LoopView({
 
         const scheduledCount = items.filter((i) => i.status === "scheduled").length;
 
+        const isLoopExpanded = density !== "compact" || expandedLoops.has(loop.id);
+
         return (
           <article
             key={loop.id}
             className="overflow-hidden rounded-xl border border-border bg-bg2"
           >
             {/* ── Loop header ── */}
-            <div className="flex flex-wrap items-center gap-2 border-b border-border bg-bg3/30 p-3">
+            <div
+              className={`flex flex-wrap items-center gap-2 border-b border-border bg-bg3/30 p-3 ${density === "compact" ? "cursor-pointer hover:bg-bg3/50 select-none" : ""}`}
+              onClick={density === "compact" ? () => toggleLoop(loop.id) : undefined}
+            >
+              {density === "compact" && (
+                <ChevronRight
+                  className={`h-3.5 w-3.5 shrink-0 text-muted2 transition-transform duration-200 ${isLoopExpanded ? "rotate-90" : ""}`}
+                />
+              )}
               <Repeat className="h-4 w-4 shrink-0 text-accent2" />
               <span className="font-mono text-sm font-semibold">
                 {loop.id.slice(0, 8)}
@@ -626,7 +648,7 @@ function LoopView({
                 </span>
               )}
 
-              <div className="ml-auto flex items-center gap-1">
+              <div className="ml-auto flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                 {/* RETOMAR — shown when paused or stopped */}
                 {loop.status === "paused" && (
                   <button
@@ -667,6 +689,12 @@ function LoopView({
                 ⚠ {loop.last_error}
               </div>
             )}
+
+            {/* ── Collapsible body (accounts + cycles) ── */}
+            <div
+              className={`grid transition-[grid-template-rows] duration-200 ease-out ${isLoopExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+            >
+              <div className="overflow-hidden">
 
             {/* ── Accounts summary ── */}
             <div className="divide-y divide-border/40">
@@ -837,6 +865,9 @@ function LoopView({
                 })}
               </div>
             )}
+
+              </div>{/* end overflow-hidden */}
+            </div>{/* end collapsible grid */}
           </article>
         );
       })}
@@ -897,7 +928,7 @@ function QueuePage() {
   const [sort, setSort] = useState<SortKey>("asc");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [density, setDensity] = useState<Density>("expanded");
+  const [density, setDensity] = useState<Density>("compact");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [activeTab, setActiveTab] = useState<"queue" | "loop">("queue");
   const [confirmClear, setConfirmClear] = useState<null | {
@@ -1439,6 +1470,7 @@ function QueuePage() {
           accountById={accountById}
           modelById={modelById}
           now={now}
+          density={density}
           onAction={onLoopAction}
         />
       ) : (
