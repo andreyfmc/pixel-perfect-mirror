@@ -1,7 +1,7 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { LayoutDashboard, Flame, CalendarClock, Users, ShieldAlert, Trophy } from "lucide-react";
+import { LayoutDashboard, Flame, CalendarClock, Users, ShieldAlert, Trophy, Settings } from "lucide-react";
 import { api } from "@/lib/api-client";
 import { loadContingency } from "@/lib/contingency-store";
 
@@ -12,6 +12,7 @@ const items = [
   { to: "/ranking", label: "Ranking", Icon: Trophy },
   { to: "/accounts", label: "Contas", Icon: Users },
   { to: "/contingency", label: "Contingência", Icon: ShieldAlert },
+  { to: "/settings", label: "Config.", Icon: Settings },
 ] as const;
 
 export function MobileBottomNav() {
@@ -62,7 +63,7 @@ export function MobileBottomNav() {
       className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-bg2/95 backdrop-blur"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="grid grid-cols-6" style={{ height: 60 }}>
+      <ul className="grid grid-cols-7" style={{ height: 60 }}>
         {items.map(({ to, label, Icon }) => {
           const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
           const badge = badgeFor(to);
