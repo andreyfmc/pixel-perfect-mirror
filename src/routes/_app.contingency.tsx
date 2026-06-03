@@ -958,6 +958,7 @@ function ContingencyPage() {
   const [privateMode, setPrivateMode] = useState(false);
   const [driveOpen, setDriveOpen] = useState(false);
   const [modelosMap, setModelosMap] = useState<Map<string, { name: string; color: string }>>(new Map());
+  const [modelsList, setModelsList] = useState<Model[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const uploadCsv = useServerFn(uploadContingencyCsv);
   const listCsvs = useServerFn(listContingencyCsvs);
@@ -1036,6 +1037,7 @@ function ContingencyPage() {
     Promise.all([api.listAccounts(), api.listModels()])
       .then(([accs, models]) => {
         setModelosMap(new Map(models.map((m) => [m.name, { name: m.name, color: m.color }])));
+        setModelsList(models);
         syncDiscarded(accs);
         syncModelos(accs, models);
       })
@@ -1067,7 +1069,8 @@ function ContingencyPage() {
     const out = list.filter((a) => {
       if (statusFilter !== "all" && a.status !== statusFilter) return false;
       if (typeFilter !== "all" && (a.connection_type ?? "instagram") !== typeFilter) return false;
-      if (modeloFilter !== "all" && (a.modelo?.trim() ?? "") !== modeloFilter) return false;
+      if (modeloFilter === "none" && (a.modelo?.trim() ?? "") !== "") return false;
+      if (modeloFilter !== "all" && modeloFilter !== "none" && (a.modelo?.trim() ?? "") !== modeloFilter) return false;
       if (q && !a.username.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -1088,7 +1091,7 @@ function ContingencyPage() {
       }
     });
     return out;
-  }, [list, query, statusFilter, typeFilter, sortBy]);
+  }, [list, query, statusFilter, typeFilter, modeloFilter, sortBy]);
 
   const patch = (id: string, p: Partial<ContingencyAccount>) =>
     update((prev) => {
@@ -1219,6 +1222,7 @@ function ContingencyPage() {
               api.listModels().catch(() => [] as Model[]),
             ]);
             setModelosMap(new Map(models.map((m) => [m.name, { name: m.name, color: m.color }])));
+            setModelsList(models);
             syncDiscarded(accs);
             syncModelos(accs, models);
             toast.success("Sincronização concluída");
@@ -1395,7 +1399,41 @@ function ContingencyPage() {
       </div>
 
       {/* search + filters compact */}
-      <div className="sticky top-0 z-20 -mx-4 mb-3 grid gap-2 bg-bg/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:static md:mx-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none md:grid-cols-[1fr_auto_auto_auto_auto]">
+      {/* modelo pills — igual aba de contas */}
+      {(modelsList.length > 0 || list.some((a) => !a.modelo?.trim())) && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
+          {([
+            { id: "all" as const, label: "Todas", color: null, count: list.length },
+            ...modelsList.map((m) => ({
+              id: m.name,
+              label: m.name,
+              color: m.color,
+              count: list.filter((a) => (a.modelo?.trim() ?? "") === m.name).length,
+            })),
+            { id: "none" as const, label: "Sem modelo", color: null, count: list.filter((a) => !a.modelo?.trim()).length },
+          ]).map((f) => {
+            const active = modeloFilter === f.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setModeloFilter(f.id)}
+                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
+                style={{
+                  borderColor: active ? f.color ?? "var(--accent2)" : "var(--border)",
+                  background: active ? `color-mix(in oklab, ${f.color ?? "var(--accent2)"} 18%, transparent)` : "var(--bg3)",
+                  color: active ? f.color ?? "var(--accent2)" : "var(--text2)",
+                }}
+              >
+                {f.color && <span className="h-2 w-2 rounded-full" style={{ background: f.color }} />}
+                {f.label}
+                <span className="tabular-nums text-[10px] opacity-70">{f.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="sticky top-0 z-20 -mx-4 mb-3 grid gap-2 bg-bg/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:static md:mx-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none md:grid-cols-[1fr_auto_auto_auto]">
         <div className="flex h-11 items-center gap-2 rounded-lg border border-border bg-bg2 px-3 md:h-9">
           <Search className="h-4 w-4 text-muted2" />
           <input value={query} onChange={(e) => setQuery(e.target.value)}
@@ -1426,15 +1464,6 @@ function ContingencyPage() {
           <option value="all">Tipo: Todos</option>
           <option value="instagram">Instagram</option>
           <option value="facebook">Facebook</option>
-        </select>
-        <select
-          value={modeloFilter}
-          onChange={(e) => setModeloFilter(e.target.value)}
-          className="h-9 rounded-lg border border-border bg-bg2 px-2 text-xs">
-          <option value="all">Modelo: Todos</option>
-          {modelos.map((m) => (
-            <option key={m} value={m}>{m}</option>
-          ))}
         </select>
         <select
           value={sortBy}
