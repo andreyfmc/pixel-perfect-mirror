@@ -574,7 +574,7 @@ function LoopView({
 
   return (
     <div className="space-y-4">
-      {loops.map((loop) => {
+      {loops.map((loop, loopIndex) => {
         const meta = LOOP_STATUS_META[loop.status];
         const items = itemsByLoop.get(loop.id) ?? [];
 
@@ -632,8 +632,8 @@ function LoopView({
                 />
               )}
               <Repeat className="h-4 w-4 shrink-0 text-accent2" />
-              <span className="font-mono text-sm font-semibold">
-                {loop.id.slice(0, 8)}
+              <span className="text-sm font-bold">
+                Loop {loopIndex + 1}
               </span>
               <span
                 className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase"
