@@ -90,13 +90,7 @@ export async function materializeLoop(
   }
 
   const cycleStart = new Date(loop.next_cycle_at).getTime();
-  // Se next_cycle_at está muito no passado (ex: cron ficou parado), usa now como base
-  // para que os posts sejam agendados a partir de agora, não no passado distante.
-  // Tolerância: até 10 minutos no passado é normal (atraso do cron); além disso, usa now.
-  const PAST_TOLERANCE_MS = 10 * 60_000;
-  const baseStart = Number.isFinite(cycleStart) && cycleStart >= now.getTime() - PAST_TOLERANCE_MS
-    ? cycleStart
-    : now.getTime();
+  const baseStart = Number.isFinite(cycleStart) ? cycleStart : now.getTime();
   const groupId = crypto.randomUUID();
   const groupScheduledAt = new Date(baseStart).toISOString();
   const cycle = loop.cycle_number; // ciclo atual a materializar
