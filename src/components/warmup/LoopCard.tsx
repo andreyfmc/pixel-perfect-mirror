@@ -97,7 +97,8 @@ export function LoopCard({
         )}
         <span className="text-muted2">
           · {vidCount} vídeo{vidCount === 1 ? "" : "s"} · {accCount} conta
-          {accCount === 1 ? "" : "s"} · ciclo #{loop.cycle_number}
+          {accCount === 1 ? "" : "s"} · {loop.videos_per_cycle ?? 1} post/ciclo ·{" "}
+          {loop.media_type ?? "REEL"} · ciclo #{loop.cycle_number}
         </span>
       </div>
 
