@@ -73,22 +73,37 @@ export async function runScheduler(
 
   let processed = 0;
   let errors = 0;
-  let variantsBuiltThisTick = 0;
 
-  for (const item of due) {
-    try {
-      if (
+  // Separa os itens que precisam de variante dos que já estão prontos para publicar
+  const needsVariant = due.filter(
+    (item) =>
+      item.variant_processed === 0 &&
+      (item.media_key.startsWith("drive:") || item.original_media_key?.startsWith("drive:")),
+  );
+  const readyToPublish = due.filter(
+    (item) =>
+      !(
         item.variant_processed === 0 &&
         (item.media_key.startsWith("drive:") || item.original_media_key?.startsWith("drive:"))
-      ) {
-        if (variantsBuiltThisTick >= 1) continue;
-        console.log(`[scheduler] gerando variante antes de publicar queue=${item.id}`);
-        const r = await buildVariantFor(item.id);
-        variantsBuiltThisTick++;
-        if (!r.ok) throw new Error(`Variante MP4 falhou: ${r.error}`);
-        continue;
-      }
+      ),
+  );
 
+  // Processa até 5 variantes em paralelo
+  if (needsVariant.length > 0) {
+    const batch = needsVariant.slice(0, 5);
+    console.log(`[scheduler] gerando ${batch.length} variante(s) em paralelo`);
+    await Promise.all(
+      batch.map(async (item) => {
+        const r = await buildVariantFor(item.id);
+        if (!r.ok) {
+          console.warn(`[scheduler] variante falhou queue=${item.id}: ${r.error}`);
+        }
+      }),
+    );
+  }
+
+  for (const item of readyToPublish) {
+    try {
       const account = await db.resolveAccountForPublishing(item.account_id);
       if (!account?.ig_user_id || !account?.access_token) {
         throw new Error(
