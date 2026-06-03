@@ -68,8 +68,7 @@ export function AccountSelector({ accounts, selectedIds, onChange, models = [] }
     const ids = accounts
       .filter((a) => (a.model_id ?? null) === modelId)
       .map((a) => a.id);
-    // mescla com a seleção atual
-    onChange(Array.from(new Set([...selectedIds, ...ids])));
+    onChange(ids);
   };
 
   const filtered = useMemo(
