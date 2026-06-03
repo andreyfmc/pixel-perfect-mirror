@@ -408,11 +408,10 @@ export function DistributeTab() {
 
       <DriveBrowser
         selectedVideos={selectedVideos}
-        onSelectionChange={(videos) => {
+        onSelectionChange={(videos, folder) => {
           setSelectedVideos(videos);
-          // Atualiza a pasta de seleção toda vez que vídeos são adicionados
           if (videos.size > 0) {
-            setSelectionFolder(currentFolder);
+            setSelectionFolder(folder);
           } else {
             setSelectionFolder(null);
           }

@@ -21,7 +21,7 @@ import { VideoThumb } from "./VideoThumb";
 
 type Props = {
   selectedVideos: Map<string, DriveVideo>;
-  onSelectionChange: (videos: Map<string, DriveVideo>) => void;
+  onSelectionChange: (videos: Map<string, DriveVideo>, folder: DriveCrumb | null) => void;
   onFolderChange?: (folderId: string, breadcrumbs: DriveCrumb[]) => void;
 };
 
@@ -54,6 +54,8 @@ export function DriveBrowser({
       .finally(() => setLoading(false));
   }, [fetchEntries, folderId]);
 
+  const currentCrumb = breadcrumbs[breadcrumbs.length - 1] ?? null;
+
   const toggleVideo = (v: DriveVideo) =>
     onSelectionChange(
       (() => {
@@ -62,6 +64,7 @@ export function DriveBrowser({
         else n.set(v.id, v);
         return n;
       })(),
+      currentCrumb,
     );
 
   const allCurrentSelected =
@@ -75,6 +78,7 @@ export function DriveBrowser({
         else videos.forEach((v) => n.set(v.id, v));
         return n;
       })(),
+      currentCrumb,
     );
 
   async function selectEntireFolder(f: DriveFolder) {
@@ -90,7 +94,7 @@ export function DriveBrowser({
       await walk(f.id);
       const n = new Map(selectedVideos);
       collected.forEach((v) => n.set(v.id, v));
-      onSelectionChange(n);
+      onSelectionChange(n, { id: f.id, name: f.name });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -99,7 +103,7 @@ export function DriveBrowser({
   }
 
   const clearSelection = () => {
-    onSelectionChange(new Map());
+    onSelectionChange(new Map(), null);
     setConfirmClear(false);
   };
 
