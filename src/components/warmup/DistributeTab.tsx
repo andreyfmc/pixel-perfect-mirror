@@ -86,6 +86,9 @@ export function DistributeTab() {
   );
   const [currentFolder, setCurrentFolder] = useState<DriveCrumb | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState("root");
+  // Pasta onde os vídeos foram efetivamente selecionados (pode ser diferente
+  // da pasta onde o usuário está navegando atualmente)
+  const [selectionFolder, setSelectionFolder] = useState<DriveCrumb | null>(null);
 
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>(
     persisted.selectedAccounts ?? [],
@@ -288,8 +291,8 @@ export function DistributeTab() {
         const result = await api.createLoop({
           source_type: "snapshot",
           media_type: mediaType,
-          folder_id: currentFolder?.id ?? null,
-          folder_name: currentFolder?.name ?? null,
+          folder_id: selectionFolder?.id ?? null,
+          folder_name: selectionFolder?.name ?? null,
           video_ids: selectedList.map((v) => v.id),
           account_ids: selectedAccounts,
           caption: mediaType === "STORY" ? "" : caption,
@@ -405,7 +408,15 @@ export function DistributeTab() {
 
       <DriveBrowser
         selectedVideos={selectedVideos}
-        onSelectionChange={setSelectedVideos}
+        onSelectionChange={(videos) => {
+          setSelectedVideos(videos);
+          // Atualiza a pasta de seleção toda vez que vídeos são adicionados
+          if (videos.size > 0) {
+            setSelectionFolder(currentFolder);
+          } else {
+            setSelectionFolder(null);
+          }
+        }}
         onFolderChange={(folderId, breadcrumbs) => {
           setCurrentFolderId(folderId);
           setCurrentFolder(breadcrumbs[breadcrumbs.length - 1] ?? null);
