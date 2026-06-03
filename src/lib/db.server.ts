@@ -1193,17 +1193,22 @@ const rawDb = {
       .run();
   },
   async listLoops(): Promise<LoopRow[]> {
-    // Mostra ativos, pausados e stopped recentes (24h) — assim auto-stops
-    // (pasta vazia, snapshot vazio, etc.) ficam visíveis com last_error.
+    // Apenas loops ativos e pausados — loops encerrados (stopped) somem automaticamente.
     const { results } = await requireDb()
       .prepare(
         `SELECT * FROM loops
          WHERE status IN ('active','paused')
-            OR (status = 'stopped' AND updated_at >= datetime('now','-1 day'))
          ORDER BY created_at DESC`,
       )
       .all<LoopRow>();
     return results ?? [];
+  },
+
+  async deleteStoppedLoops(): Promise<number> {
+    const result = await requireDb()
+      .prepare(`DELETE FROM loops WHERE status = 'stopped'`)
+      .run();
+    return result.changes ?? 0;
   },
   async getLoop(id: string): Promise<LoopRow | null> {
     return (

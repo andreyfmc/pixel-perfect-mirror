@@ -328,6 +328,12 @@ export const api = {
     await fetch(`/api/loops/${id}`, { method: "DELETE" });
   },
 
+  async deleteStoppedLoops(): Promise<number> {
+    const res = await fetch("/api/loops", { method: "DELETE" });
+    const data = await res.json() as { deleted: number };
+    return data.deleted ?? 0;
+  },
+
   async folderLiveCount(
     folderId: string,
   ): Promise<{ folder: { id: string; name: string } | null; count: number; error: string | null } | null> {

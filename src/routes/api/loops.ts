@@ -27,6 +27,10 @@ export const Route = createFileRoute("/api/loops")({
   server: {
     handlers: {
       GET: async () => json({ loops: await db.listLoops() }),
+      DELETE: async () => {
+        const deleted = await db.deleteStoppedLoops();
+        return json({ deleted });
+      },
       POST: async ({ request }) => {
         const body = CreateLoopSchema.parse(await request.json());
         if (body.source_type === "snapshot" && (!body.video_ids || body.video_ids.length === 0)) {
