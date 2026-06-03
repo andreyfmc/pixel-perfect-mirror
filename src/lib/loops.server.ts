@@ -93,31 +93,43 @@ export async function materializeLoop(
   const baseStart = Number.isFinite(cycleStart) ? cycleStart : now.getTime();
   const groupId = crypto.randomUUID();
   const groupScheduledAt = new Date(baseStart).toISOString();
-  const jitterMs = Math.max(0, loop.jitter_min) * 60_000;
   const cycle = loop.cycle_number; // ciclo atual a materializar
   const perCycle = Math.max(1, loop.videos_per_cycle ?? 1);
+
+  // Calcula os offsets aleatórios para os posts de uma conta dentro do ciclo.
+  // Lógica: sorteia N-1 pontos aleatórios dentro do ciclo, com mínimo de 15min
+  // entre posts consecutivos, para imitar comportamento natural de uma conta real.
+  // Ex: ciclo=60min, posts=3 → offsets como [0, 18, 47] (em ms desde baseStart)
+  const MIN_GAP_MS = 15 * 60_000; // 15 minutos mínimo entre posts da mesma conta
+  const cycleMs = Math.max(1, loop.gap_min) * 60_000;
+
+  function randomOffsetsForAccount(n: number): number[] {
+    if (n <= 1) return [0];
+    // Espaço livre após reservar os gaps mínimos entre os N posts
+    const slack = cycleMs - (n - 1) * MIN_GAP_MS;
+    if (slack <= 0) {
+      // Ciclo muito curto para respeitar o mínimo — distribui igualmente
+      return Array.from({ length: n }, (_, i) => Math.floor((cycleMs / n) * i));
+    }
+    // Sorteia N-1 pontos aleatórios no espaço [0, slack] e ordena.
+    // Cada ponto[i] vira offset = ponto[i] + (i+1) * MIN_GAP_MS
+    // Isso garante que qualquer dois offsets consecutivos diferem em >= MIN_GAP_MS.
+    // Ex: n=3, ciclo=60min, MIN_GAP=15min → slack=30min
+    //   points=[8,22] → offsets=[0, 8+15=23min, 22+30=52min] ✓
+    const points: number[] = Array.from({ length: n - 1 }, () =>
+      Math.floor(Math.random() * (slack + 1)),
+    ).sort((a, b) => a - b);
+    return [0, ...points.map((p, i) => p + (i + 1) * MIN_GAP_MS)];
+  }
 
   let enqueued = 0;
   for (const accId of accountIds) {
     const list = loop.order_mode === "random" ? shuffleSeeded(videoIds, accId) : videoIds;
-    // Posta `perCycle` vídeos consecutivos por conta neste ciclo, escolhidos
-    // sequencialmente a partir de `cycle * perCycle` (ou já embaralhados se random).
-    // O 1º post recebe jitter aleatório (0, jitter); cada post seguinte acumula
-    // jitter aleatório (2min, jitter + 2min) sobre o horário do anterior.
-    let prevScheduledMs = baseStart;
+    // Calcula offsets naturais para esta conta (independentes por conta)
+    const offsets = randomOffsetsForAccount(perCycle);
     for (let i = 0; i < perCycle; i++) {
       const videoId = list[(cycle * perCycle + i) % list.length];
-      let scheduledMs: number;
-      if (i === 0) {
-        const jitterOffset = jitterMs ? Math.floor(Math.random() * (jitterMs + 1)) : 0;
-        scheduledMs = baseStart + jitterOffset;
-      } else {
-        const minMs = 2 * 60_000;
-        const maxMs = jitterMs + 2 * 60_000;
-        const step = minMs + Math.floor(Math.random() * (maxMs - minMs + 1));
-        scheduledMs = prevScheduledMs + step;
-      }
-      prevScheduledMs = scheduledMs;
+      const scheduledMs = baseStart + offsets[i];
       const scheduledAt = new Date(scheduledMs).toISOString();
       const uniqueCaption = variateCaption(loop.caption, `${accId}|${videoId}`);
       try {

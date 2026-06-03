@@ -520,15 +520,28 @@ function LoopView({
   loops,
   queue,
   accountById,
+  modelById,
   now,
   onAction,
 }: {
   loops: LoopRow[];
   queue: QueueItem[];
   accountById: Map<string, AccountMeta>;
+  modelById: Map<string, { id: string; name: string; color: string }>;
   now: number;
   onAction: (loopId: string, status: LoopRow["status"]) => void;
 }) {
+  const [expandedCycles, setExpandedCycles] = useState<Set<string>>(new Set());
+
+  function toggleCycle(key: string) {
+    setExpandedCycles((s) => {
+      const n = new Set(s);
+      if (n.has(key)) n.delete(key);
+      else n.add(key);
+      return n;
+    });
+  }
+
   const itemsByLoop = useMemo(() => {
     const m = new Map<string, QueueItem[]>();
     for (const item of queue) {
@@ -552,7 +565,15 @@ function LoopView({
       {loops.map((loop) => {
         const meta = LOOP_STATUS_META[loop.status];
         const items = itemsByLoop.get(loop.id) ?? [];
-        const accountIds = parseAccountIds(loop.account_ids_json);
+
+        // Group items by cycle_number
+        const cycleMap = new Map<number, QueueItem[]>();
+        for (const it of items) {
+          const cn = it.cycle_number ?? 0;
+          cycleMap.set(cn, [...(cycleMap.get(cn) ?? []), it]);
+        }
+        const cycles = [...cycleMap.entries()].sort((a, b) => a[0] - b[0]);
+
         // Próximo post agendado por conta
         const nextByAccount = new Map<string, string>();
         for (const it of items) {
@@ -562,13 +583,17 @@ function LoopView({
             nextByAccount.set(it.account, it.scheduled_at);
           }
         }
+
+        const scheduledCount = items.filter((i) => i.status === "scheduled").length;
+
         return (
           <article
             key={loop.id}
             className="overflow-hidden rounded-xl border border-border bg-bg2"
           >
-            <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-              <Repeat className="h-4 w-4 text-accent2" />
+            {/* ── Loop header ── */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-border bg-bg3/30 p-3">
+              <Repeat className="h-4 w-4 shrink-0 text-accent2" />
               <span className="font-mono text-sm font-semibold">
                 {loop.id.slice(0, 8)}
               </span>
@@ -576,6 +601,9 @@ function LoopView({
                 className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase"
                 style={{ background: meta.bg, color: meta.fg }}
               >
+                {loop.status === "active" && <span className="mr-1">▶</span>}
+                {loop.status === "paused" && <span className="mr-1">⏸</span>}
+                {loop.status === "stopped" && <span className="mr-1">⏹</span>}
                 {meta.label}
               </span>
               <span className="text-xs text-muted2">
@@ -588,41 +616,49 @@ function LoopView({
                 · ciclo #{loop.cycle_number} · {loop.videos_per_cycle ?? 1}/ciclo
               </span>
               <span className="text-xs text-muted2">
-                · próximo ciclo{" "}
-                <span className="text-foreground">{fmtDateTime(loop.next_cycle_at)}</span>{" "}
-                ({relativeFromNow(loop.next_cycle_at, now)})
+                · {scheduledCount} posts agendados
               </span>
+              {loop.status !== "stopped" && (
+                <span className="text-xs text-muted2">
+                  · próximo ciclo{" "}
+                  <span className="text-foreground">{fmtDateTime(loop.next_cycle_at)}</span>{" "}
+                  ({relativeFromNow(loop.next_cycle_at, now)})
+                </span>
+              )}
+
               <div className="ml-auto flex items-center gap-1">
-                {loop.status !== "active" && (
+                {/* RETOMAR — shown when paused or stopped */}
+                {loop.status === "paused" && (
                   <button
                     onClick={() => onAction(loop.id, "active")}
-                    className="inline-flex items-center gap-1 rounded-md border border-border2 bg-bg3 px-2 py-1 text-[11px] hover:border-accent"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg3 px-2.5 py-1.5 text-[11px] font-medium hover:border-accent hover:text-foreground"
                   >
                     <Play className="h-3 w-3" /> Retomar
                   </button>
                 )}
+                {/* PAUSAR — shown when active */}
                 {loop.status === "active" && (
                   <button
                     onClick={() => onAction(loop.id, "paused")}
-                    className="inline-flex items-center gap-1 rounded-md border border-border2 bg-bg3 px-2 py-1 text-[11px] hover:border-warning"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg3 px-2.5 py-1.5 text-[11px] font-medium hover:border-warning hover:text-warning"
                   >
                     <Pause className="h-3 w-3" /> Pausar
                   </button>
                 )}
-                <button
-                  onClick={() => {
-                    if (
-                      confirm(
-                        "Encerrar este loop? Itens agendados ainda não publicados serão removidos.",
-                      )
-                    ) {
-                      onAction(loop.id, "stopped");
-                    }
-                  }}
-                  className="inline-flex items-center gap-1 rounded-md border border-border2 bg-bg3 px-2 py-1 text-[11px] hover:border-danger"
-                >
-                  <Square className="h-3 w-3" /> Parar
-                </button>
+                {/* ENCERRAR — shown when active or paused */}
+                {loop.status !== "stopped" && (
+                  <button
+                    onClick={() => onAction(loop.id, "stopped")}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-danger/35 bg-danger/10 px-2.5 py-1.5 text-[11px] font-medium text-danger hover:border-danger"
+                  >
+                    <Square className="h-3 w-3" /> Encerrar
+                  </button>
+                )}
+                {loop.status === "stopped" && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-muted2">
+                    Encerrado
+                  </span>
+                )}
               </div>
             </div>
 
@@ -632,15 +668,15 @@ function LoopView({
               </div>
             )}
 
-            <div className="divide-y divide-border/60">
-              {accountIds.map((accId) => {
+            {/* ── Accounts summary ── */}
+            <div className="divide-y divide-border/40">
+              {parseAccountIds(loop.account_ids_json).map((accId) => {
                 const account = accountById.get(accId);
                 const nextAt = nextByAccount.get(accId);
+                const modelId = account?.model_id;
+                const model = modelId ? modelById.get(modelId) : null;
                 return (
-                  <div
-                    key={accId}
-                    className="flex items-center gap-2 px-3 py-2 text-sm"
-                  >
+                  <div key={accId} className="flex items-center gap-2 px-3 py-2 text-sm">
                     {account?.profile_picture ? (
                       <img
                         src={account.profile_picture}
@@ -653,6 +689,19 @@ function LoopView({
                     <span className="min-w-0 flex-1 truncate font-semibold">
                       @{account?.username ?? accId.slice(0, 12)}
                     </span>
+                    {model && (
+                      <span
+                        className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                        style={{
+                          borderColor: `color-mix(in oklab, ${model.color} 45%, transparent)`,
+                          background: `color-mix(in oklab, ${model.color} 14%, transparent)`,
+                          color: model.color,
+                        }}
+                      >
+                        <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: model.color }} />
+                        {model.name}
+                      </span>
+                    )}
                     <span className="text-[11px] text-muted2 tabular-nums">
                       {nextAt
                         ? `Próximo ${timeHHmm(nextAt)} · ${relativeFromNow(nextAt, now)}`
@@ -662,6 +711,132 @@ function LoopView({
                 );
               })}
             </div>
+
+            {/* ── Posts grouped by cycle ── */}
+            {cycles.length > 0 && (
+              <div className="border-t border-border">
+                {cycles.map(([cycleNum, cycleItems]) => {
+                  const cycleKey = `${loop.id}:${cycleNum}`;
+                  const isOpen = expandedCycles.has(cycleKey);
+                  const scheduledInCycle = cycleItems.filter((i) => i.status === "scheduled").length;
+                  const publishedInCycle = cycleItems.filter((i) => i.status === "published").length;
+                  const failedInCycle = cycleItems.filter((i) => i.status === "failed").length;
+
+                  return (
+                    <div key={cycleNum} className="border-b border-border/40 last:border-0">
+                      <button
+                        type="button"
+                        onClick={() => toggleCycle(cycleKey)}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-bg3/40"
+                      >
+                        <ChevronRight
+                          className={`h-3.5 w-3.5 shrink-0 text-muted2 transition-transform ${isOpen ? "rotate-90" : ""}`}
+                        />
+                        <span className="font-semibold text-text2">
+                          🔁 Ciclo #{cycleNum}
+                        </span>
+                        <span className="text-muted2">·</span>
+                        <span className="text-muted2">{cycleItems.length} posts</span>
+                        {scheduledInCycle > 0 && (
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                            style={{
+                              background: "color-mix(in oklab, var(--info) 16%, transparent)",
+                              color: "var(--info)",
+                            }}
+                          >
+                            {scheduledInCycle} pendentes
+                          </span>
+                        )}
+                        {publishedInCycle > 0 && (
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                            style={{
+                              background: "color-mix(in oklab, var(--success) 16%, transparent)",
+                              color: "var(--success)",
+                            }}
+                          >
+                            {publishedInCycle} publicados
+                          </span>
+                        )}
+                        {failedInCycle > 0 && (
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                            style={{
+                              background: "color-mix(in oklab, var(--danger) 16%, transparent)",
+                              color: "var(--danger)",
+                            }}
+                          >
+                            {failedInCycle} erros
+                          </span>
+                        )}
+                      </button>
+
+                      <div
+                        className={`grid transition-[grid-template-rows] duration-200 ease-out ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+                      >
+                        <div className="overflow-hidden">
+                          <div className="space-y-0 border-t border-border/40 bg-bg3/10 p-2">
+                            {cycleItems
+                              .sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+                              .map((item, idx) => {
+                                const account = accountById.get(item.account) ?? {
+                                  id: item.account,
+                                  username: item.account.slice(0, 16),
+                                  name: item.account,
+                                  profile_picture: "",
+                                  model_id: null,
+                                };
+                                const modelId = account.model_id;
+                                const model = modelId ? modelById.get(modelId) : null;
+                                return (
+                                  <div
+                                    key={item.id}
+                                    className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-bg3"
+                                    style={{ background: idx % 2 === 1 ? "rgba(255,255,255,0.025)" : undefined }}
+                                  >
+                                    {account.profile_picture ? (
+                                      <img src={account.profile_picture} alt="" className="h-5 w-5 rounded-full" />
+                                    ) : (
+                                      <Users className="h-3.5 w-3.5 text-muted2" />
+                                    )}
+                                    <span className="min-w-0 flex-1 truncate text-xs font-semibold">
+                                      @{account.username}
+                                    </span>
+                                    {model && (
+                                      <span
+                                        className="inline-flex shrink-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold"
+                                        style={{
+                                          borderColor: `color-mix(in oklab, ${model.color} 45%, transparent)`,
+                                          background: `color-mix(in oklab, ${model.color} 14%, transparent)`,
+                                          color: model.color,
+                                        }}
+                                      >
+                                        <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: model.color }} />
+                                        {model.name}
+                                      </span>
+                                    )}
+                                    <span className="hidden text-[11px] text-muted2 tabular-nums sm:inline">
+                                      {timeHHmm(item.scheduled_at)}
+                                    </span>
+                                    <StatusBadge
+                                      status={item.status}
+                                      scheduledAt={item.scheduled_at}
+                                      lastError={item.last_error}
+                                      now={now}
+                                      retryCount={item.retry_count}
+                                    />
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </article>
         );
       })}
@@ -724,6 +899,7 @@ function QueuePage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [density, setDensity] = useState<Density>("expanded");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<"queue" | "loop">("queue");
   const [confirmClear, setConfirmClear] = useState<null | {
     statuses: StatusKey[];
     label: string;
@@ -731,6 +907,10 @@ function QueuePage() {
   }>(null);
   const [confirmCleanOld, setConfirmCleanOld] = useState(false);
   const [cleaningOld, setCleaningOld] = useState(false);
+  const [confirmStopLoop, setConfirmStopLoop] = useState<null | {
+    loopId: string;
+    pendingCount: number;
+  }>(null);
 
   // Live clock and refresh countdown
   const [now, setNow] = useState(0);
@@ -976,11 +1156,26 @@ function QueuePage() {
   }
 
   async function onLoopAction(loopId: string, status: LoopRow["status"]) {
-    const label =
-      status === "active" ? "Retomando loop" : status === "paused" ? "Pausando loop" : "Parando loop";
+    if (status === "stopped") {
+      const pending = queue.filter(
+        (q) => q.loop_id === loopId && q.status === "scheduled",
+      ).length;
+      setConfirmStopLoop({ loopId, pendingCount: pending });
+      return;
+    }
+    const label = status === "active" ? "Retomando loop" : "Pausando loop";
     await singleAction(label, async () => {
-      await api.patchLoop(loopId, { status, cancel_pending: status !== "active" });
+      await api.patchLoop(loopId, { status, cancel_pending: false });
       qc.invalidateQueries({ queryKey: ["loops"] });
+    });
+  }
+
+  async function executeStopLoop(loopId: string) {
+    setConfirmStopLoop(null);
+    await singleAction("Encerrando loop", async () => {
+      await api.patchLoop(loopId, { status: "stopped", cancel_pending: true });
+      qc.invalidateQueries({ queryKey: ["loops"] });
+      qc.invalidateQueries({ queryKey: ["queue"] });
     });
   }
 
@@ -1071,12 +1266,31 @@ function QueuePage() {
       <header className="mb-5 flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="inline-flex rounded-xl border border-border bg-bg2 p-1">
-            <button className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-primary-foreground im-glow">
+            <button
+              onClick={() => setActiveTab("queue")}
+              className={[
+                "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition",
+                activeTab === "queue"
+                  ? "bg-accent text-primary-foreground im-glow"
+                  : "text-text2 hover:text-foreground",
+              ].join(" ")}
+            >
               <ListChecks className="h-4 w-4" /> Fila{" "}
               <span className="rounded-full bg-bg3/40 px-2 py-0.5 text-[11px]">{counts.all}</span>
             </button>
-            <button className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm text-text2 hover:text-foreground">
-              <BarChart3 className="h-4 w-4" /> Monitor
+            <button
+              onClick={() => setActiveTab("loop")}
+              className={[
+                "inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition",
+                activeTab === "loop"
+                  ? "bg-accent text-primary-foreground im-glow"
+                  : "text-text2 hover:text-foreground",
+              ].join(" ")}
+            >
+              <Repeat className="h-4 w-4" /> Fila de Loop{" "}
+              {loops.length > 0 && (
+                <span className="rounded-full bg-bg3/40 px-2 py-0.5 text-[11px]">{loops.length}</span>
+              )}
             </button>
           </div>
 
@@ -1218,6 +1432,17 @@ function QueuePage() {
         </div>
       </header>
 
+      {activeTab === "loop" ? (
+        <LoopView
+          loops={loops}
+          queue={queue}
+          accountById={accountById}
+          modelById={modelById}
+          now={now}
+          onAction={onLoopAction}
+        />
+      ) : (
+      <>
       <section className="mb-4 space-y-3">
         <div className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
           <label className="relative block">
@@ -1351,7 +1576,7 @@ function QueuePage() {
         )}
       </section>
 
-      {someSelected && (
+      {someSelected && activeTab === "queue" && (
         <div className="sticky top-3 z-20 mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-accent/40 bg-bg3 px-3 py-2 text-sm shadow-lg shadow-bg/40">
           <span className="font-semibold">{selected.size} selecionado(s)</span>
           <span className="text-xs text-muted2">{selectedVisibleCount} visível(is)</span>
@@ -1716,6 +1941,8 @@ function QueuePage() {
           })
         )}
       </div>
+      </>
+      )}
 
       <AlertDialog open={!!confirmClear} onOpenChange={(o) => !o && setConfirmClear(null)}>
         <AlertDialogContent>
@@ -1740,6 +1967,44 @@ function QueuePage() {
               }}
             >
               Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={!!confirmStopLoop}
+        onOpenChange={(o) => !o && setConfirmStopLoop(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>⚠️ Encerrar Loop?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm">
+                <p>Esta ação irá:</p>
+                <ul className="ml-4 list-disc space-y-1 text-text2">
+                  <li>Parar permanentemente o loop</li>
+                  <li>
+                    Cancelar{" "}
+                    <span className="font-semibold text-foreground">
+                      {confirmStopLoop?.pendingCount ?? 0}
+                    </span>{" "}
+                    posts agendados
+                  </li>
+                  <li>Não poderá ser revertido</li>
+                </ul>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-danger text-white hover:bg-danger/90"
+              onClick={() => {
+                if (confirmStopLoop) executeStopLoop(confirmStopLoop.loopId);
+              }}
+            >
+              Encerrar agora
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
