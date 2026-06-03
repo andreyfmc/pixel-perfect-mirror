@@ -262,20 +262,6 @@ export function DistributeTab() {
       };
       const payloads: Payload[] = [];
 
-      // Quantos ciclos materializar (loop = todos de uma vez; once = 1 por vídeo).
-      let totalCycles = selectedList.length;
-      if (loopMode === "loop") {
-        if (loopDuration === "cycles") {
-          totalCycles = Math.min(500, Math.max(1, loopCycles));
-        } else {
-          const days = loopDuration === "days" ? Math.max(1, loopDays) : 30;
-          totalCycles = Math.min(
-            500,
-            Math.max(1, Math.floor((days * 24 * 60) / Math.max(1, gap))),
-          );
-        }
-      }
-
       if (loopMode === "once") {
         // Cada vídeo selecionado vira um ciclo — 1 post por conta por ciclo.
         for (let cycle = 0; cycle < selectedList.length; cycle++) {
@@ -297,40 +283,34 @@ export function DistributeTab() {
           }
         }
       } else {
-        // Modo LOOP — materializa todos os ciclos na fila como posts normais.
-        // Cada ciclo posta `perCycle` vídeos por conta com jitter entre eles;
-        // o próximo ciclo começa `gap` minutos depois.
-        const perCycle = Math.min(10, Math.max(1, videosPerCycle));
-        for (let cycle = 0; cycle < totalCycles; cycle++) {
-          const baseStart = startMs + cycle * gapMs;
-          const groupId = crypto.randomUUID();
-          const groupScheduledAt = new Date(baseStart).toISOString();
-          for (const accId of selectedAccounts) {
-            const list = accountVideos.get(accId)!;
-            let prevMs = baseStart;
-            for (let i = 0; i < perCycle; i++) {
-              const v = list[(cycle * perCycle + i) % list.length];
-              let scheduledMs: number;
-              if (i === 0) {
-                scheduledMs = baseStart + (jitterMs ? Math.floor(Math.random() * (jitterMs + 1)) : 0);
-              } else {
-                const minMs = 2 * 60_000;
-                const maxMs = jitterMs + 2 * 60_000;
-                scheduledMs = prevMs + minMs + Math.floor(Math.random() * (maxMs - minMs + 1));
-              }
-              prevMs = scheduledMs;
-              payloads.push({
-                account_id: accId,
-                caption: mediaType === "STORY" ? "" : variateCaption(caption, `${accId}|${v.id}`),
-                media_type: mediaType,
-                media_key: `drive:${v.id}`,
-                scheduled_at: new Date(scheduledMs).toISOString(),
-                group_id: groupId,
-                group_scheduled_at: groupScheduledAt,
-              });
-            }
-          }
+        // Modo LOOP — cria um registro na tabela `loops` e deixa o cron
+        // materializar cada ciclo automaticamente com espaçamento natural.
+        const result = await api.createLoop({
+          source_type: currentFolder ? "live_folder" : "snapshot",
+          media_type: mediaType,
+          folder_id: currentFolder?.id ?? null,
+          folder_name: currentFolder?.name ?? null,
+          video_ids: currentFolder ? undefined : selectedList.map((v) => v.id),
+          account_ids: selectedAccounts,
+          caption: mediaType === "STORY" ? "" : caption,
+          gap_min: gap,
+          jitter_min: jitter,
+          order_mode: order,
+          videos_per_cycle: Math.min(10, Math.max(1, videosPerCycle)),
+          next_cycle_at: new Date(startMs).toISOString(),
+        });
+
+        if (!result || "error" in result) {
+          setEnqueueMsg(`Erro ao criar loop: ${"error" in (result ?? {}) ? (result as { error: string }).error : "falha desconhecida"}`);
+          return;
         }
+
+        setEnqueueOk(true);
+        setEnqueueMsg(
+          `✓ Loop criado — o 1º ciclo começa em ${fmtPreview()} e repete a cada ${gap}min. Acompanhe na aba Fila de Loop.`,
+        );
+        setTimeout(() => navigate({ to: "/queue" }), 800);
+        return;
       }
 
       // Enfileira em lotes de 20 para não travar o Worker, com progresso.
@@ -354,18 +334,9 @@ export function DistributeTab() {
       }
 
       setEnqueueOk(fail === 0 && ok > 0);
-      if (loopMode === "once") {
-        setEnqueueMsg(
-          `✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ${selectedList.length} ciclo(s) de ${gap}min · jitter +0–${jitter}min`,
-        );
-      } else {
-        const fmtDay = (ms: number) =>
-          new Date(ms).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-        const lastMs = startMs + (totalCycles - 1) * gapMs;
-        setEnqueueMsg(
-          `✓ ${ok} post(s) agendado(s) para ${totalCycles} ciclos${fail ? ` · ${fail} falha(s)` : ""} · período: ${fmtDay(startMs)} até ${fmtDay(lastMs)}`,
-        );
-      }
+      setEnqueueMsg(
+        `✓ ${ok} agendado(s)${fail ? ` · ${fail} falha(s)` : ""} · ${selectedList.length} ciclo(s) de ${gap}min · jitter +0–${jitter}min`,
+      );
       if (ok > 0 && fail === 0) {
         setTimeout(() => navigate({ to: "/queue" }), 800);
       }
@@ -523,7 +494,7 @@ export function DistributeTab() {
       <p className="text-[11px] text-muted2">
         {loopMode === "once"
           ? `Cada vídeo vira um ciclo: todas as contas selecionadas postam o mesmo vídeo com um atraso aleatório de 0 a ${jitter}min, e o próximo ciclo começa ${gap}min depois.`
-          : `Loop contínuo: os ciclos são agendados de uma vez na fila (${videosPerCycle} post/ciclo, a cada ${gap}min). Para parar, cancele os posts agendados na aba Fila.`}{" "}
+          : `Loop contínuo: cria um loop que materializa ${videosPerCycle} post(s)/ciclo a cada ${gap}min automaticamente. Gerencie na aba Fila de Loop (pausar, retomar, encerrar).`}{" "}
         ✓ Variantes únicas por conta são geradas automaticamente no servidor.
       </p>
 
