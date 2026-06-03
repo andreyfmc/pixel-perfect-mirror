@@ -1,5 +1,8 @@
 // Build de variantes serverless (lógica pura — sem dependência de rota).
 // Roda em Worker. Limites: 80MB input por arquivo.
+//
+// Método primário: servidor Oracle (ffmpeg reencoding via REENC_URL + REENC_SECRET).
+// Fallback: variação serverless por metadados (mp4-variant.server.ts).
 
 import { db } from "./db.server";
 import { ensureEnv, hasMedia, requireMedia } from "./cf.server";
@@ -34,6 +37,51 @@ async function downloadDrive(fileId: string): Promise<Uint8Array> {
   return new Uint8Array(buf);
 }
 
+// Tenta reencoding via servidor Oracle (ffmpeg).
+// Retorna os bytes do vídeo reprocessado ou null se o servidor não estiver configurado.
+async function tryOracleReencode(
+  videoBytes: Uint8Array,
+  seed: string,
+  env: Record<string, string | undefined>,
+): Promise<Uint8Array | null> {
+  const REENC_URL = env.REENC_URL ?? process.env.REENC_URL;
+  const REENC_SECRET = env.REENC_SECRET ?? process.env.REENC_SECRET;
+  if (!REENC_URL || !REENC_SECRET) return null;
+
+  try {
+    // Faz upload do vídeo como multipart para o servidor Oracle
+    const blob = new Blob([videoBytes], { type: "video/mp4" });
+    const form = new FormData();
+    form.append("video", blob, "input.mp4");
+    form.append("seed", seed);
+
+    const res = await fetch(`${REENC_URL}/reencode`, {
+      method: "POST",
+      headers: {
+        "x-secret": REENC_SECRET,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        seed,
+        // Envia o vídeo como base64 para o servidor Oracle processar
+        videoBase64: Buffer.from(videoBytes).toString("base64"),
+      }),
+      signal: AbortSignal.timeout(180_000), // 3 minutos
+    });
+
+    if (!res.ok) {
+      console.warn(`[variant-builder] Oracle reencode falhou: ${res.status}`);
+      return null;
+    }
+
+    const buf = await res.arrayBuffer();
+    return new Uint8Array(buf);
+  } catch (err) {
+    console.warn(`[variant-builder] Oracle reencode erro: ${err}`);
+    return null;
+  }
+}
+
 export async function buildVariantFor(
   queueId: string,
 ): Promise<{ ok: true; mediaKey: string } | { ok: false; error: string }> {
@@ -57,21 +105,43 @@ export async function buildVariantFor(
   try {
     const raw = await downloadDrive(driveId);
     const seed = `${item.account_id}|${driveId}`;
-    const variant = await variateMp4(raw, seed);
+    const env = await ensureEnv();
+
+    // Tenta método primário: Oracle ffmpeg reencoding
+    const oracleBytes = await tryOracleReencode(raw, seed, env as Record<string, string | undefined>);
+
+    let finalBytes: Uint8Array;
+    let method: string;
+    let changes: object;
+
+    if (oracleBytes) {
+      // Aplica também a variação de metadados por cima do vídeo reencoded
+      const variant = await variateMp4(oracleBytes, seed);
+      finalBytes = variant.bytes;
+      method = "oracle+serverless";
+      changes = variant.changes;
+    } else {
+      // Fallback: só variação de metadados
+      const variant = await variateMp4(raw, seed);
+      finalBytes = variant.bytes;
+      method = "serverless";
+      changes = variant.changes;
+    }
+
     const key = `variants/${driveId}/${item.account_id}.mp4`;
-    await requireMedia().put(key, variant.bytes, {
+    await requireMedia().put(key, finalBytes, {
       httpMetadata: { contentType: "video/mp4" },
       customMetadata: {
         accountId: item.account_id,
         driveId,
         queueId: item.id,
-        method: "serverless",
-        changes: JSON.stringify(variant.changes),
+        method,
+        changes: JSON.stringify(changes),
       },
     });
     await db.markVariantProcessed(item.id, {
       mediaKey: key,
-      method: "serverless",
+      method,
       originalMediaKey: sourceKey,
     });
     return { ok: true, mediaKey: key };
