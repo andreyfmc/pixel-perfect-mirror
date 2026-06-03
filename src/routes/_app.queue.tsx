@@ -928,8 +928,8 @@ function QueuePage() {
     refetchInterval: 30_000,
   });
   const { data: accounts = [] } = useQuery({
-    queryKey: ["accounts"],
-    queryFn: () => api.listAccounts(),
+    queryKey: ["accounts", "all"],
+    queryFn: () => api.listAccounts({ includeDiscarded: true }),
     refetchInterval: 60_000,
   });
   const { data: models = [] } = useQuery({

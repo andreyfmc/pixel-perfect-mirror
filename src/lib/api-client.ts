@@ -92,8 +92,9 @@ function queueFromRow(r: QueueRow): QueueItem {
 }
 
 export const api = {
-  async listAccounts(): Promise<Account[]> {
-    const data = await tryJson<{ accounts: AccountRow[] }>("/api/accounts");
+  async listAccounts(opts?: { includeDiscarded?: boolean }): Promise<Account[]> {
+    const qs = opts?.includeDiscarded ? "?include_discarded=1" : "";
+    const data = await tryJson<{ accounts: AccountRow[] }>(`/api/accounts${qs}`);
     return data?.accounts?.map(accountFromRow) ?? mockAccounts;
   },
 

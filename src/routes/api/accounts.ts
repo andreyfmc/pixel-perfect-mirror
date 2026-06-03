@@ -20,7 +20,11 @@ const CreateAccount = z.object({
 export const Route = createFileRoute("/api/accounts")({
   server: {
     handlers: {
-      GET: async () => json({ accounts: await db.listAccounts() }),
+      GET: async ({ request }) => {
+        const url = new URL(request.url);
+        const includeDiscarded = url.searchParams.get("include_discarded") === "1";
+        return json({ accounts: await db.listAccounts({ includeDiscarded }) });
+      },
       POST: async ({ request }) => {
         const body = CreateAccount.parse(await request.json());
         const id = crypto.randomUUID();
