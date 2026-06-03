@@ -366,12 +366,13 @@ export type HistoryRow = {
 
 const rawDb = {
   // ============ accounts ============
-  async listAccounts(): Promise<(AccountRow & { posts: number })[]> {
+  async listAccounts(opts?: { includeDiscarded?: boolean }): Promise<(AccountRow & { posts: number })[]> {
+    const where = opts?.includeDiscarded ? "" : "WHERE a.role != 'discarded'";
     const sql = `
       SELECT a.*,
         (SELECT COUNT(*) FROM history h WHERE h.account_id = a.id) AS posts
       FROM accounts a
-      WHERE a.role != 'discarded'
+      ${where}
       ORDER BY a.created_at DESC`;
     const { results } = await requireDb().prepare(sql).all<AccountRow & { posts: number }>();
     const accounts = results ?? [];
