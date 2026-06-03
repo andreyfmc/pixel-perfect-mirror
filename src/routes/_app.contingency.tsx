@@ -291,6 +291,10 @@ function AddAccountModal({
             <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })}
               rows={2} className="w-full rounded-md border border-border bg-bg3 px-3 py-2 text-sm" />
           </Field>
+          <Field label="Modelo (nicho/perfil)">
+            <input value={form.modelo ?? ""} onChange={(e) => setForm({ ...form, modelo: e.target.value })}
+              className="w-full rounded-md border border-border bg-bg3 px-3 py-2 text-sm" placeholder="ex: fitness, lifestyle, humor..." />
+          </Field>
         </div>
         <DialogFooter>
           <button onClick={() => onOpenChange(false)}
@@ -565,6 +569,16 @@ function Row({
           className="hidden flex-1 min-w-0 rounded-md border border-transparent bg-transparent px-2 py-1 text-[12px] hover:border-border focus:border-accent focus:bg-bg3 lg:block"
         />
 
+        {/* modelo */}
+        <input
+          value={a.modelo ?? ""}
+          onChange={(e) => onPatch({ modelo: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="Modelo..."
+          title="Modelo / nicho"
+          className="hidden w-28 shrink-0 rounded-md border border-transparent bg-transparent px-2 py-1 text-[12px] hover:border-border focus:border-accent focus:bg-bg3 xl:block"
+        />
+
         {/* updated */}
         <span className="hidden w-16 shrink-0 text-right text-[10px] text-muted2 md:block">
           {relTime(a.updated_at)}
@@ -602,6 +616,13 @@ function Row({
                 onChange={(e) => onPatch({ notes: e.target.value })}
                 rows={3}
                 placeholder="Observações..."
+                className="w-full rounded-md border border-border bg-bg3 px-2 py-1.5 text-[12px]"
+              />
+              <p className="mb-1 mt-2 text-[10px] uppercase tracking-wide text-muted2">Modelo / Nicho</p>
+              <input
+                value={a.modelo ?? ""}
+                onChange={(e) => onPatch({ modelo: e.target.value })}
+                placeholder="ex: fitness, lifestyle..."
                 className="w-full rounded-md border border-border bg-bg3 px-2 py-1.5 text-[12px]"
               />
             </div>
@@ -855,6 +876,16 @@ function MobileCard({
       )}
 
 
+      {/* modelo */}
+      {a.modelo && a.modelo.trim() && (
+        <div className="mb-3">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted2">Modelo</p>
+          <div className="rounded-lg border border-border bg-bg3 px-3 py-2 text-[13px] text-text">
+            {a.modelo}
+          </div>
+        </div>
+      )}
+
       {/* actions */}
       <div className="flex items-center gap-2">
         <DropdownMenu>
@@ -895,6 +926,7 @@ function ContingencyPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | ContingencyStatus>("all");
   const [typeFilter, setTypeFilter] = useState<"all" | ConnectionType>("all");
+  const [modeloFilter, setModeloFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"order_asc" | "updated_desc" | "username_asc" | "username_desc" | "status" | "quality">("order_asc");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -969,6 +1001,14 @@ function ContingencyPage() {
     return c;
   }, [list]);
 
+  const modelos = useMemo(() => {
+    const set = new Set<string>();
+    for (const a of list) {
+      if (a.modelo && a.modelo.trim()) set.add(a.modelo.trim());
+    }
+    return Array.from(set).sort();
+  }, [list]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const statusOrder: Record<ContingencyStatus, number> = { pronta: 0, em_uso: 1, em_edicao: 2, descartada: 3 };
@@ -976,6 +1016,7 @@ function ContingencyPage() {
     const out = list.filter((a) => {
       if (statusFilter !== "all" && a.status !== statusFilter) return false;
       if (typeFilter !== "all" && (a.connection_type ?? "instagram") !== typeFilter) return false;
+      if (modeloFilter !== "all" && (a.modelo?.trim() ?? "") !== modeloFilter) return false;
       if (q && !a.username.toLowerCase().includes(q)) return false;
       return true;
     });
@@ -1298,7 +1339,7 @@ function ContingencyPage() {
       </div>
 
       {/* search + filters compact */}
-      <div className="sticky top-0 z-20 -mx-4 mb-3 grid gap-2 bg-bg/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:static md:mx-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none md:grid-cols-[1fr_auto_auto_auto]">
+      <div className="sticky top-0 z-20 -mx-4 mb-3 grid gap-2 bg-bg/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 md:static md:mx-0 md:bg-transparent md:px-0 md:py-0 md:backdrop-blur-none md:grid-cols-[1fr_auto_auto_auto_auto]">
         <div className="flex h-11 items-center gap-2 rounded-lg border border-border bg-bg2 px-3 md:h-9">
           <Search className="h-4 w-4 text-muted2" />
           <input value={query} onChange={(e) => setQuery(e.target.value)}
@@ -1329,6 +1370,15 @@ function ContingencyPage() {
           <option value="all">Tipo: Todos</option>
           <option value="instagram">Instagram</option>
           <option value="facebook">Facebook</option>
+        </select>
+        <select
+          value={modeloFilter}
+          onChange={(e) => setModeloFilter(e.target.value)}
+          className="h-9 rounded-lg border border-border bg-bg2 px-2 text-xs">
+          <option value="all">Modelo: Todos</option>
+          {modelos.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
         </select>
         <select
           value={sortBy}
