@@ -598,6 +598,22 @@ function LoopView({
 
         const scheduledCount = items.filter((i) => i.status === "scheduled").length;
 
+        // Modelos das contas deste loop
+        const loopAccountIds = parseAccountIds(loop.account_ids_json);
+        const loopModels = (() => {
+          const seen = new Map<string, { id: string; name: string; color: string; count: number }>();
+          for (const accId of loopAccountIds) {
+            const acc = accountById.get(accId);
+            const mid = acc?.model_id;
+            if (!mid) continue;
+            const md = modelById.get(mid);
+            if (!md) continue;
+            const prev = seen.get(mid);
+            seen.set(mid, { ...md, count: (prev?.count ?? 0) + 1 });
+          }
+          return [...seen.values()].sort((a, b) => b.count - a.count);
+        })();
+
         const isLoopExpanded = density !== "compact" || expandedLoops.has(loop.id);
 
         return (
@@ -628,6 +644,33 @@ function LoopView({
                 {loop.status === "stopped" && <span className="mr-1">⏹</span>}
                 {meta.label}
               </span>
+              {/* Tipo de mídia */}
+              {loop.media_type && (() => {
+                const m = TYPE_BADGE[loop.media_type] ?? TYPE_BADGE.IMAGE;
+                return (
+                  <span
+                    className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+                    style={{ background: m.bg, color: m.fg }}
+                  >
+                    {loop.media_type}
+                  </span>
+                );
+              })()}
+              {/* Modelos */}
+              {loopModels.map((m) => (
+                <span
+                  key={m.id}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold"
+                  style={{
+                    borderColor: `color-mix(in oklab, ${m.color} 45%, transparent)`,
+                    background: `color-mix(in oklab, ${m.color} 14%, transparent)`,
+                    color: m.color,
+                  }}
+                >
+                  <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: m.color }} />
+                  {m.name}
+                </span>
+              ))}
               <span className="text-xs text-muted2">
                 {loop.source_type === "live_folder" ? "🔄 ao vivo" : "📌 snapshot"}
               </span>
@@ -667,13 +710,14 @@ function LoopView({
                     <Pause className="h-3 w-3" /> Pausar
                   </button>
                 )}
-                {/* ENCERRAR — shown when active or paused */}
+                {/* ENCERRAR — X compacto */}
                 {loop.status !== "stopped" && (
                   <button
                     onClick={() => onAction(loop.id, "stopped")}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-danger/35 bg-danger/10 px-2.5 py-1.5 text-[11px] font-medium text-danger hover:border-danger"
+                    title="Encerrar loop"
+                    className="inline-flex items-center justify-center rounded-md border border-danger/35 bg-danger/10 p-1.5 text-danger hover:border-danger hover:bg-danger/20"
                   >
-                    <Square className="h-3 w-3" /> Encerrar
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 )}
                 {loop.status === "stopped" && (
