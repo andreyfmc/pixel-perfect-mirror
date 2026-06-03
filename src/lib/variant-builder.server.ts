@@ -37,6 +37,17 @@ async function downloadDrive(fileId: string): Promise<Uint8Array> {
   return new Uint8Array(buf);
 }
 
+// Converte Uint8Array para base64 sem usar Buffer (compatível com Cloudflare Workers)
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
 // Tenta reencoding via servidor Oracle (ffmpeg).
 // Retorna os bytes do vídeo reprocessado ou null se o servidor não estiver configurado.
 async function tryOracleReencode(
@@ -46,15 +57,13 @@ async function tryOracleReencode(
 ): Promise<Uint8Array | null> {
   const REENC_URL = env.REENC_URL ?? process.env.REENC_URL;
   const REENC_SECRET = env.REENC_SECRET ?? process.env.REENC_SECRET;
-  if (!REENC_URL || !REENC_SECRET) return null;
+  if (!REENC_URL || !REENC_SECRET) {
+    console.warn("[variant-builder] REENC_URL ou REENC_SECRET não configurados — usando fallback");
+    return null;
+  }
 
   try {
-    // Faz upload do vídeo como multipart para o servidor Oracle
-    const blob = new Blob([videoBytes], { type: "video/mp4" });
-    const form = new FormData();
-    form.append("video", blob, "input.mp4");
-    form.append("seed", seed);
-
+    console.log(`[variant-builder] chamando Oracle: ${REENC_URL}`);
     const res = await fetch(`${REENC_URL}/reencode`, {
       method: "POST",
       headers: {
@@ -63,10 +72,9 @@ async function tryOracleReencode(
       },
       body: JSON.stringify({
         seed,
-        // Envia o vídeo como base64 para o servidor Oracle processar
-        videoBase64: Buffer.from(videoBytes).toString("base64"),
+        videoBase64: uint8ToBase64(videoBytes),
       }),
-      signal: AbortSignal.timeout(180_000), // 3 minutos
+      signal: AbortSignal.timeout(180_000),
     });
 
     if (!res.ok) {
@@ -75,6 +83,7 @@ async function tryOracleReencode(
     }
 
     const buf = await res.arrayBuffer();
+    console.log(`[variant-builder] Oracle reencode ok — ${buf.byteLength} bytes`);
     return new Uint8Array(buf);
   } catch (err) {
     console.warn(`[variant-builder] Oracle reencode erro: ${err}`);
@@ -115,18 +124,18 @@ export async function buildVariantFor(
     let changes: object;
 
     if (oracleBytes) {
-      // Aplica também a variação de metadados por cima do vídeo reencoded
       const variant = await variateMp4(oracleBytes, seed);
       finalBytes = variant.bytes;
       method = "oracle+serverless";
       changes = variant.changes;
     } else {
-      // Fallback: só variação de metadados
       const variant = await variateMp4(raw, seed);
       finalBytes = variant.bytes;
       method = "serverless";
       changes = variant.changes;
     }
+
+    console.log(`[variant-builder] method=${method} queue=${queueId}`);
 
     const key = `variants/${driveId}/${item.account_id}.mp4`;
     await requireMedia().put(key, finalBytes, {
