@@ -329,6 +329,13 @@ export const api = {
     await fetch(`/api/loops/${id}`, { method: "DELETE" });
   },
 
+  async stopAllLoops(): Promise<number> {
+    const loops = await this.listLoops();
+    const active = loops.filter((l: any) => l.status === "active" || l.status === "paused");
+    await Promise.all(active.map((l: any) => this.patchLoop(l.id, { status: "stopped", cancel_pending: true })));
+    return active.length;
+  },
+
   async deleteStoppedLoops(): Promise<number> {
     const res = await fetch("/api/loops", { method: "DELETE" });
     const data = await res.json() as { deleted: number };
