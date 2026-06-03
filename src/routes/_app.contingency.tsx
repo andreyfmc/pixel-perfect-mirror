@@ -16,6 +16,7 @@ import {
 } from "@/lib/contingency-store";
 import { generateTOTP, totpSecondsRemaining } from "@/lib/totp";
 import { api } from "@/lib/api-client";
+import type { Model } from "@/lib/api-client";
 import { useServerFn } from "@tanstack/react-start";
 import {
   listContingencyCsvs, downloadDriveCsv, uploadContingencyCsv,
@@ -226,6 +227,20 @@ function QualityPill({
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+function ModelTag({ name, modelosMap }: { name?: string; modelosMap: Map<string, { name: string; color: string }> }) {
+  if (!name || !name.trim()) return null;
+  const meta = modelosMap.get(name.trim());
+  const color = meta?.color ?? "#888888";
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
+      style={{ background: `color-mix(in oklab, ${color} 22%, transparent)`, color }}
+    >
+      ● {name}
+    </span>
   );
 }
 
@@ -444,7 +459,7 @@ function ActivationDrawer({
 // =====================  Row  =====================
 
 function Row({
-  a, idx, privateMode, expanded, onToggleExpand, onPatch, onRemove, onCopyAll, onActivate, onReveal, selectMode, selected, onSelectChange,
+  a, idx, privateMode, expanded, onToggleExpand, onPatch, onRemove, onCopyAll, onActivate, onReveal, selectMode, selected, onSelectChange, modelosMap,
 }: {
   a: ContingencyAccount;
   idx: number;
@@ -459,6 +474,7 @@ function Row({
   selectMode: boolean;
   selected: boolean;
   onSelectChange: (v: boolean) => void;
+  modelosMap: Map<string, { name: string; color: string }>;
 }) {
   const ctype = a.connection_type ?? "instagram";
   const zebra = idx % 2 === 1 ? "bg-white/[0.02]" : "";
@@ -559,6 +575,7 @@ function Row({
         {/* status / quality */}
         <div className="shrink-0"><StatusPill status={a.status} onChange={(s) => onPatch({ status: s })} /></div>
         <div className="shrink-0"><QualityPill quality={a.quality} onChange={(q) => onPatch({ quality: q })} /></div>
+        {a.modelo && <div className="shrink-0"><ModelTag name={a.modelo} modelosMap={modelosMap} /></div>}
 
         {/* notes inline (collapsed shows preview, click expands) */}
         <input
@@ -752,7 +769,7 @@ function MobileTotp({ secret, privateMode }: { secret: string; privateMode: bool
 }
 
 function MobileCard({
-  a, privateMode, onPatch, onRemove, onActivate, onCopyAll,
+  a, privateMode, onPatch, onRemove, onActivate, onCopyAll, modelosMap,
 }: {
   a: ContingencyAccount;
   privateMode: boolean;
@@ -760,6 +777,7 @@ function MobileCard({
   onRemove: () => void;
   onActivate: () => void;
   onCopyAll: () => void;
+  modelosMap: Map<string, { name: string; color: string }>;
 }) {
   const [reveal, setReveal] = useState(false);
   const ctype = a.connection_type ?? "instagram";
@@ -790,6 +808,7 @@ function MobileCard({
         >
           {statusMeta.label}
         </span>
+        {a.modelo && <ModelTag name={a.modelo} modelosMap={modelosMap} />}
       </div>
 
       {/* username */}
@@ -938,6 +957,7 @@ function ContingencyPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [privateMode, setPrivateMode] = useState(false);
   const [driveOpen, setDriveOpen] = useState(false);
+  const [modelosMap, setModelosMap] = useState<Map<string, { name: string; color: string }>>(new Map());
   const fileRef = useRef<HTMLInputElement>(null);
   const uploadCsv = useServerFn(uploadContingencyCsv);
   const listCsvs = useServerFn(listContingencyCsvs);
@@ -987,9 +1007,40 @@ function ContingencyPage() {
     }
   }, [update]);
 
+  // ----- Auto-sync de modelos por username -----
+  const syncModelos = useCallback((connectedAccounts: Account[], models: Model[]) => {
+    const modelById = new Map<string, string>(models.map((m) => [m.id, m.name]));
+    const usernameToModelo = new Map<string, string>();
+    for (const a of connectedAccounts) {
+      if (a.model_id && modelById.has(a.model_id)) {
+        const uname = a.username.toLowerCase().replace(/^@/, "");
+        usernameToModelo.set(uname, modelById.get(a.model_id)!);
+      }
+    }
+    if (usernameToModelo.size === 0) return;
+    update((prev) => {
+      let changed = false;
+      const next = prev.map((c) => {
+        if (c.modelo && c.modelo.trim()) return c; // já tem modelo definido manualmente, respeitar
+        const uname = c.username.toLowerCase().replace(/^@/, "");
+        const found = usernameToModelo.get(uname);
+        if (found) { changed = true; return { ...c, modelo: found, updated_at: new Date().toISOString() }; }
+        return c;
+      });
+      if (changed) saveContingency(next);
+      return next;
+    });
+  }, [update]);
+
   useEffect(() => {
-    api.listAccounts().then((accs) => syncDiscarded(accs)).catch(() => { /* noop */ });
-  }, [syncDiscarded]);
+    Promise.all([api.listAccounts(), api.listModels()])
+      .then(([accs, models]) => {
+        setModelosMap(new Map(models.map((m) => [m.name, { name: m.name, color: m.color }])));
+        syncDiscarded(accs);
+        syncModelos(accs, models);
+      })
+      .catch(() => { /* noop */ });
+  }, [syncDiscarded, syncModelos]);
 
   const counts = useMemo(() => {
     const c = { total: list.length, em_edicao: 0, pronta: 0, em_uso: 0, descartada: 0, instagram: 0, facebook: 0 };
@@ -1163,8 +1214,13 @@ function ContingencyPage() {
 
         <button
           onClick={async () => {
-            const accs = await api.listAccounts().catch(() => [] as Account[]);
+            const [accs, models] = await Promise.all([
+              api.listAccounts().catch(() => [] as Account[]),
+              api.listModels().catch(() => [] as Model[]),
+            ]);
+            setModelosMap(new Map(models.map((m) => [m.name, { name: m.name, color: m.color }])));
             syncDiscarded(accs);
+            syncModelos(accs, models);
             toast.success("Sincronização concluída");
           }}
           className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-bg3 px-3 py-2 text-xs hover:border-border2"
@@ -1417,6 +1473,7 @@ function ContingencyPage() {
                 onRemove={() => removeOne(a.id)}
                 onActivate={() => { setActivateAccount(a); setActivateOpen(true); }}
                 onCopyAll={() => copyFullCreds(a)}
+                modelosMap={modelosMap}
               />
             ))}
           </div>
@@ -1444,6 +1501,7 @@ function ContingencyPage() {
                     if (v) next.add(a.id); else next.delete(a.id);
                     setSelected(next);
                   }}
+                  modelosMap={modelosMap}
                 />
               ))}
             </div>
