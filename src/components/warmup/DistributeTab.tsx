@@ -286,11 +286,11 @@ export function DistributeTab() {
         // Modo LOOP — cria um registro na tabela `loops` e deixa o cron
         // materializar cada ciclo automaticamente com espaçamento natural.
         const result = await api.createLoop({
-          source_type: currentFolder ? "live_folder" : "snapshot",
+          source_type: "snapshot",
           media_type: mediaType,
           folder_id: currentFolder?.id ?? null,
           folder_name: currentFolder?.name ?? null,
-          video_ids: currentFolder ? undefined : selectedList.map((v) => v.id),
+          video_ids: selectedList.map((v) => v.id),
           account_ids: selectedAccounts,
           caption: mediaType === "STORY" ? "" : caption,
           gap_min: gap,
