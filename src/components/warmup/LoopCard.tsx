@@ -6,6 +6,7 @@ import { fmtDateTime } from "@/lib/format";
 export type LoopRowLite = {
   id: string;
   source_type: "snapshot" | "live_folder";
+  media_type: "REEL" | "IMAGE" | "STORY";
   folder_id: string | null;
   folder_name: string | null;
   video_ids_json: string | null;
@@ -14,6 +15,7 @@ export type LoopRowLite = {
   gap_min: number;
   jitter_min: number;
   order_mode: "sequential" | "random";
+  videos_per_cycle: number;
   status: "active" | "paused" | "stopped";
   cycle_number: number;
   next_cycle_at: string;
