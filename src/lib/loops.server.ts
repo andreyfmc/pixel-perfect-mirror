@@ -91,31 +91,34 @@ export async function materializeLoop(
 
   const cycleStart = new Date(loop.next_cycle_at).getTime();
   const baseStart = Number.isFinite(cycleStart) ? cycleStart : now.getTime();
-  const groupId = crypto.randomUUID();
-  const groupScheduledAt = new Date(baseStart).toISOString();
   const cycle = loop.cycle_number; // ciclo atual a materializar
   const perCycle = Math.max(1, loop.videos_per_cycle ?? 1);
-
-  // Calcula os offsets aleatórios para os posts de uma conta dentro do ciclo.
-  // Lógica: sorteia N-1 pontos aleatórios dentro do ciclo, com mínimo de 15min
-  // entre posts consecutivos, para imitar comportamento natural de uma conta real.
-  // Ex: ciclo=60min, posts=3 → offsets como [0, 18, 47] (em ms desde baseStart)
-  const MIN_GAP_MS = 15 * 60_000; // 15 minutos mínimo entre posts da mesma conta
   const cycleMs = Math.max(1, loop.gap_min) * 60_000;
+  const jitterMs = Math.max(0, loop.jitter_min ?? 0) * 60_000;
+
+  // CAS: reivindica este ciclo antes de enfileirar. Se dois ticks do Cron
+  // Trigger se sobrepõem, apenas um avança o cursor — o outro vê 0 changes
+  // e desiste, evitando dupla-postagem.
+  const nextAt = new Date(baseStart + cycleMs).toISOString();
+  const claimed = await db.claimLoopCycle(loop.id, cycle, nextAt);
+  if (!claimed) {
+    return { enqueued: 0, status: "advanced", reason: "already_claimed" };
+  }
+
+  const groupId = crypto.randomUUID();
+  const groupScheduledAt = new Date(baseStart).toISOString();
+
+  // Offsets aleatórios para os N posts de uma conta dentro do ciclo, com
+  // mínimo de 15min entre posts consecutivos (comportamento natural).
+  // Ex: ciclo=60min, posts=3 → [0, ~23min, ~52min]
+  const MIN_GAP_MS = 15 * 60_000;
 
   function randomOffsetsForAccount(n: number): number[] {
     if (n <= 1) return [0];
-    // Espaço livre após reservar os gaps mínimos entre os N posts
     const slack = cycleMs - (n - 1) * MIN_GAP_MS;
     if (slack <= 0) {
-      // Ciclo muito curto para respeitar o mínimo — distribui igualmente
       return Array.from({ length: n }, (_, i) => Math.floor((cycleMs / n) * i));
     }
-    // Sorteia N-1 pontos aleatórios no espaço [0, slack] e ordena.
-    // Cada ponto[i] vira offset = ponto[i] + (i+1) * MIN_GAP_MS
-    // Isso garante que qualquer dois offsets consecutivos diferem em >= MIN_GAP_MS.
-    // Ex: n=3, ciclo=60min, MIN_GAP=15min → slack=30min
-    //   points=[8,22] → offsets=[0, 8+15=23min, 22+30=52min] ✓
     const points: number[] = Array.from({ length: n - 1 }, () =>
       Math.floor(Math.random() * (slack + 1)),
     ).sort((a, b) => a - b);
@@ -125,11 +128,14 @@ export async function materializeLoop(
   let enqueued = 0;
   for (const accId of accountIds) {
     const list = loop.order_mode === "random" ? shuffleSeeded(videoIds, accId) : videoIds;
-    // Calcula offsets naturais para esta conta (independentes por conta)
     const offsets = randomOffsetsForAccount(perCycle);
     for (let i = 0; i < perCycle; i++) {
       const videoId = list[(cycle * perCycle + i) % list.length];
-      const scheduledMs = baseStart + offsets[i];
+      // Jitter configurável: adiciona +0..jitterMs ao horário, respeitando
+      // o teto do ciclo (não invade o próximo ciclo).
+      const maxJitter = Math.max(0, Math.min(jitterMs, cycleMs - offsets[i] - 1));
+      const jitterOffset = maxJitter > 0 ? Math.floor(Math.random() * (maxJitter + 1)) : 0;
+      const scheduledMs = baseStart + offsets[i] + jitterOffset;
       const scheduledAt = new Date(scheduledMs).toISOString();
       const uniqueCaption = variateCaption(loop.caption, `${accId}|${videoId}`);
       try {
@@ -152,24 +158,21 @@ export async function materializeLoop(
         console.error(
           `[loops] ERRO ao enfileirar loop=${loop.id} acc=${accId} video=${videoId}: ${msg}`,
         );
-        // Grava o erro no loop para ficar visível na UI
         await db.setLoopStatus(loop.id, "active", `Erro no ciclo ${cycle}, acc=${accId}: ${msg}`).catch(() => {});
       }
     }
   }
 
-  // Se nenhum post foi enfileirado, NÃO avança o cursor — tenta de novo no próximo tick.
-  // Isso evita que o loop "pule" ciclos silenciosamente quando o enqueue falha.
+  // Se nenhum post foi enfileirado mesmo com vídeos e contas válidos, pausa
+  // o loop para evitar loop eterno silencioso — o usuário vê o erro na UI
+  // e pode retomar manualmente após investigar.
   if (enqueued === 0) {
-    const reason = `Ciclo ${cycle}: nenhum post enfileirado (${accountIds.length} conta(s), ${perCycle} post(s)/conta). Verifique os logs.`;
+    const reason = `Ciclo ${cycle}: nenhum post enfileirado (${accountIds.length} conta(s), ${perCycle} post(s)/conta). Loop pausado — verifique os logs.`;
     console.error(`[loops] loop=${loop.id} ${reason}`);
-    await db.setLoopStatus(loop.id, "active", reason);
-    return { enqueued: 0, status: "advanced", reason: "zero_enqueued" };
+    await db.setLoopStatus(loop.id, "paused", reason);
+    return { enqueued: 0, status: "paused", reason: "zero_enqueued" };
   }
 
-  // Avança o cursor: próximo ciclo = base + gap.
-  const nextAt = new Date(baseStart + Math.max(1, loop.gap_min) * 60_000).toISOString();
-  await db.advanceLoop(loop.id, nextAt, cycle + 1);
   return { enqueued, status: "advanced" };
 }
 
