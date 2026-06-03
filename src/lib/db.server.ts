@@ -733,8 +733,8 @@ const rawDb = {
   ) {
     await requireDb()
       .prepare(
-        `INSERT INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at, group_id, group_scheduled_at, variant_processed, variant_method, original_media_key, loop_id, cycle_number)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO queue (id, account_id, caption, media_type, media_key, thumb_key, scheduled_at, status, group_id, group_scheduled_at, variant_processed, variant_method, original_media_key, loop_id, cycle_number)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         q.id,
