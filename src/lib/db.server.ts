@@ -1235,7 +1235,7 @@ const rawDb = {
     const { meta } = await requireDb()
       .prepare(
         `UPDATE queue SET status = 'canceled', last_error = 'Conta descartada — posts cancelados automaticamente'
-         WHERE account_id = ? AND status IN ('pending', 'processing')`,
+         WHERE account_id = ? AND status IN ('pending', 'processing', 'scheduled')`,
       )
       .bind(accountId)
       .run();
@@ -1244,7 +1244,7 @@ const rawDb = {
 
   async cancelPendingForLoop(id: string): Promise<number> {
     const res = await requireDb()
-      .prepare(`DELETE FROM queue WHERE loop_id = ? AND status = 'scheduled'`)
+      .prepare(`DELETE FROM queue WHERE loop_id = ? AND status IN ('scheduled', 'pending')`)
       .bind(id)
       .run();
     return (res.meta?.changes as number) ?? 0;
