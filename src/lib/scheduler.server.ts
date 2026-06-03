@@ -80,13 +80,6 @@ export async function runScheduler(
       item.variant_processed === 0 &&
       (item.media_key.startsWith("drive:") || item.original_media_key?.startsWith("drive:")),
   );
-  const readyToPublish = due.filter(
-    (item) =>
-      !(
-        item.variant_processed === 0 &&
-        (item.media_key.startsWith("drive:") || item.original_media_key?.startsWith("drive:"))
-      ),
-  );
 
   // Processa até 5 variantes em paralelo
   if (needsVariant.length > 0) {
@@ -101,6 +94,20 @@ export async function runScheduler(
       }),
     );
   }
+
+  // Relê a fila após gerar variantes — assim os itens recém-processados
+  // já entram na publicação do mesmo tick, sem esperar o próximo minuto.
+  const dueAfterVariants = needsVariant.length > 0
+    ? await db.dueQueueItems(now.toISOString())
+    : due;
+
+  const readyToPublish = dueAfterVariants.filter(
+    (item) =>
+      !(
+        item.variant_processed === 0 &&
+        (item.media_key.startsWith("drive:") || item.original_media_key?.startsWith("drive:"))
+      ),
+  );
 
   for (const item of readyToPublish) {
     try {
