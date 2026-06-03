@@ -90,7 +90,13 @@ export async function materializeLoop(
   }
 
   const cycleStart = new Date(loop.next_cycle_at).getTime();
-  const baseStart = Number.isFinite(cycleStart) ? cycleStart : now.getTime();
+  // Se next_cycle_at está muito no passado (ex: cron ficou parado), usa now como base
+  // para que os posts sejam agendados a partir de agora, não no passado distante.
+  // Tolerância: até 10 minutos no passado é normal (atraso do cron); além disso, usa now.
+  const PAST_TOLERANCE_MS = 10 * 60_000;
+  const baseStart = Number.isFinite(cycleStart) && cycleStart >= now.getTime() - PAST_TOLERANCE_MS
+    ? cycleStart
+    : now.getTime();
   const groupId = crypto.randomUUID();
   const groupScheduledAt = new Date(baseStart).toISOString();
   const cycle = loop.cycle_number; // ciclo atual a materializar
@@ -148,11 +154,23 @@ export async function materializeLoop(
         });
         enqueued++;
       } catch (err) {
-        console.warn(
-          `[loops] falha ao enfileirar loop=${loop.id} acc=${accId}: ${err instanceof Error ? err.message : String(err)}`,
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(
+          `[loops] ERRO ao enfileirar loop=${loop.id} acc=${accId} video=${videoId}: ${msg}`,
         );
+        // Grava o erro no loop para ficar visível na UI
+        await db.setLoopStatus(loop.id, "active", `Erro no ciclo ${cycle}, acc=${accId}: ${msg}`).catch(() => {});
       }
     }
+  }
+
+  // Se nenhum post foi enfileirado, NÃO avança o cursor — tenta de novo no próximo tick.
+  // Isso evita que o loop "pule" ciclos silenciosamente quando o enqueue falha.
+  if (enqueued === 0) {
+    const reason = `Ciclo ${cycle}: nenhum post enfileirado (${accountIds.length} conta(s), ${perCycle} post(s)/conta). Verifique os logs.`;
+    console.error(`[loops] loop=${loop.id} ${reason}`);
+    await db.setLoopStatus(loop.id, "active", reason);
+    return { enqueued: 0, status: "advanced", reason: "zero_enqueued" };
   }
 
   // Avança o cursor: próximo ciclo = base + gap.
