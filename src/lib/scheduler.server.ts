@@ -292,17 +292,21 @@ export async function runScheduler(
       }
       if (isTransientGraphError(err) && currentRetry < RETRY_DELAYS_MIN.length) {
         const nextRetry = currentRetry + 1;
-        // Cancela retry quando há outro post da mesma conta muito próximo
-        // (publicado nos últimos 30min OU agendado para os próximos 30min).
-        const conflict = await db.hasNearbyAccountPost(item.account_id, item.id, 30);
-        if (conflict) {
-          errors++;
-          console.warn(`[scheduler] queue=${item.id} retry cancelado por conflito de horário`);
-          await db.setQueueStatus(item.id, "failed", {
-            last_error: `Retry cancelado — muito próximo de outro post desta conta. (erro original: ${msg})`,
-          });
-          continue;
+        // Para itens de loop, posts próximos são esperados (perCycle>1,
+        // múltiplas contas no mesmo ciclo) — não cancelar retry por isso.
+        // Para posts manuais, mantém a proteção contra duplicação.
+        if (!item.loop_id) {
+          const conflict = await db.hasNearbyAccountPost(item.account_id, item.id, 30);
+          if (conflict) {
+            errors++;
+            console.warn(`[scheduler] queue=${item.id} retry cancelado por conflito de horário`);
+            await db.setQueueStatus(item.id, "failed", {
+              last_error: `Retry cancelado — muito próximo de outro post desta conta. (erro original: ${msg})`,
+            });
+            continue;
+          }
         }
+
         const delayMs = RETRY_DELAYS_MIN[currentRetry] * 60_000;
         const nextAt = new Date(Date.now() + delayMs).toISOString();
         await db.scheduleRetry(item.id, {
