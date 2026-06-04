@@ -3,6 +3,7 @@
 //
 // Método primário: servidor Oracle (ffmpeg reencoding via REENC_URL + REENC_SECRET).
 // Fallback: variação serverless por metadados (mp4-variant.server.ts).
+// Se tudo falhar, libera o item com a mídia original para a fila não parar.
 
 import { db } from "./db.server";
 import { ensureEnv, hasMedia, requireMedia } from "./cf.server";
@@ -74,7 +75,7 @@ async function tryOracleReencode(
         seed,
         videoBase64: uint8ToBase64(videoBytes),
       }),
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!res.ok) {
@@ -94,15 +95,21 @@ async function tryOracleReencode(
 export async function buildVariantFor(
   queueId: string,
 ): Promise<{ ok: true; mediaKey: string } | { ok: false; error: string }> {
-  if (!hasMedia()) {
-    return { ok: false, error: "R2 'MEDIA' indisponível neste ambiente" };
-  }
   const item = await db.getQueueItem(queueId);
   if (!item) return { ok: false, error: "queue_not_found" };
   if (item.variant_processed) {
     return { ok: true, mediaKey: item.media_key };
   }
   const sourceKey = item.original_media_key ?? item.media_key;
+  if (!hasMedia()) {
+    await db.markVariantFailed(item.id, "R2 'MEDIA' indisponível — usando mídia original");
+    await db.markVariantProcessed(item.id, {
+      mediaKey: sourceKey,
+      method: "original-fallback",
+      originalMediaKey: sourceKey,
+    });
+    return { ok: true, mediaKey: sourceKey };
+  }
   if (!sourceKey.startsWith("drive:")) {
     await db.markVariantProcessed(item.id, {
       mediaKey: item.media_key,
@@ -157,6 +164,11 @@ export async function buildVariantFor(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await db.markVariantFailed(item.id, msg);
-    return { ok: false, error: msg };
+    await db.markVariantProcessed(item.id, {
+      mediaKey: sourceKey,
+      method: "original-fallback",
+      originalMediaKey: sourceKey,
+    });
+    return { ok: true, mediaKey: sourceKey };
   }
 }

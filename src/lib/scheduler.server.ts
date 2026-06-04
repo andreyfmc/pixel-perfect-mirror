@@ -55,6 +55,8 @@ export async function runScheduler(
   opts: { baseUrl?: string } = {},
 ): Promise<{ processed: number; errors: number }> {
   if (!hasDb()) return { processed: 0, errors: 0 };
+  const tickStartedAt = Date.now();
+  const MAX_PUBLISHES_PER_TICK = 12;
 
   // Materializa loops vencidos ANTES de buscar a fila — assim os itens
   // recém-gerados (cujo scheduled_at pode estar no passado) já entram no tick.
@@ -69,6 +71,15 @@ export async function runScheduler(
     console.warn("[scheduler] runLoopMaterializer falhou:", err);
   }
 
+  try {
+    const recovered = await db.recoverStaleProcessing(now.toISOString(), 45);
+    if (recovered) {
+      console.warn(`[scheduler] ${recovered} item(s) travado(s) reaberto(s) para retry`);
+    }
+  } catch (err) {
+    console.warn("[scheduler] recoverStaleProcessing erro:", err);
+  }
+
   const due = await db.dueQueueItems(now.toISOString());
 
   let processed = 0;
@@ -81,12 +92,37 @@ export async function runScheduler(
       (item.media_key.startsWith("drive:") || item.original_media_key?.startsWith("drive:")),
   );
 
-  // Processa até 5 variantes em paralelo
+  // Libera todos os itens muito atrasados sem esperar reencode, e só reprocessa
+  // um lote pequeno dos itens recentes. A fila antiga deixa de ficar presa às 6h.
   if (needsVariant.length > 0) {
-    const batch = needsVariant.slice(0, 5);
+    const overdueVariantItems: typeof needsVariant = [];
+    const freshVariantItems: typeof needsVariant = [];
+    for (const item of needsVariant) {
+      const scheduledMs = new Date(item.scheduled_at).getTime();
+      const overdueMs = now.getTime() - scheduledMs;
+      if (Number.isFinite(overdueMs) && overdueMs > 30 * 60_000) {
+        overdueVariantItems.push(item);
+      } else {
+        freshVariantItems.push(item);
+      }
+    }
+    const batch = [...overdueVariantItems, ...freshVariantItems.slice(0, 3)];
     console.log(`[scheduler] gerando ${batch.length} variante(s) em paralelo`);
     await Promise.all(
       batch.map(async (item) => {
+        const scheduledMs = new Date(item.scheduled_at).getTime();
+        const overdueMs = now.getTime() - scheduledMs;
+        if (Number.isFinite(overdueMs) && overdueMs > 30 * 60_000) {
+          const sourceKey = item.original_media_key ?? item.media_key;
+          await db.markVariantFailed(item.id, "Fila atrasada — variante pulada para publicar agora");
+          await db.markVariantProcessed(item.id, {
+            mediaKey: sourceKey,
+            method: "original-fallback-overdue",
+            originalMediaKey: sourceKey,
+          });
+          console.warn(`[scheduler] queue=${item.id} variante pulada por atraso`);
+          return;
+        }
         const r = await buildVariantFor(item.id);
         if (!r.ok) {
           console.warn(`[scheduler] variante falhou queue=${item.id}: ${r.error}`);
@@ -109,7 +145,11 @@ export async function runScheduler(
       ),
   );
 
-  for (const item of readyToPublish) {
+  for (const item of readyToPublish.slice(0, MAX_PUBLISHES_PER_TICK)) {
+    if (Date.now() - tickStartedAt > 45_000) {
+      console.warn("[scheduler] parando tick por orçamento de tempo; continua no próximo minuto");
+      break;
+    }
     try {
       const account = await db.resolveAccountForPublishing(item.account_id);
       if (!account?.ig_user_id || !account?.access_token) {
@@ -117,7 +157,7 @@ export async function runScheduler(
           "Conta sem ig_user_id ou access_token — reconecte esta conta e recrie/retome a fila",
         );
       }
-      let igUserId = account.ig_user_id;
+      const igUserId = account.ig_user_id;
       let accessToken = account.access_token;
       let provider = inferGraphProviderFromToken(account.access_token, account.provider);
       try {
