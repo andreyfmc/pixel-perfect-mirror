@@ -176,15 +176,18 @@ export async function materializeLoop(
     }
   }
 
-  // Se nenhum post foi enfileirado mesmo com vídeos e contas válidos, pausa
-  // o loop para evitar loop eterno silencioso — o usuário vê o erro na UI
-  // e pode retomar manualmente após investigar.
+  // Se nenhum post foi enfileirado mesmo com vídeos e contas válidos, NÃO
+  // pausa o loop — apenas registra o erro. Pausar aqui era a causa mais
+  // comum de "loop parou de postar depois de um tempo" (qualquer falha
+  // transitória de DB no enqueue derrubava o loop permanentemente).
+  // O próximo ciclo tentará de novo automaticamente.
   if (enqueued === 0) {
-    const reason = `Ciclo ${cycle}: nenhum post enfileirado (${accountIds.length} conta(s), ${perCycle} post(s)/conta). Loop pausado — verifique os logs.`;
+    const reason = `Ciclo ${cycle}: nenhum post enfileirado (${accountIds.length} conta(s), ${perCycle} post(s)/conta). Próximo ciclo tentará novamente.`;
     console.error(`[loops] loop=${loop.id} ${reason}`);
-    await db.setLoopStatus(loop.id, "paused", reason);
-    return { enqueued: 0, status: "paused", reason: "zero_enqueued" };
+    await db.setLoopStatus(loop.id, "active", reason).catch(() => {});
+    return { enqueued: 0, status: "advanced", reason: "zero_enqueued" };
   }
+
 
   return { enqueued, status: "advanced" };
 }
