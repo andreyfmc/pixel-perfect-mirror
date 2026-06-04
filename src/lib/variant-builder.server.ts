@@ -95,15 +95,21 @@ async function tryOracleReencode(
 export async function buildVariantFor(
   queueId: string,
 ): Promise<{ ok: true; mediaKey: string } | { ok: false; error: string }> {
-  if (!hasMedia()) {
-    return { ok: false, error: "R2 'MEDIA' indisponível neste ambiente" };
-  }
   const item = await db.getQueueItem(queueId);
   if (!item) return { ok: false, error: "queue_not_found" };
   if (item.variant_processed) {
     return { ok: true, mediaKey: item.media_key };
   }
   const sourceKey = item.original_media_key ?? item.media_key;
+  if (!hasMedia()) {
+    await db.markVariantFailed(item.id, "R2 'MEDIA' indisponível — usando mídia original");
+    await db.markVariantProcessed(item.id, {
+      mediaKey: sourceKey,
+      method: "original-fallback",
+      originalMediaKey: sourceKey,
+    });
+    return { ok: true, mediaKey: sourceKey };
+  }
   if (!sourceKey.startsWith("drive:")) {
     await db.markVariantProcessed(item.id, {
       mediaKey: item.media_key,
