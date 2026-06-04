@@ -701,9 +701,9 @@ const rawDb = {
              ig_container_id = NULL,
              ig_media_id = NULL,
              attempts = 0,
-             retry_count = retry_count + 1,
+             retry_count = COALESCE(retry_count, 0) + 1,
              last_error = CASE
-               WHEN retry_count >= 3 THEN 'Processamento travado — falhou após 3 retomadas automáticas'
+               WHEN COALESCE(retry_count, 0) >= 3 THEN 'Processamento travado — falhou após 3 retomadas automáticas'
                ELSE 'Retry automático — processamento travou por mais de 45min'
              END
          WHERE status = 'processing'
