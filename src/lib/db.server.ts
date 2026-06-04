@@ -687,8 +687,8 @@ const rawDb = {
     return results ?? [];
   },
 
-  /** Reabre itens que ficaram em 'processing' tempo demais. Isso cobre
-   *  containers órfãos ou travados que impediam a fila de avançar por horas. */
+  /** Reabre itens órfãos que ficaram em 'processing' sem container.
+   *  Containers reais continuam sendo consultados pelo scheduler para evitar duplicação. */
   async recoverStaleProcessing(nowIso: string, maxAgeMinutes = 45): Promise<number> {
     const nowMs = Date.parse(nowIso);
     const cutoffIso = new Date(
@@ -703,10 +703,11 @@ const rawDb = {
              attempts = 0,
              retry_count = COALESCE(retry_count, 0) + 1,
              last_error = CASE
-               WHEN COALESCE(retry_count, 0) >= 3 THEN 'Processamento travado — falhou após 3 retomadas automáticas'
-               ELSE 'Retry automático — processamento travou por mais de 45min'
+               WHEN COALESCE(retry_count, 0) >= 3 THEN 'Processamento sem container — falhou após 3 retomadas automáticas'
+               ELSE 'Retry automático — processamento ficou sem container por mais de 45min'
              END
          WHERE status = 'processing'
+           AND ig_container_id IS NULL
            AND scheduled_at <= ?`,
       )
       .bind(cutoffIso)
