@@ -55,6 +55,8 @@ export async function runScheduler(
   opts: { baseUrl?: string } = {},
 ): Promise<{ processed: number; errors: number }> {
   if (!hasDb()) return { processed: 0, errors: 0 };
+  const tickStartedAt = Date.now();
+  const MAX_PUBLISHES_PER_TICK = 12;
 
   // Materializa loops vencidos ANTES de buscar a fila — assim os itens
   // recém-gerados (cujo scheduled_at pode estar no passado) já entram no tick.
@@ -69,6 +71,15 @@ export async function runScheduler(
     console.warn("[scheduler] runLoopMaterializer falhou:", err);
   }
 
+  try {
+    const recovered = await db.recoverStaleProcessing(now.toISOString(), 45);
+    if (recovered) {
+      console.warn(`[scheduler] ${recovered} item(s) travado(s) reaberto(s) para retry`);
+    }
+  } catch (err) {
+    console.warn("[scheduler] recoverStaleProcessing erro:", err);
+  }
+
   const due = await db.dueQueueItems(now.toISOString());
 
   let processed = 0;
@@ -81,9 +92,10 @@ export async function runScheduler(
       (item.media_key.startsWith("drive:") || item.original_media_key?.startsWith("drive:")),
   );
 
-  // Processa até 5 variantes em paralelo
+  // Processa variantes em paralelo, mas com lote pequeno: gerar MP4 é a parte
+  // mais pesada e antes estava segurando o tick inteiro por minutos.
   if (needsVariant.length > 0) {
-    const batch = needsVariant.slice(0, 5);
+    const batch = needsVariant.slice(0, 3);
     console.log(`[scheduler] gerando ${batch.length} variante(s) em paralelo`);
     await Promise.all(
       batch.map(async (item) => {
@@ -109,7 +121,11 @@ export async function runScheduler(
       ),
   );
 
-  for (const item of readyToPublish) {
+  for (const item of readyToPublish.slice(0, MAX_PUBLISHES_PER_TICK)) {
+    if (Date.now() - tickStartedAt > 45_000) {
+      console.warn("[scheduler] parando tick por orçamento de tempo; continua no próximo minuto");
+      break;
+    }
     try {
       const account = await db.resolveAccountForPublishing(item.account_id);
       if (!account?.ig_user_id || !account?.access_token) {
