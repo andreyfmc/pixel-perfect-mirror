@@ -636,12 +636,12 @@ const rawDb = {
     };
   },
   async markAccountNeedsReconnect(id: string) {
+    // Apenas marca o token como expirado — NÃO descarta nem remove a conta.
+    // A conta continua visível na aba de contas com status 'token expirado'.
     await requireDb()
       .prepare(
         `UPDATE accounts
          SET token_status = 'expired',
-             health_score = 0,
-             role = 'discarded',
              updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
       )

@@ -543,6 +543,19 @@ function AccountsPage() {
   }
 
   // Fallback redirect (mobile)
+  // Quando contas com token expirado são carregadas, marca automaticamente
+  // a conta correspondente na aba de contingência como descartada.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!accountsRaw.length) return;
+    for (const a of accountsRaw) {
+      if (a.token_status === "expired" && a.username) {
+        syncToContingency(a.username);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountsRaw]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const p = new URLSearchParams(window.location.search);
