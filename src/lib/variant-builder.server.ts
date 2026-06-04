@@ -3,6 +3,7 @@
 //
 // Método primário: servidor Oracle (ffmpeg reencoding via REENC_URL + REENC_SECRET).
 // Fallback: variação serverless por metadados (mp4-variant.server.ts).
+// Se tudo falhar, libera o item com a mídia original para a fila não parar.
 
 import { db } from "./db.server";
 import { ensureEnv, hasMedia, requireMedia } from "./cf.server";
@@ -74,7 +75,7 @@ async function tryOracleReencode(
         seed,
         videoBase64: uint8ToBase64(videoBytes),
       }),
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!res.ok) {
@@ -157,6 +158,11 @@ export async function buildVariantFor(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await db.markVariantFailed(item.id, msg);
-    return { ok: false, error: msg };
+    await db.markVariantProcessed(item.id, {
+      mediaKey: sourceKey,
+      method: "original-fallback",
+      originalMediaKey: sourceKey,
+    });
+    return { ok: true, mediaKey: sourceKey };
   }
 }
