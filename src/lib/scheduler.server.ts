@@ -146,7 +146,7 @@ export async function runScheduler(
           "Conta sem ig_user_id ou access_token — reconecte esta conta e recrie/retome a fila",
         );
       }
-      let igUserId = account.ig_user_id;
+      const igUserId = account.ig_user_id;
       let accessToken = account.access_token;
       let provider = inferGraphProviderFromToken(account.access_token, account.provider);
       try {
