@@ -89,12 +89,24 @@ export async function materializeLoop(
     }
   }
 
-  const cycleStart = new Date(loop.next_cycle_at).getTime();
-  const baseStart = Number.isFinite(cycleStart) ? cycleStart : now.getTime();
-  const cycle = loop.cycle_number; // ciclo atual a materializar
-  const perCycle = Math.max(1, loop.videos_per_cycle ?? 1);
+  const cycleStartRaw = new Date(loop.next_cycle_at).getTime();
   const cycleMs = Math.max(1, loop.gap_min) * 60_000;
   const jitterMs = Math.max(0, loop.jitter_min ?? 0) * 60_000;
+  // Catch-up: se next_cycle_at está mais de 1 ciclo no passado (worker
+  // ficou off, deploy, etc.), fast-forward para o próximo ciclo futuro.
+  // Evita backlog de N ciclos disparando todos juntos e estourando rate
+  // limit da Meta — que é a causa mais comum de "parou de postar".
+  let baseStart = Number.isFinite(cycleStartRaw) ? cycleStartRaw : now.getTime();
+  const nowMs = now.getTime();
+  if (baseStart < nowMs - cycleMs) {
+    const skipped = Math.floor((nowMs - baseStart) / cycleMs);
+    baseStart = baseStart + skipped * cycleMs;
+    console.warn(
+      `[loops] loop=${loop.id} catch-up: pulando ${skipped} ciclo(s) atrasado(s) para evitar burst`,
+    );
+  }
+  const cycle = loop.cycle_number; // ciclo atual a materializar
+  const perCycle = Math.max(1, loop.videos_per_cycle ?? 1);
 
   // CAS: reivindica este ciclo antes de enfileirar. Se dois ticks do Cron
   // Trigger se sobrepõem, apenas um avança o cursor — o outro vê 0 changes
@@ -104,6 +116,7 @@ export async function materializeLoop(
   if (!claimed) {
     return { enqueued: 0, status: "advanced", reason: "already_claimed" };
   }
+
 
   const groupId = crypto.randomUUID();
   const groupScheduledAt = new Date(baseStart).toISOString();
@@ -163,15 +176,18 @@ export async function materializeLoop(
     }
   }
 
-  // Se nenhum post foi enfileirado mesmo com vídeos e contas válidos, pausa
-  // o loop para evitar loop eterno silencioso — o usuário vê o erro na UI
-  // e pode retomar manualmente após investigar.
+  // Se nenhum post foi enfileirado mesmo com vídeos e contas válidos, NÃO
+  // pausa o loop — apenas registra o erro. Pausar aqui era a causa mais
+  // comum de "loop parou de postar depois de um tempo" (qualquer falha
+  // transitória de DB no enqueue derrubava o loop permanentemente).
+  // O próximo ciclo tentará de novo automaticamente.
   if (enqueued === 0) {
-    const reason = `Ciclo ${cycle}: nenhum post enfileirado (${accountIds.length} conta(s), ${perCycle} post(s)/conta). Loop pausado — verifique os logs.`;
+    const reason = `Ciclo ${cycle}: nenhum post enfileirado (${accountIds.length} conta(s), ${perCycle} post(s)/conta). Próximo ciclo tentará novamente.`;
     console.error(`[loops] loop=${loop.id} ${reason}`);
-    await db.setLoopStatus(loop.id, "paused", reason);
-    return { enqueued: 0, status: "paused", reason: "zero_enqueued" };
+    await db.setLoopStatus(loop.id, "active", reason).catch(() => {});
+    return { enqueued: 0, status: "advanced", reason: "zero_enqueued" };
   }
+
 
   return { enqueued, status: "advanced" };
 }
