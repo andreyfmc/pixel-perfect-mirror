@@ -99,6 +99,19 @@ export async function runScheduler(
     console.log(`[scheduler] gerando ${batch.length} variante(s) em paralelo`);
     await Promise.all(
       batch.map(async (item) => {
+        const scheduledMs = new Date(item.scheduled_at).getTime();
+        const overdueMs = now.getTime() - scheduledMs;
+        if (Number.isFinite(overdueMs) && overdueMs > 30 * 60_000) {
+          const sourceKey = item.original_media_key ?? item.media_key;
+          await db.markVariantFailed(item.id, "Fila atrasada — variante pulada para publicar agora");
+          await db.markVariantProcessed(item.id, {
+            mediaKey: sourceKey,
+            method: "original-fallback-overdue",
+            originalMediaKey: sourceKey,
+          });
+          console.warn(`[scheduler] queue=${item.id} variante pulada por atraso`);
+          return;
+        }
         const r = await buildVariantFor(item.id);
         if (!r.ok) {
           console.warn(`[scheduler] variante falhou queue=${item.id}: ${r.error}`);
