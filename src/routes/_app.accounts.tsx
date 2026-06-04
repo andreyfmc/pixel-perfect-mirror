@@ -65,10 +65,11 @@ export const Route = createFileRoute("/_app/accounts")({
 
 type Role = "active" | "reserve" | "discarded";
 type View = "list" | "compact";
-type SortKey = "followers" | "health-asc" | "recent" | "name";
+type SortKey = "modelo" | "followers" | "health-asc" | "recent" | "name";
 type HealthFilter = "all" | "good" | "warn" | "bad";
 
 const SORT_LABELS: Record<SortKey, string> = {
+  modelo: "Por modelo",
   followers: "Mais seguidores",
   "health-asc": "Menor saúde",
   recent: "Última atividade",
@@ -412,7 +413,7 @@ function AccountsPage() {
   const [modelFilter, setModelFilter] = useState<"all" | "none" | string>("all");
   const [view, setView] = useState<View>("list");
   const [hideData, setHideData] = useHideData();
-  const [sortKey, setSortKey] = useState<SortKey>("followers");
+  const [sortKey, setSortKey] = useState<SortKey>("modelo");
   const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -491,6 +492,25 @@ function AccountsPage() {
     }
     const arr = [...list];
     switch (sortKey) {
+      case "modelo": {
+        // Agrupa por modelo (nome do modelo), dentro de cada grupo ordena por seguidores desc.
+        // Contas sem modelo ficam no final.
+        const modelName = (a: typeof arr[0]) => {
+          if (!a.model_id) return null;
+          return models.find((m) => m.id === a.model_id)?.name ?? null;
+        };
+        arr.sort((a, b) => {
+          const ma = modelName(a);
+          const mb = modelName(b);
+          if (ma === null && mb === null) return b.followers - a.followers;
+          if (ma === null) return 1;
+          if (mb === null) return -1;
+          const cmp = ma.localeCompare(mb, "pt-BR");
+          if (cmp !== 0) return cmp;
+          return b.followers - a.followers;
+        });
+        break;
+      }
       case "followers":
         arr.sort((a, b) => b.followers - a.followers);
         break;
