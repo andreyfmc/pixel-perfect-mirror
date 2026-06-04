@@ -56,7 +56,7 @@ export async function runScheduler(
 ): Promise<{ processed: number; errors: number }> {
   if (!hasDb()) return { processed: 0, errors: 0 };
   const tickStartedAt = Date.now();
-  const MAX_PUBLISHES_PER_TICK = 12;
+  const MAX_PUBLISHES_PER_TICK = 50;
 
   // Materializa loops vencidos ANTES de buscar a fila — assim os itens
   // recém-gerados (cujo scheduled_at pode estar no passado) já entram no tick.
@@ -81,9 +81,6 @@ export async function runScheduler(
   }
 
   const due = await db.dueQueueItems(now.toISOString());
-
-  let processed = 0;
-  let errors = 0;
 
   // Separa os itens que precisam de variante dos que já estão prontos para publicar
   const needsVariant = due.filter(
@@ -145,226 +142,244 @@ export async function runScheduler(
       ),
   );
 
-  for (const item of readyToPublish.slice(0, MAX_PUBLISHES_PER_TICK)) {
-    if (Date.now() - tickStartedAt > 45_000) {
-      console.warn("[scheduler] parando tick por orçamento de tempo; continua no próximo minuto");
-      break;
-    }
-    try {
-      const account = await db.resolveAccountForPublishing(item.account_id);
-      if (!account?.ig_user_id || !account?.access_token) {
-        throw new Error(
-          "Conta sem ig_user_id ou access_token — reconecte esta conta e recrie/retome a fila",
-        );
+  // Publica todos os itens prontos em paralelo.
+  // Promise.allSettled garante que um erro numa conta não aborta as demais.
+  let processed = 0;
+  let errors = 0;
+
+  const publishResults = await Promise.allSettled(
+    readyToPublish.slice(0, MAX_PUBLISHES_PER_TICK).map(async (item) => {
+      // Abandona itens que chegaram tarde demais no tick — o próximo minuto os pega.
+      if (Date.now() - tickStartedAt > 45_000) {
+        console.warn(`[scheduler] queue=${item.id} pulado — tick estourou 45s; próximo minuto`);
+        return { outcome: "skipped" as const };
       }
-      const igUserId = account.ig_user_id;
-      let accessToken = account.access_token;
-      let provider = inferGraphProviderFromToken(account.access_token, account.provider);
       try {
-        const fresh =
-          provider === "instagram"
-            ? await ensureFreshAccessToken({
-                accessToken,
-                tokenExpiresAt: account.token_expires_at,
-              })
-            : { accessToken, expiresAt: account.token_expires_at, refreshed: false };
-        if (fresh.refreshed || account.token_status === "expired") {
-          accessToken = fresh.accessToken;
-          provider = inferGraphProviderFromToken(accessToken, provider);
-          await db.updateAccountCredentials(item.account_id, {
-            access_token: fresh.accessToken,
-            token_expires_at: fresh.expiresAt,
-            provider,
-            token_status: "valid",
-            health_score: Math.max(account.health_score, 90),
-          });
+        const account = await db.resolveAccountForPublishing(item.account_id);
+        if (!account?.ig_user_id || !account?.access_token) {
+          throw new Error(
+            "Conta sem ig_user_id ou access_token — reconecte esta conta e recrie/retome a fila",
+          );
         }
+        const igUserId = account.ig_user_id;
+        let accessToken = account.access_token;
+        let provider = inferGraphProviderFromToken(account.access_token, account.provider);
+        try {
+          const fresh =
+            provider === "instagram"
+              ? await ensureFreshAccessToken({
+                  accessToken,
+                  tokenExpiresAt: account.token_expires_at,
+                })
+              : { accessToken, expiresAt: account.token_expires_at, refreshed: false };
+          if (fresh.refreshed || account.token_status === "expired") {
+            accessToken = fresh.accessToken;
+            provider = inferGraphProviderFromToken(accessToken, provider);
+            await db.updateAccountCredentials(item.account_id, {
+              access_token: fresh.accessToken,
+              token_expires_at: fresh.expiresAt,
+              provider,
+              token_status: "valid",
+              health_score: Math.max(account.health_score, 90),
+            });
+          }
+        } catch (err) {
+          if (isInvalidAccessTokenError(err)) {
+            await db.markAccountNeedsReconnect(item.account_id);
+            await db.setQueueStatus(item.id, "canceled", {
+              last_error: "Token OAuth inválido ou expirado. Reconecte esta conta antes de publicar.",
+            });
+            return { outcome: "error" as const };
+          }
+          console.warn(
+            `[scheduler] queue=${item.id} renovação de token falhou: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+        // NÃO flipar para 'processing' aqui — só quando o container existir
+        // (markQueueProcessing faz isso). Se o Worker for morto por timeout
+        // entre este ponto e a criação do container, o item ficaria órfão
+        // como 'processing' com ig_container_id=NULL e nunca seria reprocessado.
+
+        let containerId = item.ig_container_id ?? undefined;
+        if (!containerId) {
+          const mediaUrl = publicMediaUrl(item.media_key, opts.baseUrl);
+          containerId = await instagram.createContainer({
+            igUserId,
+            accessToken,
+            provider,
+            mediaType: item.media_type,
+            mediaUrl,
+            caption: item.caption,
+          });
+          await db.markQueueProcessing(item.id, containerId);
+        }
+
+        let status: ContainerStatus;
+        try {
+          status = await instagram.fetchContainerStatus(containerId, accessToken, provider);
+        } catch (err) {
+          if (!item.ig_container_id || !isMismatchedCredentialsError(err)) throw err;
+
+          // Containers antigos podem ter sido criados com Page token. Eles não são
+          // legíveis/publicáveis com o User token correto; recria o container.
+          await db.clearQueueContainer(item.id);
+          const mediaUrl = publicMediaUrl(item.media_key, opts.baseUrl);
+          containerId = await instagram.createContainer({
+            igUserId,
+            accessToken,
+            provider,
+            mediaType: item.media_type,
+            mediaUrl,
+            caption: item.caption,
+          });
+          await db.markQueueProcessing(item.id, containerId);
+          status = await instagram.fetchContainerStatus(containerId, accessToken, provider);
+        }
+        if (status.statusCode === "ERROR" || status.statusCode === "EXPIRED") {
+          throw new Error(
+            `Container Instagram ${status.statusCode}: ${status.status ?? "sem detalhe"}`,
+          );
+        }
+        if (status.statusCode !== "FINISHED" && status.statusCode !== "PUBLISHED") {
+          // Incrementa attempts a cada tick — combinado com attempts<10 em
+          // dueQueueItems, garante que containers travados saiam da fila.
+          await db.incrementQueueAttempts(item.id);
+          console.log(
+            `[scheduler] queue=${item.id} container ainda ${status.statusCode}, aguardando próximo tick`,
+          );
+          return { outcome: "pending" as const };
+        }
+
+        const mediaId = await instagram.publishContainer({
+          igUserId,
+          accessToken,
+          provider,
+          containerId,
+        });
+
+        // Resolve o app vinculado à conta para auditoria (sem bloquear em caso de falha)
+        let appId: string | null = null;
+        let appName: string | null = null;
+        try {
+          const appCreds = await getAppForAccount(item.account_id, provider);
+          if (appCreds && !appCreds.app_id.startsWith("env-")) {
+            appId = appCreds.app_id;
+            // Busca nome do app diretamente do banco
+            const { requireDb } = await import("./cf.server");
+            const appRow = await requireDb()
+              .prepare("SELECT name FROM meta_apps WHERE id = ?")
+              .bind(appId)
+              .first<{ name: string }>();
+            appName = appRow?.name ?? null;
+          }
+        } catch {
+          // Não bloqueia a publicação se a busca do app falhar
+        }
+
+        await db.setQueueStatus(item.id, "published", {
+          ig_container_id: containerId,
+          ig_media_id: mediaId,
+        });
+
+        if (appId) {
+          await db.setQueueAppUsed(item.id, appId).catch(() => {});
+        }
+
+        await db.recordPublication({
+          id: crypto.randomUUID(),
+          account_id: item.account_id,
+          queue_id: item.id,
+          ig_media_id: mediaId,
+          caption: item.caption,
+          media_type: item.media_type,
+          permalink: null,
+          thumb_url: item.thumb_key ? publicMediaUrl(item.thumb_key, opts.baseUrl) : null,
+          published_at: new Date().toISOString(),
+          meta_app_name: appName,
+        });
+
+        await db.updateLastPostAt(item.account_id, new Date().toISOString());
+
+        return { outcome: "published" as const };
       } catch (err) {
         if (isInvalidAccessTokenError(err)) {
           await db.markAccountNeedsReconnect(item.account_id);
           await db.setQueueStatus(item.id, "canceled", {
             last_error: "Token OAuth inválido ou expirado. Reconecte esta conta antes de publicar.",
           });
-          errors++;
-          continue;
+          return { outcome: "error" as const };
         }
-        console.warn(
-          `[scheduler] queue=${item.id} renovação de token falhou: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-      // NÃO flipar para 'processing' aqui — só quando o container existir
-      // (markQueueProcessing faz isso). Se o Worker for morto por timeout
-      // entre este ponto e a criação do container, o item ficaria órfão
-      // como 'processing' com ig_container_id=NULL e nunca seria reprocessado.
-
-      let containerId = item.ig_container_id ?? undefined;
-      if (!containerId) {
-        const mediaUrl = publicMediaUrl(item.media_key, opts.baseUrl);
-        containerId = await instagram.createContainer({
-          igUserId,
-          accessToken,
-          provider,
-          mediaType: item.media_type,
-          mediaUrl,
-          caption: item.caption,
-        });
-        await db.markQueueProcessing(item.id, containerId);
-      }
-
-      let status: ContainerStatus;
-      try {
-        status = await instagram.fetchContainerStatus(containerId, accessToken, provider);
-      } catch (err) {
-        if (!item.ig_container_id || !isMismatchedCredentialsError(err)) throw err;
-
-        // Containers antigos podem ter sido criados com Page token. Eles não são
-        // legíveis/publicáveis com o User token correto; recria o container.
-        await db.clearQueueContainer(item.id);
-        const mediaUrl = publicMediaUrl(item.media_key, opts.baseUrl);
-        containerId = await instagram.createContainer({
-          igUserId,
-          accessToken,
-          provider,
-          mediaType: item.media_type,
-          mediaUrl,
-          caption: item.caption,
-        });
-        await db.markQueueProcessing(item.id, containerId);
-        status = await instagram.fetchContainerStatus(containerId, accessToken, provider);
-      }
-      if (status.statusCode === "ERROR" || status.statusCode === "EXPIRED") {
-        throw new Error(
-          `Container Instagram ${status.statusCode}: ${status.status ?? "sem detalhe"}`,
-        );
-      }
-      if (status.statusCode !== "FINISHED" && status.statusCode !== "PUBLISHED") {
-        // Incrementa attempts a cada tick — combinado com attempts<10 em
-        // dueQueueItems, garante que containers travados saiam da fila.
-        await db.incrementQueueAttempts(item.id);
-        console.log(
-          `[scheduler] queue=${item.id} container ainda ${status.statusCode}, aguardando próximo tick`,
-        );
-        continue;
-      }
-
-      const mediaId = await instagram.publishContainer({
-        igUserId,
-        accessToken,
-        provider,
-        containerId,
-      });
-
-      // Resolve o app vinculado à conta para auditoria (sem bloquear em caso de falha)
-      let appId: string | null = null;
-      let appName: string | null = null;
-      try {
-        const appCreds = await getAppForAccount(item.account_id, provider);
-        if (appCreds && !appCreds.app_id.startsWith("env-")) {
-          appId = appCreds.app_id;
-          // Busca nome do app diretamente do banco
-          const { requireDb } = await import("./cf.server");
-          const appRow = await requireDb()
-            .prepare("SELECT name FROM meta_apps WHERE id = ?")
-            .bind(appId)
-            .first<{ name: string }>();
-          appName = appRow?.name ?? null;
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("ainda processando")) {
+          console.log(`[scheduler] queue=${item.id} aguardando processamento do Instagram`);
+          return { outcome: "pending" as const };
         }
-      } catch {
-        // Não bloqueia a publicação se a busca do app falhar
-      }
 
-      await db.setQueueStatus(item.id, "published", {
-        ig_container_id: containerId,
-        ig_media_id: mediaId,
-      });
-
-      if (appId) {
-        await db.setQueueAppUsed(item.id, appId).catch(() => {});
-      }
-
-      await db.recordPublication({
-        id: crypto.randomUUID(),
-        account_id: item.account_id,
-        queue_id: item.id,
-        ig_media_id: mediaId,
-        caption: item.caption,
-        media_type: item.media_type,
-        permalink: null,
-        thumb_url: item.thumb_key ? publicMediaUrl(item.thumb_key, opts.baseUrl) : null,
-        published_at: new Date().toISOString(),
-        meta_app_name: appName,
-      });
-
-      await db.updateLastPostAt(item.account_id, new Date().toISOString());
-
-      processed++;
-    } catch (err) {
-      if (isInvalidAccessTokenError(err)) {
-        await db.markAccountNeedsReconnect(item.account_id);
-        await db.setQueueStatus(item.id, "canceled", {
-          last_error: "Token OAuth inválido ou expirado. Reconecte esta conta antes de publicar.",
-        });
-        errors++;
-        continue;
-      }
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("ainda processando")) {
-        console.log(`[scheduler] queue=${item.id} aguardando processamento do Instagram`);
-        continue;
-      }
-
-      // Retry para erros transitórios (Meta `is_transient: true`).
-      // Roda em paralelo aos próximos itens — só reagenda este item, sem
-      // tocar nos demais. Backoff: 5min → 15min → 30min, máx 3 tentativas.
-      const RETRY_DELAYS_MIN = [5, 15, 30];
-      const currentRetry = item.retry_count ?? 0;
-      if (msg.startsWith("Variante MP4 falhou:") && currentRetry < RETRY_DELAYS_MIN.length) {
-        const nextRetry = currentRetry + 1;
-        const delayMs = RETRY_DELAYS_MIN[currentRetry] * 60_000;
-        const nextAt = new Date(Date.now() + delayMs).toISOString();
-        await db.scheduleRetry(item.id, {
-          scheduledAt: nextAt,
-          retryCount: nextRetry,
-          lastError: `Retry ${nextRetry}/3 em ${RETRY_DELAYS_MIN[currentRetry]}min — ${msg}`,
-        });
-        console.warn(`[scheduler] queue=${item.id} retry de variante ${nextRetry}/3 para ${nextAt}`);
-        continue;
-      }
-      if (isTransientGraphError(err) && currentRetry < RETRY_DELAYS_MIN.length) {
-        const nextRetry = currentRetry + 1;
-        // Para itens de loop, posts próximos são esperados (perCycle>1,
-        // múltiplas contas no mesmo ciclo) — não cancelar retry por isso.
-        // Para posts manuais, mantém a proteção contra duplicação.
-        if (!item.loop_id) {
-          const conflict = await db.hasNearbyAccountPost(item.account_id, item.id, 30);
-          if (conflict) {
-            errors++;
-            console.warn(`[scheduler] queue=${item.id} retry cancelado por conflito de horário`);
-            await db.setQueueStatus(item.id, "failed", {
-              last_error: `Retry cancelado — muito próximo de outro post desta conta. (erro original: ${msg})`,
-            });
-            continue;
+        // Retry para erros transitórios (Meta `is_transient: true`).
+        // Roda em paralelo aos próximos itens — só reagenda este item, sem
+        // tocar nos demais. Backoff: 5min → 15min → 30min, máx 3 tentativas.
+        const RETRY_DELAYS_MIN = [5, 15, 30];
+        const currentRetry = item.retry_count ?? 0;
+        if (msg.startsWith("Variante MP4 falhou:") && currentRetry < RETRY_DELAYS_MIN.length) {
+          const nextRetry = currentRetry + 1;
+          const delayMs = RETRY_DELAYS_MIN[currentRetry] * 60_000;
+          const nextAt = new Date(Date.now() + delayMs).toISOString();
+          await db.scheduleRetry(item.id, {
+            scheduledAt: nextAt,
+            retryCount: nextRetry,
+            lastError: `Retry ${nextRetry}/3 em ${RETRY_DELAYS_MIN[currentRetry]}min — ${msg}`,
+          });
+          console.warn(`[scheduler] queue=${item.id} retry de variante ${nextRetry}/3 para ${nextAt}`);
+          return { outcome: "retry" as const };
+        }
+        if (isTransientGraphError(err) && currentRetry < RETRY_DELAYS_MIN.length) {
+          const nextRetry = currentRetry + 1;
+          // Para itens de loop, posts próximos são esperados (perCycle>1,
+          // múltiplas contas no mesmo ciclo) — não cancelar retry por isso.
+          // Para posts manuais, mantém a proteção contra duplicação.
+          if (!item.loop_id) {
+            const conflict = await db.hasNearbyAccountPost(item.account_id, item.id, 30);
+            if (conflict) {
+              console.warn(`[scheduler] queue=${item.id} retry cancelado por conflito de horário`);
+              await db.setQueueStatus(item.id, "failed", {
+                last_error: `Retry cancelado — muito próximo de outro post desta conta. (erro original: ${msg})`,
+              });
+              return { outcome: "error" as const };
+            }
           }
+
+          const delayMs = RETRY_DELAYS_MIN[currentRetry] * 60_000;
+          const nextAt = new Date(Date.now() + delayMs).toISOString();
+          await db.scheduleRetry(item.id, {
+            scheduledAt: nextAt,
+            retryCount: nextRetry,
+            lastError: `Retry ${nextRetry}/3 em ${RETRY_DELAYS_MIN[currentRetry]}min — erro transitório: ${msg}`,
+          });
+          console.warn(`[scheduler] queue=${item.id} retry ${nextRetry}/3 agendado para ${nextAt}`);
+          return { outcome: "retry" as const };
         }
 
-        const delayMs = RETRY_DELAYS_MIN[currentRetry] * 60_000;
-        const nextAt = new Date(Date.now() + delayMs).toISOString();
-        await db.scheduleRetry(item.id, {
-          scheduledAt: nextAt,
-          retryCount: nextRetry,
-          lastError: `Retry ${nextRetry}/3 em ${RETRY_DELAYS_MIN[currentRetry]}min — erro transitório: ${msg}`,
-        });
-        console.warn(`[scheduler] queue=${item.id} retry ${nextRetry}/3 agendado para ${nextAt}`);
-        continue;
+        console.error(`[scheduler] queue=${item.id} err=${msg}`);
+        const finalError =
+          currentRetry >= RETRY_DELAYS_MIN.length
+            ? `Falha permanente após ${RETRY_DELAYS_MIN.length} tentativas: ${msg}`
+            : msg;
+        await db.setQueueStatus(item.id, "failed", { last_error: finalError });
+        return { outcome: "error" as const };
       }
+    }),
+  );
 
+  // Agrega contadores a partir dos resultados paralelos.
+  for (const r of publishResults) {
+    if (r.status === "fulfilled") {
+      if (r.value.outcome === "published") processed++;
+      else if (r.value.outcome === "error") errors++;
+    } else {
+      // Promise rejeitada inesperadamente (não deveria ocorrer — cada item
+      // tem seu próprio try/catch, mas capturamos por segurança).
       errors++;
-      console.error(`[scheduler] queue=${item.id} err=${msg}`);
-      const finalError =
-        currentRetry >= RETRY_DELAYS_MIN.length
-          ? `Falha permanente após ${RETRY_DELAYS_MIN.length} tentativas: ${msg}`
-          : msg;
-      await db.setQueueStatus(item.id, "failed", { last_error: finalError });
+      console.error("[scheduler] Promise rejeitada inesperadamente:", r.reason);
     }
   }
 
