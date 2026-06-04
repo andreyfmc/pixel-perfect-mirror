@@ -1209,7 +1209,7 @@ const rawDb = {
     const result = await requireDb()
       .prepare(`DELETE FROM loops WHERE status = 'stopped'`)
       .run();
-    return result.changes ?? 0;
+    return (result.meta?.changes as number | undefined) ?? 0;
   },
   async getLoop(id: string): Promise<LoopRow | null> {
     return (
