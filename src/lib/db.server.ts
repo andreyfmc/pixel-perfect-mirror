@@ -667,20 +667,51 @@ const rawDb = {
     //  - 'processing' COM container (aguardando FINISHED no Instagram) — máx 10 tentativas
     //  - 'processing' SEM container e parados há >2min (órfãos) — máx 5 tentativas
     // Tentativas excedidas são marcadas como failed via failStuckProcessing().
+    const nowMs = Date.parse(nowIso);
+    const orphanCutoffIso = new Date(
+      (Number.isFinite(nowMs) ? nowMs : Date.now()) - 2 * 60_000,
+    ).toISOString();
     const { results } = await requireDb()
       .prepare(
         `SELECT * FROM queue
          WHERE (status = 'scheduled' AND scheduled_at <= ?)
             OR (status = 'processing' AND ig_container_id IS NOT NULL AND attempts < 10)
             OR (status = 'processing' AND ig_container_id IS NULL
-                AND scheduled_at <= datetime(?, '-2 minutes')
+                AND scheduled_at <= ?
                 AND attempts < 5)
          ORDER BY scheduled_at ASC
          LIMIT ?`,
       )
-      .bind(nowIso, nowIso, limit)
+      .bind(nowIso, orphanCutoffIso, limit)
       .all<QueueRow>();
     return results ?? [];
+  },
+
+  /** Reabre itens que ficaram em 'processing' tempo demais. Isso cobre
+   *  containers órfãos ou travados que impediam a fila de avançar por horas. */
+  async recoverStaleProcessing(nowIso: string, maxAgeMinutes = 45): Promise<number> {
+    const nowMs = Date.parse(nowIso);
+    const cutoffIso = new Date(
+      (Number.isFinite(nowMs) ? nowMs : Date.now()) - maxAgeMinutes * 60_000,
+    ).toISOString();
+    const r = await requireDb()
+      .prepare(
+        `UPDATE queue
+         SET status = CASE WHEN retry_count >= 3 THEN 'failed' ELSE 'scheduled' END,
+             ig_container_id = NULL,
+             ig_media_id = NULL,
+             attempts = 0,
+             retry_count = retry_count + 1,
+             last_error = CASE
+               WHEN retry_count >= 3 THEN 'Processamento travado — falhou após 3 retomadas automáticas'
+               ELSE 'Retry automático — processamento travou por mais de 45min'
+             END
+         WHERE status = 'processing'
+           AND scheduled_at <= ?`,
+      )
+      .bind(cutoffIso)
+      .run();
+    return (r.meta?.changes as number | undefined) ?? 0;
   },
 
   /** Marca como failed itens 'processing' que estouraram o limite de tentativas
