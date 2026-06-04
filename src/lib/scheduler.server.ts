@@ -92,10 +92,21 @@ export async function runScheduler(
       (item.media_key.startsWith("drive:") || item.original_media_key?.startsWith("drive:")),
   );
 
-  // Processa variantes em paralelo, mas com lote pequeno: gerar MP4 é a parte
-  // mais pesada e antes estava segurando o tick inteiro por minutos.
+  // Libera todos os itens muito atrasados sem esperar reencode, e só reprocessa
+  // um lote pequeno dos itens recentes. A fila antiga deixa de ficar presa às 6h.
   if (needsVariant.length > 0) {
-    const batch = needsVariant.slice(0, 3);
+    const overdueVariantItems: typeof needsVariant = [];
+    const freshVariantItems: typeof needsVariant = [];
+    for (const item of needsVariant) {
+      const scheduledMs = new Date(item.scheduled_at).getTime();
+      const overdueMs = now.getTime() - scheduledMs;
+      if (Number.isFinite(overdueMs) && overdueMs > 30 * 60_000) {
+        overdueVariantItems.push(item);
+      } else {
+        freshVariantItems.push(item);
+      }
+    }
+    const batch = [...overdueVariantItems, ...freshVariantItems.slice(0, 3)];
     console.log(`[scheduler] gerando ${batch.length} variante(s) em paralelo`);
     await Promise.all(
       batch.map(async (item) => {
