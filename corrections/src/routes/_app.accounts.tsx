@@ -1,0 +1,1914 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { api, type AccountStatusReport, type Model } from "@/lib/api-client";
+import type { Account } from "@/lib/mock";
+import {
+  Plus,
+  MoreHorizontal,
+  ShieldCheck,
+  Loader2,
+  Instagram,
+  Facebook,
+  Trash2,
+  BadgeCheck,
+  RefreshCw,
+  Users,
+  Image as ImageIcon,
+  Clock,
+  List,
+  LayoutGrid,
+  Eye,
+  EyeOff,
+  ArrowRightLeft,
+  ArrowLeftToLine,
+  Pause,
+  History,
+  ListChecks,
+  Search,
+  X,
+  Check,
+  Power,
+  Activity,
+  RotateCcw,
+  ChevronDown,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { useOAuthPopup } from "@/hooks/use-oauth-popup";
+import { ConnectLinkButton } from "@/components/ConnectLinkButton";
+import { useHideData } from "@/hooks/use-hide-data";
+
+export const Route = createFileRoute("/_app/accounts")({
+  component: AccountsPage,
+  head: () => ({ meta: [{ title: "Contas · Insta Manager" }] }),
+});
+
+type Role = "active" | "reserve" | "discarded";
+type View = "list" | "compact";
+type SortKey = "modelo" | "followers" | "health-asc" | "recent" | "name";
+type HealthFilter = "all" | "good" | "warn" | "bad";
+
+const SORT_LABELS: Record<SortKey, string> = {
+  modelo: "Por modelo",
+  followers: "Mais seguidores",
+  "health-asc": "Menor saúde",
+  recent: "Última atividade",
+  name: "Alfabético",
+};
+
+const HEALTH_LABELS: Record<HealthFilter, string> = {
+  all: "Saúde: Todas",
+  good: "Saudáveis (≥80)",
+  warn: "Atenção (60–79)",
+  bad: "Críticas (<60)",
+};
+
+const ROLE_KEY = "accounts.roleOverrides.v1";
+const PAUSED_KEY = "accounts.pausedOverrides.v1";
+const TAB_KEY = "accounts.activeTab.v1";
+const VIEW_KEY = "accounts.view.v1";
+
+// -------------- overrides (localStorage, until backend has role column) --------------
+function loadMap(key: string): Record<string, boolean | Role> {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(localStorage.getItem(key) || "{}");
+  } catch {
+    return {};
+  }
+}
+function saveMap(key: string, m: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(key, JSON.stringify(m));
+}
+
+// -------------- helpers --------------
+function ringForHealth(score: number) {
+  if (score >= 80) return "var(--success)";
+  if (score >= 60) return "var(--warning)";
+  return "var(--danger)";
+}
+function tokenDaysLeft(expiresAt?: string | null) {
+  if (!expiresAt) return null;
+  const ms = new Date(expiresAt).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return null;
+  return Math.ceil(ms / 86_400_000);
+}
+function tokenInfo(a: { token_status?: string; token_expires_at?: string | null }) {
+  const days = tokenDaysLeft(a.token_expires_at);
+  const expired = a.token_status === "expired" || (days !== null && days <= 0);
+  const warning = !expired && days !== null && days <= 7;
+  return { days, expired, warning };
+}
+function compact(n: number) {
+  if (n >= 1000) {
+    const k = n / 1000;
+    return k.toFixed(k >= 10 ? 0 : 1).replace(".", ",") + "k";
+  }
+  return n.toLocaleString("pt-BR");
+}
+function relTime(iso: string, now: number) {
+  const diff = now - new Date(iso).getTime();
+  if (!Number.isFinite(diff)) return "—";
+  const min = Math.round(diff / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min}min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `há ${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 30) return `há ${d}d`;
+  return new Date(iso).toLocaleDateString("pt-BR");
+}
+function absDateTime(iso: string) {
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+// -------------- Health Badge --------------
+function HealthBadge({ score, size = 32 }: { score: number; size?: number }) {
+  const color = ringForHealth(score);
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className="flex shrink-0 items-center justify-center rounded-full font-bold tabular-nums"
+            style={{
+              width: size,
+              height: size,
+              background: `color-mix(in oklab, ${color} 18%, transparent)`,
+              color,
+              border: `1.5px solid ${color}`,
+              fontSize: size > 28 ? 13 : 11,
+            }}
+          >
+            {score}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs">
+          Saúde calculada com base em: taxa de engajamento, frequência de posts e idade da conta.
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+const STATUS_META: Record<
+  AccountStatusReport["status"],
+  { label: string; color: string; bg: string }
+> = {
+  healthy: { label: "Saudável", color: "var(--success)", bg: "color-mix(in oklab, var(--success) 18%, transparent)" },
+  limited: { label: "Limitada", color: "var(--warning)", bg: "color-mix(in oklab, var(--warning) 18%, transparent)" },
+  restricted: { label: "Restrita", color: "#fb923c", bg: "rgba(251,146,60,0.18)" },
+  action_blocked: { label: "Bloqueada", color: "#a855f7", bg: "rgba(168,85,247,0.18)" },
+  token_expired: { label: "Token expirado", color: "var(--danger)", bg: "color-mix(in oklab, var(--danger) 18%, transparent)" },
+  needs_reconnect: { label: "Reconectar", color: "var(--danger)", bg: "color-mix(in oklab, var(--danger) 18%, transparent)" },
+};
+
+function StatusBadge({ status }: { status: AccountStatusReport["status"] }) {
+  const m = STATUS_META[status];
+  return (
+    <span
+      className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap"
+      style={{ background: m.bg, color: m.color, border: `1px solid ${m.color}` }}
+    >
+      {m.label}
+    </span>
+  );
+}
+
+function ModelBadge({ model }: { model: Model | undefined }) {
+  if (!model) return null;
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold whitespace-nowrap"
+      style={{
+        background: `color-mix(in oklab, ${model.color} 18%, transparent)`,
+        color: model.color,
+        border: `1px solid ${model.color}`,
+      }}
+    >
+      <span className="h-1.5 w-1.5 rounded-full" style={{ background: model.color }} />
+      {model.name}
+    </span>
+  );
+}
+
+// -------------- Connect Modal --------------
+type MetaApp = {
+  id: string;
+  name: string;
+  provider: "facebook" | "instagram";
+  is_active: number;
+  account_count: number;
+  client_id_masked: string;
+};
+
+function ConnectDialog({
+  loading,
+  onConnect,
+}: {
+  loading: "instagram" | "facebook" | null;
+  onConnect: (p: "instagram" | "facebook") => void;
+}) {
+  // step: "method" → escolha Instagram/Facebook
+  //       "app"    → seletor de app (só Instagram)
+  const [step, setStep] = useState<"method" | "app">("method");
+  const [apps, setApps] = useState<MetaApp[]>([]);
+  const [loadingApps, setLoadingApps] = useState(false);
+  const [selectedAppId, setSelectedAppId] = useState<string>("auto");
+  const [connecting, setConnecting] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  function resetState() {
+    setStep("method");
+    setApps([]);
+    setSelectedAppId("auto");
+    setConnecting(false);
+  }
+
+  async function handleIgClick() {
+    setStep("app");
+    setLoadingApps(true);
+    try {
+      const res = await fetch("/api/meta-apps");
+      const list = (await res.json()) as MetaApp[];
+      setApps(list.filter((a) => a.provider === "instagram" && a.is_active === 1));
+    } catch {
+      setApps([]);
+    } finally {
+      setLoadingApps(false);
+    }
+  }
+
+  async function handleIgConnect() {
+    setConnecting(true);
+    try {
+      const body = selectedAppId !== "auto" ? { meta_app_id: selectedAppId } : {};
+      const res = await fetch("/api/auth/instagram/link", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const j = (await res.json()) as { url?: string; error?: string; message?: string };
+      if (!res.ok || !j.url) {
+        toast.error(j.message ?? j.error ?? "Falha ao iniciar OAuth");
+        setConnecting(false);
+        return;
+      }
+      // Redireciona na mesma aba (funciona em mobile e desktop)
+      window.location.href = j.url;
+    } catch (e) {
+      toast.error((e as Error).message);
+      setConnecting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) resetState(); }}>
+      <DialogTrigger asChild>
+        <button
+          className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-primary-foreground im-glow"
+          onClick={() => setOpen(true)}
+        >
+          <Plus className="h-4 w-4" /> Conectar conta
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            {step === "method" ? "Conectar conta" : "Escolher app Meta"}
+          </DialogTitle>
+          <DialogDescription>
+            {step === "method"
+              ? "Escolha o método de autenticação."
+              : "Selecione para qual app esta conta será associada."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* ── Step 1: método ── */}
+        {step === "method" && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <button
+              onClick={handleIgClick}
+              disabled={loading !== null}
+              className="im-card im-card-hover flex flex-col gap-3 p-4 text-left disabled:opacity-60"
+              style={{
+                background: "linear-gradient(135deg, rgba(225,48,108,0.18), rgba(131,58,180,0.18))",
+              }}
+            >
+              <div
+                className="flex h-12 w-12 items-center justify-center rounded-xl text-white"
+                style={{
+                  background: "linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",
+                }}
+              >
+                <Instagram className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="text-sm font-semibold">Instagram</div>
+                <div className="mt-1 text-xs text-text2">
+                  Instagram Login direto · contas Business sem Página vinculada
+                </div>
+              </div>
+            </button>
+            <button
+              onClick={() => { onConnect("facebook"); setOpen(false); }}
+              disabled={loading !== null}
+              className="im-card im-card-hover flex flex-col gap-3 p-4 text-left disabled:opacity-60"
+              style={{
+                background: "linear-gradient(135deg, rgba(24,119,242,0.18), rgba(0,82,204,0.18))",
+              }}
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#1877F2] text-white">
+                {loading === "facebook" ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <Facebook className="h-5 w-5" />
+                )}
+              </div>
+              <div>
+                <div className="text-sm font-semibold">Facebook</div>
+                <div className="mt-1 text-xs text-text2">
+                  Para contas Business com Página vinculada ao Facebook
+                </div>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* ── Step 2: seletor de app Instagram ── */}
+        {step === "app" && (
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-text2">App Meta (Instagram)</label>
+              {loadingApps ? (
+                <div className="flex items-center gap-2 text-xs text-muted2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando apps…
+                </div>
+              ) : (
+                <div className="relative">
+                  <select
+                    value={selectedAppId}
+                    onChange={(e) => setSelectedAppId(e.target.value)}
+                    className="w-full appearance-none rounded-lg border border-border bg-bg3 py-2 pl-3 pr-8 text-sm text-text focus:border-accent focus:outline-none"
+                  >
+                    <option value="auto">Automático (menor número de contas)</option>
+                    {apps.map((app) => (
+                      <option key={app.id} value={app.id}>
+                        {app.name} — {app.client_id_masked} · {app.account_count} conta{app.account_count !== 1 ? "s" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted2" />
+                </div>
+              )}
+              <p className="text-[11px] text-muted2">
+                A conta precisa ser Testadora do app enquanto estiver em modo desenvolvimento.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setStep("method")}
+                disabled={connecting}
+                className="rounded-lg border border-border bg-bg3 px-3 py-2 text-sm text-text2 hover:border-border2 disabled:opacity-50"
+              >
+                Voltar
+              </button>
+              <button
+                onClick={handleIgConnect}
+                disabled={connecting || loadingApps}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg im-grad-accent py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {connecting ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Redirecionando…</>
+                ) : (
+                  <><Instagram className="h-4 w-4" /> Conectar com Instagram</>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// -------------- main page --------------
+function AccountsPage() {
+  const qc = useQueryClient();
+  const { connect, loading } = useOAuthPopup();
+  const { data: accountsRaw = [], isLoading } = useQuery({
+    queryKey: ["accounts"],
+    queryFn: () => api.listAccounts(),
+  });
+  const { data: models = [] } = useQuery({
+    queryKey: ["models"],
+    queryFn: () => api.listModels(),
+  });
+  const [newModelName, setNewModelName] = useState("");
+  const [newModelColor, setNewModelColor] = useState("#6366f1");
+  const MODEL_COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#ef4444", "#8b5cf6", "#14b8a6"];
+
+  async function createModel() {
+    if (!newModelName.trim()) return;
+    const r = await api.createModel({ name: newModelName.trim(), color: newModelColor });
+    if (r) {
+      setNewModelName("");
+      toast.success("Modelo criada");
+      qc.invalidateQueries({ queryKey: ["models"] });
+    }
+  }
+  async function deleteModel(id: string) {
+    if (!confirm("Remover modelo? As contas vinculadas ficarão sem modelo.")) return;
+    await api.deleteModel(id);
+    toast.success("Modelo removida");
+    qc.invalidateQueries({ queryKey: ["models"] });
+    qc.invalidateQueries({ queryKey: ["accounts"] });
+  }
+  async function assignModel(accountId: string, modelId: string | null) {
+    await api.setAccountModel(accountId, modelId);
+    qc.invalidateQueries({ queryKey: ["accounts"] });
+  }
+  async function bulkAssignModel(modelId: string | null) {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    const label =
+      modelId === null
+        ? "Sem modelo"
+        : models.find((m) => m.id === modelId)?.name ?? "modelo";
+    try {
+      await Promise.all(ids.map((id) => api.setAccountModel(id, modelId)));
+      toast.success(`${ids.length} conta(s) atribuída(s) a "${label}"`);
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+    } catch {
+      toast.error("Falha ao atribuir modelo em massa");
+    }
+  }
+
+  // localStorage overrides
+  const [roleMap, setRoleMap] = useState<Record<string, Role>>({});
+  const [pausedMap, setPausedMap] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    setRoleMap(loadMap(ROLE_KEY) as Record<string, Role>);
+    setPausedMap(loadMap(PAUSED_KEY) as Record<string, boolean>);
+  }, []);
+
+  // Merge overrides into accounts
+  const accounts = useMemo(
+    () =>
+      accountsRaw.map((a) => ({
+        ...a,
+        role: (roleMap[a.id] ?? a.role ?? "active") as Role,
+        paused: pausedMap[a.id] ?? a.paused ?? false,
+      })),
+    [accountsRaw, roleMap, pausedMap],
+  );
+
+  function syncToContingency(username: string) {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("im_contingency_v1");
+      if (!raw) return;
+      const list = JSON.parse(raw) as Array<{ username: string; status: string; notes?: string }>;
+      const target = username.toLowerCase().replace(/^@/, "");
+      let changed = false;
+      const today = new Date().toLocaleDateString("pt-BR");
+      for (const item of list) {
+        if (item.username?.toLowerCase() === target && item.status !== "descartada") {
+          item.status = "descartada";
+          item.notes = `${item.notes ?? ""}\n[Auto] Conta caiu em ${today}`;
+          changed = true;
+        }
+      }
+      if (changed) {
+        localStorage.setItem("im_contingency_v1", JSON.stringify(list));
+        window.dispatchEvent(new CustomEvent("contingency:changed"));
+      }
+    } catch { /* noop */ }
+  }
+
+  function setRole(id: string, role: Role) {
+    setRoleMap((m) => {
+      const n = { ...m, [id]: role };
+      saveMap(ROLE_KEY, n);
+      return n;
+    });
+    if (role === "discarded") {
+      const acc = accountsRaw.find((a) => a.id === id);
+      if (acc?.username) syncToContingency(acc.username);
+    }
+  }
+  function togglePaused(id: string, value?: boolean) {
+    setPausedMap((m) => {
+      const next = value ?? !m[id];
+      const n = { ...m, [id]: next };
+      saveMap(PAUSED_KEY, n);
+      return n;
+    });
+  }
+
+  // UI state
+  const [tab, setTab] = useState<Role>("active");
+  const [modelFilter, setModelFilter] = useState<"all" | "none" | string>("all");
+  const [view, setView] = useState<View>("list");
+  const [hideData, setHideData] = useHideData();
+  const [sortKey, setSortKey] = useState<SortKey>("modelo");
+  const [healthFilter, setHealthFilter] = useState<HealthFilter>("all");
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmMove, setConfirmMove] = useState<string | null>(null);
+  const [refreshProgress, setRefreshProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  );
+  const [statusDialog, setStatusDialog] = useState<{
+    account: Account;
+    loading: boolean;
+    report: AccountStatusReport | null;
+    error: string | null;
+  } | null>(null);
+  const [lastRefresh, setLastRefresh] = useState<number | null>(null);
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Toast pós-callback do link OAuth (/accounts?connected=@user)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("connected");
+    if (!connected) return;
+    toast.success(`${connected} conectada com sucesso`);
+    qc.invalidateQueries({ queryKey: ["accounts"] });
+    params.delete("connected");
+    const next = window.location.pathname + (params.toString() ? `?${params}` : "");
+    window.history.replaceState({}, "", next);
+  }, [qc]);
+
+  // Restore tab/view from localStorage
+  useEffect(() => {
+    const t = localStorage.getItem(TAB_KEY);
+    if (t === "active" || t === "reserve" || t === "discarded") setTab(t);
+    const v = localStorage.getItem(VIEW_KEY);
+    if (v === "list" || v === "compact") setView(v);
+    else if (v === "grid") setView("compact");
+  }, []);
+  useEffect(() => {
+    localStorage.setItem(TAB_KEY, tab);
+  }, [tab]);
+  useEffect(() => {
+    localStorage.setItem(VIEW_KEY, view);
+  }, [view]);
+
+  // Counters by role
+  const activeCount = accounts.filter((a) => a.role === "active").length;
+  const reserveCount = accounts.filter((a) => a.role === "reserve").length;
+  const discardedCount = accounts.filter((a) => a.role === "discarded").length;
+
+  // Filtered + sorted within current tab
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let list = accounts.filter((a) => a.role === tab);
+    if (modelFilter === "none") {
+      list = list.filter((a) => !a.model_id);
+    } else if (modelFilter !== "all") {
+      list = list.filter((a) => a.model_id === modelFilter);
+    }
+    if (q) {
+      list = list.filter(
+        (a) =>
+          a.username.toLowerCase().includes(q) || a.name.toLowerCase().includes(q),
+      );
+    }
+    if (healthFilter !== "all") {
+      list = list.filter((a) => {
+        if (healthFilter === "good") return a.health_score >= 80;
+        if (healthFilter === "warn") return a.health_score >= 60 && a.health_score < 80;
+        return a.health_score < 60;
+      });
+    }
+    const arr = [...list];
+    switch (sortKey) {
+      case "modelo": {
+        // Agrupa por modelo (nome do modelo), dentro de cada grupo ordena por seguidores desc.
+        // Contas sem modelo ficam no final.
+        const modelName = (a: typeof arr[0]) => {
+          if (!a.model_id) return null;
+          return models.find((m) => m.id === a.model_id)?.name ?? null;
+        };
+        arr.sort((a, b) => {
+          const ma = modelName(a);
+          const mb = modelName(b);
+          if (ma === null && mb === null) return b.followers - a.followers;
+          if (ma === null) return 1;
+          if (mb === null) return -1;
+          const cmp = ma.localeCompare(mb, "pt-BR");
+          if (cmp !== 0) return cmp;
+          return b.followers - a.followers;
+        });
+        break;
+      }
+      case "followers":
+        arr.sort((a, b) => b.followers - a.followers);
+        break;
+      case "health-asc":
+        arr.sort((a, b) => a.health_score - b.health_score);
+        break;
+      case "recent":
+        arr.sort((a, b) => +new Date(b.last_post_at) - +new Date(a.last_post_at));
+        break;
+      case "name":
+        arr.sort((a, b) => a.username.localeCompare(b.username));
+        break;
+    }
+    return arr;
+  }, [accounts, tab, modelFilter, query, healthFilter, sortKey]);
+
+  // Reset selection when tab/filters change drastically
+  const tabRef = useRef(tab);
+  useEffect(() => {
+    if (tabRef.current !== tab) {
+      setSelected(new Set());
+      tabRef.current = tab;
+    }
+  }, [tab]);
+
+  function toggleSelect(id: string) {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+  function clearSelection() {
+    setSelected(new Set());
+  }
+
+  async function handleConnect(provider: "instagram" | "facebook") {
+    const label = provider === "instagram" ? "Instagram" : "Facebook";
+    const t = toast.loading(`Conectando ao ${label}…`);
+    const res = await connect(provider);
+    toast.dismiss(t);
+    if (res.ok) {
+      const names = (res.saved ?? []).map((u) => `@${u}`).join(", ") || "conta";
+      toast.success(`Conectado: ${names}`);
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+    } else {
+      toast.error(res.error ?? "Falha na conexão");
+    }
+  }
+
+  // Fallback redirect (mobile)
+  // Quando contas com token expirado são carregadas, marca automaticamente
+  // a conta correspondente na aba de contingência como descartada.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!accountsRaw.length) return;
+    for (const a of accountsRaw) {
+      if (a.token_status === "expired" && a.username) {
+        syncToContingency(a.username);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountsRaw]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    if (!p.has("ok")) return;
+    const ok = p.get("ok") === "true";
+    if (ok) {
+      toast.success(`Conta conectada: ${p.get("saved") ?? ""}`);
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+    } else {
+      toast.error(p.get("error") ?? "Falha na conexão");
+    }
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [qc]);
+
+  async function refreshAll(targets = accounts) {
+    if (!targets.length) return;
+    setRefreshProgress({ done: 0, total: targets.length });
+    let ok = 0;
+    const fails: string[] = [];
+    for (const a of targets) {
+      try {
+        const r = await api.validateAccount(a.id);
+        if (r?.ok) ok++;
+        else fails.push(`@${a.username}`);
+      } catch {
+        fails.push(`@${a.username}`);
+      }
+      setRefreshProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+    }
+    setRefreshProgress(null);
+    setLastRefresh(Date.now());
+    qc.invalidateQueries({ queryKey: ["accounts"] });
+    if (!fails.length) toast.success(`Atualizadas (${ok}/${targets.length})`);
+    else toast.error(`${ok}/${targets.length} ok · falhas: ${fails.join(", ")}`, { duration: 12000 });
+  }
+
+  async function validateOne(a: Account) {
+    const t = toast.loading("Validando credenciais…");
+    try {
+      const r = await api.validateAccount(a.id);
+      toast.dismiss(t);
+      if (!r) return toast.error("Falha ao validar (sem resposta)");
+      if (r.ok) {
+        toast.success(`OK · IG @${r.ig?.username ?? "?"}`);
+        qc.invalidateQueries({ queryKey: ["accounts"] });
+      } else if (r.needs_reconnect) {
+        toast.error(`@${a.username}: token expirado. Reconecte.`, { duration: 12000 });
+      } else {
+        toast.error(`Falha: ${JSON.stringify(r.error ?? "erro")}`, { duration: 12000 });
+      }
+    } catch (err) {
+      toast.dismiss(t);
+      toast.error(err instanceof Error ? err.message : "Falha");
+    }
+  }
+
+  async function openStatus(a: Account) {
+    setStatusDialog({ account: a, loading: true, report: null, error: null });
+    try {
+      const r = await api.getAccountStatus(a.id);
+      if (!r) {
+        setStatusDialog({ account: a, loading: false, report: null, error: "Sem resposta do servidor" });
+        return;
+      }
+      if (r.ok && r.report) {
+        setStatusDialog({ account: a, loading: false, report: r.report, error: null });
+        qc.invalidateQueries({ queryKey: ["accounts"] });
+      } else {
+        setStatusDialog({ account: a, loading: false, report: null, error: r.error ?? "Falha" });
+      }
+    } catch (err) {
+      setStatusDialog({
+        account: a,
+        loading: false,
+        report: null,
+        error: err instanceof Error ? err.message : "Falha",
+      });
+    }
+  }
+
+  async function removeAccount(a: Account) {
+    if (!confirm(`Remover @${a.username}? Esta ação não pode ser desfeita.`)) return;
+    const t = toast.loading("Removendo conta…");
+    try {
+      await api.deleteAccount(a.id);
+      toast.success(`@${a.username} removida`);
+      qc.invalidateQueries({ queryKey: ["accounts"] });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Falha ao remover");
+    } finally {
+      toast.dismiss(t);
+    }
+  }
+
+  // ----- Bulk actions -----
+  function bulkMoveToReserve() {
+    selected.forEach((id) => setRole(id, "reserve"));
+    toast.success(`${selected.size} contas movidas para Reservas`);
+    clearSelection();
+  }
+  function bulkActivate() {
+    selected.forEach((id) => setRole(id, "active"));
+    toast.success(`${selected.size} contas ativadas`);
+    clearSelection();
+  }
+  function bulkDiscard() {
+    selected.forEach((id) => setRole(id, "discarded"));
+    toast.success(`${selected.size} conta(s) descartada(s)`);
+    clearSelection();
+  }
+  function bulkRefresh() {
+    const targets = accounts.filter((a) => selected.has(a.id));
+    void refreshAll(targets);
+    clearSelection();
+  }
+  async function bulkDisconnect() {
+    if (!confirm(`Desconectar ${selected.size} contas?`)) return;
+    const ids = [...selected];
+    await Promise.all(ids.map((id) => api.deleteAccount(id)));
+    toast.success(`${ids.length} contas removidas`);
+    qc.invalidateQueries({ queryKey: ["accounts"] });
+    clearSelection();
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-7 md:px-10 md:py-8">
+      {/* ============ Header ============ */}
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted2">Contas</p>
+          <h1 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight">
+            Suas conexões
+          </h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {refreshProgress ? (
+            <div className="flex items-center gap-2 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-accent2" />
+              <span className="tabular-nums">
+                Atualizando {refreshProgress.done}/{refreshProgress.total}
+              </span>
+              <div className="h-1 w-24 overflow-hidden rounded bg-bg">
+                <div
+                  className="h-full bg-accent2 transition-all"
+                  style={{ width: `${(refreshProgress.done / refreshProgress.total) * 100}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => refreshAll()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 py-2 text-sm text-text2 hover:border-accent hover:text-foreground"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              {lastRefresh ? (
+                <span>
+                  Atualizar todas{" "}
+                  <span className="text-[10px] text-muted2">· há {relTime(new Date(lastRefresh).toISOString(), now).replace("há ", "")}</span>
+                </span>
+              ) : (
+                "Atualizar todas"
+              )}
+            </button>
+          )}
+          <ConnectLinkButton />
+          <ConnectDialog loading={loading} onConnect={handleConnect} />
+        </div>
+      </header>
+
+      {/* ============ Modelos ============ */}
+      <section className="mb-5 rounded-xl border border-border bg-bg2 p-3">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wider text-text2">Modelos</h2>
+          <span className="text-[11px] text-muted2">{models.length} modelo{models.length === 1 ? "" : "s"}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {models.map((m) => (
+            <div
+              key={m.id}
+              className="group inline-flex items-center gap-1.5 rounded-full border border-border2 bg-bg3 px-2 py-1 text-[11px]"
+              style={{ borderColor: `color-mix(in oklab, ${m.color} 50%, var(--border))` }}
+            >
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: m.color }} />
+              <span className="font-medium">{m.name}</span>
+              <span className="text-muted2">
+                · {accounts.filter((a) => a.model_id === m.id).length}
+              </span>
+              <button
+                onClick={() => deleteModel(m.id)}
+                className="ml-1 text-muted2 opacity-0 transition group-hover:opacity-100 hover:text-danger"
+                title="Remover modelo"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+          <div className="inline-flex items-center gap-1.5">
+            <input
+              value={newModelName}
+              onChange={(e) => setNewModelName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && createModel()}
+              placeholder="Nova modelo…"
+              className="h-7 rounded-md border border-border2 bg-bg3 px-2 text-xs outline-none focus:border-accent"
+            />
+            <div className="flex items-center gap-1">
+              {MODEL_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setNewModelColor(c)}
+                  className="h-4 w-4 rounded-full border-2 transition"
+                  style={{
+                    background: c,
+                    borderColor: newModelColor === c ? "var(--foreground)" : "transparent",
+                  }}
+                />
+              ))}
+            </div>
+            <button
+              onClick={createModel}
+              disabled={!newModelName.trim()}
+              className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[11px] font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              <Plus className="h-3 w-3" /> Criar
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ============ Tabs ============ */}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border">
+        <div className="flex">
+          {(
+            [
+              { id: "active" as Role, label: "Ativas", count: activeCount, dot: "●" },
+              { id: "reserve" as Role, label: "Reservas", count: reserveCount, dot: "◎" },
+              { id: "discarded" as Role, label: "Descartadas", count: discardedCount, dot: "✕" },
+            ]
+          ).map((t) => {
+            const active = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={[
+                  "relative -mb-px flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors",
+                  active ? "text-foreground" : "text-muted2 hover:text-text2",
+                ].join(" ")}
+              >
+                <span style={{ color: t.id === "discarded" ? "var(--danger)" : active ? "var(--accent2)" : undefined }}>{t.dot}</span>
+                {t.label}
+                <span
+                  className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums"
+                  style={{
+                    background: active
+                      ? "color-mix(in oklab, var(--accent2) 22%, transparent)"
+                      : "var(--bg3)",
+                    color: active ? "var(--accent2)" : "var(--text2)",
+                  }}
+                >
+                  {t.count}
+                </span>
+                {active && (
+                  <span
+                    className="absolute inset-x-0 -bottom-px h-0.5"
+                    style={{ background: "var(--accent2)" }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* View toggle */}
+        <div className="inline-flex rounded-lg border border-border bg-bg2 p-0.5">
+          <button
+            onClick={() => setView("list")}
+            className={[
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              view === "list" ? "bg-bg3 text-foreground" : "text-muted2 hover:text-text2",
+            ].join(" ")}
+          >
+            <List className="h-3.5 w-3.5" /> Lista
+          </button>
+          <button
+            onClick={() => setView("compact")}
+            className={[
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+              view === "compact" ? "bg-bg3 text-foreground" : "text-muted2 hover:text-text2",
+            ].join(" ")}
+          >
+            <LayoutGrid className="h-3.5 w-3.5" /> Compacto
+          </button>
+        </div>
+        <button
+          onClick={() => {
+            setHideData(!hideData);
+          }}
+          title={hideData ? "Mostrar tudo" : "Ocultar tudo"}
+          className={[
+            "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+            hideData
+              ? "border-accent2/50 bg-accent2/15 text-accent2"
+              : "border-border bg-bg2 text-text2 hover:text-foreground",
+          ].join(" ")}
+        >
+          {hideData ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+          {hideData ? "Ocultas" : "Ocultar tudo"}
+        </button>
+      </div>
+
+      {/* ============ Model filter ============ */}
+      {(models.length > 0 || accounts.some((a) => !a.model_id)) && (
+        <div className="mb-4 flex flex-wrap items-center gap-1.5">
+          {([
+            { id: "all" as const, label: "Todas", color: null, count: accounts.filter((a) => a.role === tab).length },
+            ...models.map((m) => ({
+              id: m.id,
+              label: m.name,
+              color: m.color,
+              count: accounts.filter((a) => a.role === tab && a.model_id === m.id).length,
+            })),
+            { id: "none" as const, label: "Sem modelo", color: null, count: accounts.filter((a) => a.role === tab && !a.model_id).length },
+          ]).map((f) => {
+            const active = modelFilter === f.id;
+            return (
+              <button
+                key={f.id}
+                onClick={() => setModelFilter(f.id)}
+                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
+                style={{
+                  borderColor: active
+                    ? f.color ?? "var(--accent2)"
+                    : "var(--border)",
+                  background: active
+                    ? `color-mix(in oklab, ${f.color ?? "var(--accent2)"} 18%, transparent)`
+                    : "var(--bg3)",
+                  color: active ? f.color ?? "var(--accent2)" : "var(--text2)",
+                }}
+              >
+                {f.color && (
+                  <span className="h-2 w-2 rounded-full" style={{ background: f.color }} />
+                )}
+                {f.label}
+                <span className="tabular-nums text-[10px] opacity-70">{f.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ============ Filters ============ */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <label className="relative block min-w-[220px] flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted2" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar @username ou nome..."
+            className="h-9 w-full rounded-lg border border-border bg-bg3 pl-9 pr-9 text-sm outline-none focus:border-accent"
+          />
+          {query && (
+            <button
+              onClick={() => setQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted2 hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </label>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 text-xs text-text2 hover:border-accent hover:text-foreground">
+              <ShieldCheck className="h-3.5 w-3.5" /> {HEALTH_LABELS[healthFilter]}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            {(Object.keys(HEALTH_LABELS) as HealthFilter[]).map((k) => (
+              <DropdownMenuItem key={k} onSelect={() => setHealthFilter(k)}>
+                {HEALTH_LABELS[k]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border2 bg-bg3 px-3 text-xs text-text2 hover:border-accent hover:text-foreground">
+              <ListChecks className="h-3.5 w-3.5" /> Ordenar: {SORT_LABELS[sortKey]}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+              <DropdownMenuItem key={k} onSelect={() => setSortKey(k)}>
+                {SORT_LABELS[k]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* ============ Bulk toolbar ============ */}
+      {selected.size >= 2 && (
+        <div className="sticky top-3 z-20 mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-accent/40 bg-bg3 px-3 py-2 text-sm shadow-lg">
+          <span className="font-semibold tabular-nums">{selected.size} contas selecionadas</span>
+          {tab === "active" && (
+            <button
+              onClick={bulkMoveToReserve}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
+            >
+              <ArrowRightLeft className="h-3.5 w-3.5" /> Mover para Reservas
+            </button>
+          )}
+          {tab === "reserve" && (
+            <button
+              onClick={bulkActivate}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
+            >
+              <Power className="h-3.5 w-3.5" /> Ativar
+            </button>
+          )}
+          {tab === "discarded" && (
+            <button
+              onClick={bulkActivate}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
+            >
+              <RotateCcw className="h-3.5 w-3.5" /> Restaurar para Ativas
+            </button>
+          )}
+          {tab !== "discarded" && (
+            <button
+              onClick={bulkDiscard}
+              className="inline-flex items-center gap-1.5 rounded-md border border-danger/35 bg-danger/10 px-2.5 py-1.5 text-xs text-danger hover:border-danger"
+            >
+              <Trash2 className="h-3.5 w-3.5" /> Descartar
+            </button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent">
+                <Users className="h-3.5 w-3.5" /> Atribuir a modelo
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-56">
+              <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted2">
+                Atribuir {selected.size} conta(s) a
+              </div>
+              {models.length === 0 && (
+                <div className="px-2 pb-1 text-[11px] text-muted2">
+                  Nenhuma modelo criada
+                </div>
+              )}
+              {models.map((m) => (
+                <DropdownMenuItem
+                  key={m.id}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    bulkAssignModel(m.id);
+                  }}
+                >
+                  <span
+                    className="mr-2 inline-block h-3 w-3 rounded-full"
+                    style={{ background: m.color }}
+                  />
+                  {m.name}
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  bulkAssignModel(null);
+                }}
+              >
+                <X className="mr-2 h-4 w-4" /> Remover da modelo
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button
+            onClick={bulkRefresh}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border2 bg-bg2 px-2.5 py-1.5 text-xs hover:border-accent"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Atualizar saúde
+          </button>
+          <button
+            onClick={bulkDisconnect}
+            className="inline-flex items-center gap-1.5 rounded-md border border-danger/35 bg-danger/10 px-2.5 py-1.5 text-xs text-danger hover:border-danger"
+          >
+            <Trash2 className="h-3.5 w-3.5" /> Desconectar
+          </button>
+          <button
+            onClick={clearSelection}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-text2 hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" /> Limpar
+          </button>
+        </div>
+      )}
+
+      {/* ============ Content ============ */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-20 text-text2">
+          <Loader2 className="h-5 w-5 animate-spin" />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex min-h-[240px] flex-col items-center justify-center rounded-xl border border-border bg-bg2 p-10 text-center text-sm text-text2">
+          <Users className="mb-2 h-7 w-7 text-muted2" />
+          {query || healthFilter !== "all"
+            ? "Nenhuma conta encontrada com esses filtros."
+            : tab === "active"
+              ? "Nenhuma conta ativa. Conecte ou mova de Reservas."
+              : tab === "reserve"
+                ? "Nenhuma conta em reserva."
+                : "Nenhuma conta descartada."}
+        </div>
+      ) : view === "list" ? (
+        <ListView
+          items={filtered}
+          selected={selected}
+          onToggleSelect={toggleSelect}
+          tab={tab}
+          now={now}
+          hideData={hideData}
+          confirmMove={confirmMove}
+          setConfirmMove={setConfirmMove}
+          onMove={(id, role) => {
+            setRole(id, role);
+            const label = role === "reserve" ? "Reservas" : role === "discarded" ? "Descartadas" : "Ativas";
+            toast.success(`Conta movida para ${label}`);
+          }}
+          onTogglePaused={togglePaused}
+          onValidate={validateOne}
+          onReconnect={(a) => handleConnect(a.provider ?? "facebook")}
+          onRemove={removeAccount}
+          onStatus={openStatus}
+          models={models}
+          onAssignModel={assignModel}
+        />
+      ) : (
+        <CompactView
+          items={filtered}
+          selected={selected}
+          onToggleSelect={toggleSelect}
+          tab={tab}
+          hideData={hideData}
+          confirmMove={confirmMove}
+          setConfirmMove={setConfirmMove}
+          onMove={(id, role) => {
+            setRole(id, role);
+            const label = role === "reserve" ? "Reservas" : role === "discarded" ? "Descartadas" : "Ativas";
+            toast.success(`Conta movida para ${label}`);
+          }}
+          onValidate={validateOne}
+          onReconnect={(a) => handleConnect(a.provider ?? "facebook")}
+          onRemove={removeAccount}
+          onTogglePaused={togglePaused}
+          onStatus={openStatus}
+          models={models}
+          onAssignModel={assignModel}
+        />
+      )}
+
+      <style>{`
+        @keyframes accFadeIn {
+          from { opacity: 0; transform: translateY(4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .acc-row, .acc-card { animation: accFadeIn 250ms ease both; }
+      `}</style>
+
+      <Dialog open={!!statusDialog} onOpenChange={(o) => !o && setStatusDialog(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Status · @{statusDialog?.account.username}
+            </DialogTitle>
+            <DialogDescription>
+              Verificação de saúde da conta Instagram (token, permissões e cota).
+            </DialogDescription>
+          </DialogHeader>
+          {statusDialog?.loading && (
+            <div className="flex items-center gap-2 py-6 text-sm text-text2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Verificando conta…
+            </div>
+          )}
+          {statusDialog?.error && (
+            <div className="rounded-md border border-danger/40 bg-danger/10 p-3 text-sm text-danger">
+              {statusDialog.error}
+            </div>
+          )}
+          {statusDialog?.report && (
+            <div className="space-y-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={statusDialog.report.status} />
+                <span className="text-xs text-text2">
+                  Saúde: <span className="tabular-nums font-semibold text-foreground">{statusDialog.report.health_score}</span>
+                </span>
+                <span className="text-xs text-text2">
+                  {statusDialog.report.can_publish ? "Pode publicar ✓" : "Publicação bloqueada ✗"}
+                </span>
+              </div>
+
+              {statusDialog.report.quota && (
+                <div className="rounded-lg border border-border bg-bg3 p-3">
+                  <div className="mb-1 flex items-center justify-between text-xs text-text2">
+                    <span>Cota de publicação (janela 24h)</span>
+                    <span className="tabular-nums">
+                      {statusDialog.report.quota.used}/{statusDialog.report.quota.total}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded bg-bg">
+                    <div
+                      className="h-full bg-accent2"
+                      style={{
+                        width: `${Math.min(100, (statusDialog.report.quota.used / Math.max(1, statusDialog.report.quota.total)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {statusDialog.report.restrictions.length > 0 && (
+                <div>
+                  <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted2">
+                    Restrições
+                  </div>
+                  <ul className="list-disc space-y-1 pl-5 text-xs text-text2">
+                    {statusDialog.report.restrictions.map((r, i) => (
+                      <li key={i}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {statusDialog.report.suggestions.length > 0 && (
+                <div>
+                  <div className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted2">
+                    Sugestões
+                  </div>
+                  <ul className="list-disc space-y-1 pl-5 text-xs text-text2">
+                    {statusDialog.report.suggestions.map((s, i) => (
+                      <li key={i}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-text2">
+                <div className="rounded border border-border bg-bg3 p-2">
+                  <div className="font-semibold text-foreground">/media</div>
+                  <div>{statusDialog.report.checks.media.ok ? "OK" : statusDialog.report.checks.media.error ?? "Falhou"}</div>
+                </div>
+                <div className="rounded border border-border bg-bg3 p-2">
+                  <div className="font-semibold text-foreground">/content_publishing_limit</div>
+                  <div>{statusDialog.report.checks.publishing_limit.ok ? "OK" : statusDialog.report.checks.publishing_limit.error ?? "Falhou"}</div>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// -------------- List view --------------
+type RowHandlers = {
+  items: Account[];
+  selected: Set<string>;
+  onToggleSelect: (id: string) => void;
+  tab: Role;
+  now: number;
+  hideData: boolean;
+  confirmMove: string | null;
+  setConfirmMove: (id: string | null) => void;
+  onMove: (id: string, role: Role) => void;
+  onTogglePaused: (id: string, value?: boolean) => void;
+  onValidate: (a: Account) => void;
+  onReconnect: (a: Account) => void;
+  onRemove: (a: Account) => void;
+  onStatus: (a: Account) => void;
+  models: Model[];
+  onAssignModel: (accountId: string, modelId: string | null) => void;
+};
+
+function ListView({
+  items,
+  selected,
+  onToggleSelect,
+  tab,
+  now,
+  hideData,
+  confirmMove,
+  setConfirmMove,
+  onMove,
+  onTogglePaused,
+  onValidate,
+  onReconnect,
+  onRemove,
+  onStatus,
+  models,
+  onAssignModel,
+}: RowHandlers) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-bg2">
+      {items.map((a, i) => {
+        const token = tokenInfo(a);
+        const posts = a.posts ?? 0;
+        const isSelected = selected.has(a.id);
+        const isConfirming = confirmMove === a.id;
+        return (
+          <div
+            key={a.id}
+            className={`acc-row group relative flex h-14 items-center gap-3 border-b border-border px-3 transition-colors last:border-b-0 hover:bg-bg3${tab === "discarded" ? " opacity-60" : ""}`}
+            style={{
+              animationDelay: `${Math.min(i, 20) * 30}ms`,
+              background: i % 2 === 1 ? "rgba(255,255,255,0.04)" : undefined,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => onToggleSelect(a.id)}
+              className="shrink-0 accent-accent"
+            />
+            <AccountAvatar account={a} size={36} hideData={hideData} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-sm font-semibold">
+                  {hideData ? "••••••••" : `@${a.username}`}
+                </span>
+                {!hideData && a.paused && (
+                  <span className="rounded-full border border-muted/40 bg-muted/10 px-1.5 py-0.5 text-[10px] font-semibold text-text2">
+                    Pausada
+                  </span>
+                )}
+                {!hideData && token.expired && (
+                  <span className="rounded-full border border-danger/40 bg-danger/10 px-1.5 py-0.5 text-[10px] font-semibold text-danger">
+                    Token expirado
+                  </span>
+                )}
+                {!hideData && (
+                  <ModelBadge model={models.find((m) => m.id === a.model_id)} />
+                )}
+              </div>
+              <p className="truncate text-[11px] text-muted2">
+                {hideData ? "••••••" : a.name}
+              </p>
+            </div>
+
+            {!hideData && <HealthBadge score={a.health_score} size={28} />}
+            {!hideData && (
+              <StatusBadge status={token.expired ? "token_expired" : a.health_score < 40 ? "restricted" : a.health_score < 70 ? "limited" : "healthy"} />
+            )}
+
+            {!hideData && (
+            <div className="hidden w-20 shrink-0 items-center gap-1 text-xs text-text2 md:flex">
+              <Users className="h-3.5 w-3.5" />
+              <span className="tabular-nums">{compact(a.followers)}</span>
+            </div>
+            )}
+
+            {!hideData && (
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="hidden w-16 shrink-0 items-center gap-1 text-xs text-text2 md:flex">
+                    <ImageIcon className="h-3.5 w-3.5" />
+                    <span className="tabular-nums">{posts}</span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="text-xs">{posts} posts</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            )}
+
+            {!hideData && (
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="hidden w-20 shrink-0 items-center gap-1 text-xs text-text2 lg:flex">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span className="tabular-nums">
+                      {a.last_post_at ? relTime(a.last_post_at, now) : "—"}
+                    </span>
+                  </div>
+                </TooltipTrigger>
+                {a.last_post_at && (
+                  <TooltipContent className="text-xs">
+                    {absDateTime(a.last_post_at)}
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+            )}
+
+            <Link
+              to="/queue"
+              className="hidden shrink-0 rounded-md border border-border2 bg-bg2 px-2 py-1 text-[11px] font-medium text-text2 opacity-0 hover:border-accent hover:text-foreground group-hover:opacity-100 sm:inline-flex"
+            >
+              Ver fila
+            </Link>
+
+            {isConfirming ? (
+              <div className="flex items-center gap-1">
+                <span className="hidden text-[11px] text-text2 sm:inline">
+                  Mover @{a.username} para {tab === "active" ? "Reservas" : "Ativas"}?
+                </span>
+                <button
+                  onClick={() => {
+                    onMove(a.id, tab === "active" ? "reserve" : "active");
+                    setConfirmMove(null);
+                  }}
+                  className="inline-flex items-center gap-1 rounded-md bg-accent px-2 py-1 text-[11px] font-semibold text-primary-foreground"
+                >
+                  <Check className="h-3 w-3" /> Confirmar
+                </button>
+                <button
+                  onClick={() => setConfirmMove(null)}
+                  className="inline-flex items-center gap-1 rounded-md border border-border2 bg-bg2 px-2 py-1 text-[11px] text-text2"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ) : (
+              <AccountMenu
+                a={a}
+                tab={tab}
+                onAskMove={() => setConfirmMove(a.id)}
+                onDirectMove={(role) => onMove(a.id, role)}
+                onValidate={() => onValidate(a)}
+                onReconnect={() => onReconnect(a)}
+                onTogglePaused={() => onTogglePaused(a.id)}
+                onRemove={() => onRemove(a)}
+                onStatus={() => onStatus(a)}
+                models={models}
+                onAssignModel={onAssignModel}
+              />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// -------------- Avatar with fallback --------------
+function AccountAvatar({
+  account,
+  size,
+  hideData,
+}: {
+  account: Account;
+  size: number;
+  hideData: boolean;
+}) {
+  const [errored, setErrored] = useState(false);
+  const showFallback = hideData || errored || !account.profile_picture;
+  if (showFallback) {
+    return (
+      <div
+        className="flex shrink-0 items-center justify-center rounded-full text-white"
+        style={{
+          width: size,
+          height: size,
+          background: "linear-gradient(135deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)",
+        }}
+      >
+        <Instagram style={{ width: size * 0.55, height: size * 0.55 }} />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={account.profile_picture}
+      alt=""
+      onError={() => setErrored(true)}
+      className="shrink-0 rounded-full bg-bg3"
+      style={{ width: size, height: size }}
+    />
+  );
+}
+
+// -------------- Compact view --------------
+function CompactView({
+  items,
+  selected,
+  onToggleSelect,
+  tab,
+  hideData,
+  confirmMove,
+  setConfirmMove,
+  onMove,
+  onValidate,
+  onReconnect,
+  onRemove,
+  onTogglePaused,
+  onStatus,
+  models,
+  onAssignModel,
+}: Omit<RowHandlers, "now">) {
+  const tabLabel = tab === "active" ? "ATIVA" : tab === "reserve" ? "RESERVA" : "DESCARTADA";
+  const tabColor =
+    tab === "active"
+      ? "var(--success)"
+      : tab === "reserve"
+        ? "var(--info)"
+        : "var(--danger)";
+  return (
+    <div
+      className="grid gap-3"
+      style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}
+    >
+      {items.map((a, i) => {
+        const color = ringForHealth(a.health_score);
+        const isSelected = selected.has(a.id);
+        const isConfirming = confirmMove === a.id;
+        const model = models.find((m) => m.id === a.model_id);
+        return (
+          <div
+            key={a.id}
+            className={`acc-card group relative flex items-center gap-3 rounded-xl border bg-bg2 px-3 py-2.5 transition-all hover:-translate-y-0.5${tab === "discarded" ? " opacity-60" : ""}`}
+            style={{
+              borderColor: hideData ? "var(--border)" : color,
+              animationDelay: `${Math.min(i, 20) * 30}ms`,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={() => onToggleSelect(a.id)}
+              className="shrink-0 accent-accent"
+            />
+            <AccountAvatar account={a} size={40} hideData={hideData} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-[13px] font-medium text-foreground">
+                  {hideData ? "••••••••" : `@${a.username}`}
+                </span>
+                <span className="hidden text-[11px] text-muted2 sm:inline">·</span>
+                <span className="hidden text-[11px] text-muted2 sm:inline">Instagram</span>
+                <span
+                  className="rounded px-1.5 py-[1px] text-[9px] font-bold leading-none tracking-wider"
+                  style={{
+                    color: tabColor,
+                    background: `color-mix(in oklab, ${tabColor} 18%, transparent)`,
+                  }}
+                >
+                  {tabLabel}
+                </span>
+              </div>
+              {!hideData ? (
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted2">
+                  <span className="inline-flex items-center gap-1 tabular-nums">
+                    <Users className="h-3 w-3" /> {compact(a.followers)} seguidores
+                  </span>
+                  <span className="inline-flex items-center gap-1 tabular-nums">
+                    <ImageIcon className="h-3 w-3" /> {a.posts ?? 0} posts
+                  </span>
+                  {a.last_post_at && (
+                    <span className="inline-flex items-center gap-1 tabular-nums">
+                      <Clock className="h-3 w-3" />
+                      {new Date(a.last_post_at).toLocaleTimeString("pt-BR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}{" "}
+                      <span className="text-muted2/70">último post</span>
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-1 flex items-center gap-2">
+                  {model && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-muted2">
+                      <span
+                        className="h-1.5 w-1.5 rounded-full"
+                        style={{ background: model.color }}
+                      />
+                      {model.name}
+                    </span>
+                  )}
+                </div>
+              )}
+              {!hideData && (model || a.paused) && (
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  {a.paused && (
+                    <span className="rounded-full border border-muted/40 bg-muted/10 px-1.5 py-0.5 text-[10px] font-semibold text-text2">
+                      Pausada
+                    </span>
+                  )}
+                  <ModelBadge model={model} />
+                </div>
+              )}
+            </div>
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              {!hideData && <HealthBadge score={a.health_score} size={26} />}
+              {!isConfirming && (
+                <AccountMenu
+                  a={a}
+                  tab={tab}
+                  compact
+                  onAskMove={() => setConfirmMove(a.id)}
+                  onDirectMove={(role) => onMove(a.id, role)}
+                  onValidate={() => onValidate(a)}
+                  onReconnect={() => onReconnect(a)}
+                  onTogglePaused={() => onTogglePaused(a.id)}
+                  onRemove={() => onRemove(a)}
+                  onStatus={() => onStatus(a)}
+                  models={models}
+                  onAssignModel={onAssignModel}
+                />
+              )}
+            </div>
+
+            {isConfirming && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-bg2/95 p-3 text-center backdrop-blur">
+                <p className="text-xs">
+                  Mover <span className="font-semibold">@{a.username}</span> para{" "}
+                  {tab === "active" ? "Reservas" : "Ativas"}?
+                </p>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => {
+                      onMove(a.id, tab === "active" ? "reserve" : "active");
+                      setConfirmMove(null);
+                    }}
+                    className="inline-flex items-center gap-1 rounded-md bg-accent px-2.5 py-1 text-[11px] font-semibold text-primary-foreground"
+                  >
+                    <Check className="h-3 w-3" /> Confirmar
+                  </button>
+                  <button
+                    onClick={() => setConfirmMove(null)}
+                    className="inline-flex items-center gap-1 rounded-md border border-border2 bg-bg2 px-2.5 py-1 text-[11px] text-text2"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// -------------- Account menu (shared) --------------
+function AccountMenu({
+  a,
+  tab,
+  compact = false,
+  onAskMove,
+  onDirectMove,
+  onValidate,
+  onReconnect,
+  onTogglePaused,
+  onRemove,
+  onStatus,
+  models,
+  onAssignModel,
+}: {
+  a: Account;
+  tab: Role;
+  compact?: boolean;
+  onAskMove: () => void;
+  onDirectMove: (role: Role) => void;
+  onValidate: () => void;
+  onReconnect: () => void;
+  onTogglePaused: () => void;
+  onRemove: () => void;
+  onStatus: () => void;
+  models: Model[];
+  onAssignModel: (accountId: string, modelId: string | null) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className={`shrink-0 rounded-md ${compact ? "p-1" : "p-1.5"} text-text2 hover:bg-bg3 hover:text-foreground`}
+          aria-label="Menu"
+        >
+          <MoreHorizontal className={compact ? "h-3.5 w-3.5" : "h-4 w-4"} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-60">
+        {tab === "active" && (
+          <DropdownMenuItem onSelect={onAskMove}>
+            <ArrowRightLeft className="mr-2 h-4 w-4" /> Mover para Reservas
+          </DropdownMenuItem>
+        )}
+        {tab === "reserve" && (
+          <DropdownMenuItem onSelect={onAskMove}>
+            <ArrowLeftToLine className="mr-2 h-4 w-4" /> Ativar conta
+          </DropdownMenuItem>
+        )}
+        {tab === "discarded" && (
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              onDirectMove("active");
+            }}
+          >
+            <RotateCcw className="mr-2 h-4 w-4" /> Restaurar para Ativas
+          </DropdownMenuItem>
+        )}
+        {tab !== "discarded" && (
+          <DropdownMenuItem
+            className="text-danger focus:text-danger"
+            onSelect={(e) => {
+              e.preventDefault();
+              onDirectMove("discarded");
+            }}
+          >
+            <Trash2 className="mr-2 h-4 w-4" /> Mover para Descartadas
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault();
+            onTogglePaused();
+          }}
+        >
+          <Pause className="mr-2 h-4 w-4" /> {a.paused ? "Retomar conta" : "Pausar conta"}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/history" className="cursor-pointer">
+            <History className="mr-2 h-4 w-4" /> Ver histórico
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/queue" className="cursor-pointer">
+            <ListChecks className="mr-2 h-4 w-4" /> Ver fila
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault();
+            onStatus();
+          }}
+        >
+          <Activity className="mr-2 h-4 w-4" /> Ver Status
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault();
+            onValidate();
+          }}
+        >
+          <BadgeCheck className="mr-2 h-4 w-4" /> Forçar atualização de métricas
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={(e) => {
+            e.preventDefault();
+            onReconnect();
+          }}
+        >
+          <RefreshCw className="mr-2 h-4 w-4" /> Reconectar via{" "}
+          {(a.provider ?? "facebook") === "facebook" ? "Facebook" : "Instagram"}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted2">
+          Atribuir a modelo
+        </div>
+        {models.length === 0 && (
+          <div className="px-2 pb-1 text-[11px] text-muted2">Nenhuma modelo criada</div>
+        )}
+        {models.map((m) => {
+          const selectedModel = a.model_id === m.id;
+          return (
+            <DropdownMenuItem
+              key={m.id}
+              onSelect={(e) => {
+                e.preventDefault();
+                onAssignModel(a.id, selectedModel ? null : m.id);
+              }}
+            >
+              <span
+                className="mr-2 inline-block h-3 w-3 rounded-full"
+                style={{ background: m.color }}
+              />
+              {m.name}
+              {selectedModel && <Check className="ml-auto h-3.5 w-3.5" />}
+            </DropdownMenuItem>
+          );
+        })}
+        {a.model_id && (
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              onAssignModel(a.id, null);
+            }}
+          >
+            <X className="mr-2 h-4 w-4" /> Remover da modelo
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-danger focus:text-danger"
+          onSelect={(e) => {
+            e.preventDefault();
+            onRemove();
+          }}
+        >
+          <Trash2 className="mr-2 h-4 w-4" /> Remover conta
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
