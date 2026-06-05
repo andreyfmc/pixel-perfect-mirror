@@ -8,6 +8,7 @@ import { loadContingency } from "@/lib/contingency-store";
 const items = [
   { to: "/", label: "Dashboard", Icon: LayoutDashboard },
   { to: "/warmup", label: "Postagem", Icon: Flame },
+  { to: "/warmup-heat", label: "Aquec.", Icon: Flame },
   { to: "/queue", label: "Fila", Icon: CalendarClock },
   { to: "/ranking", label: "Ranking", Icon: Trophy },
   { to: "/accounts", label: "Contas", Icon: Users },
@@ -63,7 +64,7 @@ export function MobileBottomNav() {
       className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-border bg-bg2/95 backdrop-blur"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <ul className="grid grid-cols-7" style={{ height: 60 }}>
+      <ul className="grid grid-cols-8" style={{ height: 60 }}>
         {items.map(({ to, label, Icon }) => {
           const active = to === "/" ? pathname === "/" : pathname.startsWith(to);
           const badge = badgeFor(to);

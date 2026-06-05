@@ -31,7 +31,8 @@ const nav = [
   { to: "/queue", label: "Fila", icon: CalendarClock, emoji: "🗓️" },
   { to: "/ranking", label: "Ranking", icon: Trophy, emoji: "🏆" },
   { to: "/history", label: "Histórico", icon: History, emoji: "📚" },
-  { to: "/warmup", label: "Warmup", icon: Flame, emoji: "🔥" },
+  { to: "/warmup", label: "Postagem", icon: Flame, emoji: "🔥" },
+  { to: "/warmup-heat", label: "Aquecimento", icon: Flame, emoji: "🌡️" },
   { to: "/contingency", label: "Contingência", icon: ShieldAlert, emoji: "🛡️" },
   { to: "/settings", label: "Configurações", icon: Settings, emoji: "⚙️" },
 ] as const;

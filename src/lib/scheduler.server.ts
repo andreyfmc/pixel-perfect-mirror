@@ -15,6 +15,7 @@ import {
 import { hasDb, env } from "./cf.server";
 import { buildVariantFor } from "./variant-builder.server";
 import { runLoopMaterializer } from "./loops.server";
+import { runWarmupProcessor } from "./warmup.server";
 import { getAppForAccount } from "./meta-apps.server";
 
 
@@ -69,6 +70,15 @@ export async function runScheduler(
     }
   } catch (err) {
     console.warn("[scheduler] runLoopMaterializer falhou:", err);
+  }
+
+  try {
+    const wp = await runWarmupProcessor(now);
+    if (wp.plans > 0) {
+      console.log(`[scheduler] warmup plans=${wp.plans} enqueued=${wp.enqueued}`);
+    }
+  } catch (err) {
+    console.warn("[scheduler] runWarmupProcessor falhou:", err);
   }
 
   try {
